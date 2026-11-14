@@ -323,9 +323,14 @@ describe('mood layers', () => {
   });
 
   it('never pops: the difference to the no-mood cat changes only a little per frame, in and out', () => {
+    // Radians and unit-range keys, and keys in pixels (headY, bodyY): a pixel key legitimately moves by a
+    // fraction of its full bias per frame (the scared head-drop is 3 px, its first 60 Hz frame is 6.4 % of that,
+    // 0.19 px), so the two kinds have separate limits; a real pop would be the whole 1.5-3 px step.
+    const KEYS = ['earBR', 'earFR', 'earBF', 'earFF', 'pupilSize', 'tailBase', 'tailCurl', 'headY', 'headRot', 'bodyY'];
+    const LIMIT = KEYS.map((k) => (k === 'headY' || k === 'bodyY' ? 0.3 : 0.16));
     const series = (mood: (t: number) => Mood | undefined): number[][] => {
       const out: number[][] = [];
-      runAnimator(CLIP, 9, (t) => ({ mood: mood(t) }), (p) => out.push(['earBR', 'earFR', 'earBF', 'earFF', 'pupilSize', 'tailBase', 'tailCurl', 'headY', 'headRot', 'bodyY'].map((k) => p[k as PoseKey])));
+      runAnimator(CLIP, 9, (t) => ({ mood: mood(t) }), (p) => out.push(KEYS.map((k) => p[k as PoseKey])));
       return out;
     };
     const ref = series(() => undefined);
@@ -337,11 +342,12 @@ describe('mood layers', () => {
         for (let k = 0; k < got[i]!.length; k++) {
           const d = got[i]![k]! - ref[i]![k]!;
           const dPrev = got[i - 1]![k]! - ref[i - 1]![k]!;
-          worst = Math.max(worst, Math.abs(d - dPrev));
+          worst = Math.max(worst, Math.abs(d - dPrev) / LIMIT[k]!);
         }
       }
       // (The excited tail's own 3.4 Hz sway moves ~0.13 rad per frame by design; a pop would be a whole step.)
-      expect(worst, mood).toBeLessThan(0.16);
+      // worst is the largest per-frame change as a share of its key's limit: under 1 means no pop.
+      expect(worst, mood).toBeLessThan(1);
       // Gone again by the end (the weights fall away, nothing lingers).
       const last = got.length - 1;
       for (let k = 0; k < got[last]!.length; k++) expect(Math.abs(got[last]![k]! - ref[last]![k]!), `${mood} key ${k}`).toBeLessThan(0.02);

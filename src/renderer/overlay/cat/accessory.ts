@@ -162,8 +162,19 @@ export function computeNecklace(rig: Rig, p: Pose, out: NecklaceGeom): void {
           minDot = lerp(MIN_BELLY_DOT, -1, r);
         }
         if (w > 0) {
-          hx = bx * (1 - w) + gx * w;
-          hy = by * (1 - w) + gy * w;
+          // Blend in WORLD terms: weight each unit local direction by the inverse of the length its
+          // image has under the pose matrix. A turn that nearly collapses the cat's x axis makes the
+          // unit gravity direction project to a tiny world vector, so a plain local blend would let
+          // the small belly share dominate what is actually drawn.
+          const kb = (1 - w) / Math.max(1e-3, Math.hypot(a * bx + c * by, b * bx + d * by));
+          const kg = w / Math.max(1e-3, Math.hypot(a * gx + c * gy, b * gx + d * gy));
+          hx = bx * kb + gx * kg;
+          hy = by * kb + gy * kg;
+          const bl = Math.hypot(hx, hy);
+          if (bl > 1e-9) {
+            hx /= bl;
+            hy /= bl;
+          }
         }
       }
     }
@@ -232,16 +243,29 @@ export function computeNecklace(rig: Rig, p: Pose, out: NecklaceGeom): void {
   const ey = HEAD_RY + hw * 0.9 + 0.6;
   let hcx = sx + hx * hw * 0.7;
   let hcy = sy + hy * hw * 0.7;
-  for (let i = 0; i < PUSH_STEPS; i++) {
-    const ddx = hcx - headX;
-    const ddy = hcy - headY;
-    const lx = ddx * hcos - ddy * hsin;
-    const ly = ddx * hsin + ddy * hcos;
-    if ((lx / ex) ** 2 + (ly / ey) ** 2 >= 1) break;
-    sx += hx * PUSH_STEP;
-    sy += hy * PUSH_STEP;
-    hcx += hx * PUSH_STEP;
-    hcy += hy * PUSH_STEP;
+  // The push moves along the hang direction, which can point back towards the collar when the chest
+  // anchor (tuck) lies on the other side of it, so the chain could end shorter than DROP_MIN. The
+  // second pass restarts from the minimum drop straight along the hang direction, where pushing only
+  // lengthens the chain.
+  for (let pass = 0; pass < 2; pass++) {
+    if (pass === 1) {
+      if (Math.hypot(sx - cx, sy - cy) >= DROP_MIN - 1e-6) break;
+      sx = cx + hx * DROP_MIN;
+      sy = cy + hy * DROP_MIN;
+      hcx = sx + hx * hw * 0.7;
+      hcy = sy + hy * hw * 0.7;
+    }
+    for (let i = 0; i < PUSH_STEPS; i++) {
+      const ddx = hcx - headX;
+      const ddy = hcy - headY;
+      const lx = ddx * hcos - ddy * hsin;
+      const ly = ddx * hsin + ddy * hcos;
+      if ((lx / ex) ** 2 + (ly / ey) ** 2 >= 1) break;
+      sx += hx * PUSH_STEP;
+      sy += hy * PUSH_STEP;
+      hcx += hx * PUSH_STEP;
+      hcy += hy * PUSH_STEP;
+    }
   }
   out.sx = sx;
   out.sy = sy;

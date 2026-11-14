@@ -48,7 +48,9 @@ describe('web settings patches', () => {
     const refused = [
       { appearance: { hideFromScreenCapture: true } },
       { general: { startupState: 'hidden' } },
-      { behavior: { autonomy: 0.9 } },
+      // autonomy itself is a panel tuning leaf (WEB_TUNING, 1.4.2); mischief is not offered on the web.
+      { behavior: { mischief: 0.9 } },
+      { behavior: { autonomy: 0.9, mischief: 0.9 } },
       { behavior: { ...presetPatch('calm').behavior, autonomy: 0.9 }, interaction: presetPatch('calm').interaction },
       { behavior: presetPatch('calm').behavior },
       { interaction: { enabled: false } },
@@ -64,6 +66,13 @@ describe('web settings patches', () => {
       expect(rejectNonWebPatch(patch), JSON.stringify(patch)).not.toBeNull();
       expect(applyWebPatch(s, patch).ok, JSON.stringify(patch)).toBe(false);
     }
+  });
+
+  it('accepts the Android panel tuning leaves one by one', () => {
+    const s = webSettings(null);
+    expect(rejectNonWebPatch({ behavior: { autonomy: 0.9 } })).toBeNull();
+    const r = applyWebPatch(s, { behavior: { autonomy: 0.9 } });
+    expect(r.ok && r.settings.behavior.autonomy).toBe(0.9);
   });
 
   it("refuses values the desktop's validation refuses (every patched leaf must survive unchanged)", () => {

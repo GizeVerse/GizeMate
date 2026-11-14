@@ -51,7 +51,9 @@ describe('screen metrics', () => {
 describe('native -> overlay page', () => {
   it('parses metrics, pointers and commands', () => {
     expect(parseOverlayInbound(JSON.stringify({ t: 'metrics', metrics: METRICS }))).toEqual({ t: 'metrics', metrics: METRICS });
-    expect(parseOverlayInbound('{"t":"ptr","k":"down","id":0,"x":12.5,"y":-3}')).toEqual({ t: 'ptr', k: 'down', id: 0, x: 12.5, y: -3 });
+    expect(parseOverlayInbound('{"t":"ptr","k":"down","id":0,"x":12.5,"y":-3,"ms":123456}')).toEqual({ t: 'ptr', k: 'down', id: 0, x: 12.5, y: -3, ms: 123456 });
+    // Native stamps every pointer event with its time (OverlayWindow.kt); a stamp-less one is not a message it sends.
+    expect(parseOverlayInbound('{"t":"ptr","k":"down","id":0,"x":12.5,"y":-3}')).toBeNull();
     for (const c of ['pause', 'resume', 'hide', 'show', 'suspend', 'wake', 'save', 'reloadSettings']) {
       expect(parseOverlayInbound(`{"t":"cmd","c":"${c}"}`)).toEqual({ t: 'cmd', c });
     }

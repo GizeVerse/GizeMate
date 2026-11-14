@@ -84,7 +84,10 @@ describe('.github/workflows/macos-packages.yml (D12)', () => {
     expect(wf).toMatch(/^ {4}environment: macos-signing$/m);
     expect(wf).not.toMatch(/--publish (always|onTag|onTagOrDraft)/);
     expect((wf.match(/--publish never/g) ?? []).length).toBeGreaterThanOrEqual(2);
-    expect(wf).toMatch(/if: always\(\)\n\s+run: rm -f "\$RUNNER_TEMP\/AuthKey\.p8"/);
+    // The cleanup step runs on every outcome (always()) and its script removes the API key first;
+    // it also removes the DMG-signing certificate copy and the throwaway keychain.
+    expect(wf).toMatch(/if: always\(\)\n\s+run: \|\n\s+rm -f "\$RUNNER_TEMP\/AuthKey\.p8"/);
+    expect(wf).toMatch(/if: always\(\)\n\s+run: \|\n\s+rm -f [^\n]*dmg-signing\.p12"\n\s+if \[ -n "\$\{DMG_KEYCHAIN:-\}" \][^\n]*security delete-keychain/);
     // The only release access: an optional job that uploads to an existing DRAFT (checked first),
     // never creating, editing, deleting or replacing anything.
     expect(wf).not.toMatch(/softprops\/action-gh-release|gh release (create|edit|delete)|--clobber/);

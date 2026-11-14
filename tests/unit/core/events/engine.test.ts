@@ -376,7 +376,11 @@ describe('the mouse is never caught', () => {
   it('is missed (outcome unnoticed) by a very drowsy cat that faces away', () => {
     let missed = 0;
     for (let seed = 1; seed <= 20; seed++) {
-      const { outs } = playEvent('mouseEncounter', seed, { cat: { facing: -1 }, temperament: { alertness: 0.05, interest: 0 } });
+      // The cat stands at the right-hand end of the stage looking right (off the stage): there is no room on that
+      // side, so the mouse can only arrive behind it. (A facing alone does not make the mouse come from behind:
+      // the arrival side is a free choice whenever both sides have room, and the cat in the middle of the stage
+      // saw it from the front about half the time.)
+      const { outs } = playEvent('mouseEncounter', seed, { cat: { x: 1500, facing: 1 }, temperament: { alertness: 0.05, interest: 0 } });
       if (outs[outs.length - 1]!.finished!.history.outcome === 'unnoticed') missed++;
     }
     expect(missed).toBeGreaterThan(0);

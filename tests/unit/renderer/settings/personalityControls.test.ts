@@ -23,7 +23,11 @@ function v3OnlyLeaves(): string[] {
     if (values === null || typeof values !== 'object') continue;
     // The Living Companion leaves (the companion section, sound.cat, sound.world) are not schema v3 additions: they have their own controls.
     if (section === 'companion') continue;
-    for (const key of Object.keys(values)) if (!v2.has(`${section}.${key}`) && !(section === 'sound' && (key === 'cat' || key === 'world'))) out.push(`${section}.${key}`);
+    for (const key of Object.keys(values)) {
+      // general.showDockIcon is a 1.4.0 (macOS) addition with its own General-page row, not a schema v3 field.
+      if (section === 'general' && key === 'showDockIcon') continue;
+      if (!v2.has(`${section}.${key}`) && !(section === 'sound' && (key === 'cat' || key === 'world'))) out.push(`${section}.${key}`);
+    }
   }
   return out;
 }

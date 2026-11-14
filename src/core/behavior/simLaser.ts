@@ -44,6 +44,8 @@ import type { TransitionCause } from './states';
 
 /** Laser Mode wakes a sleeping cat only after the dot has been around this long (the cat wakes gently, never at once). */
 export const LASER_WAKE_DELAY_MS = 2500;
+/** After Laser Mode ends, hunts, watches and studies of the pointer stay off this long so control comes back calmly. */
+export const LASER_HANDBACK_MS = 8000;
 /** After a press (or while a button is down) the cat leaves the light alone for this long: it never stands in the way of a click. */
 export const LASER_PRESS_PAUSE_MS = 4000;
 /** A command or a touch of the user owns the cat's activity for this long: the light waits. */
@@ -102,6 +104,7 @@ export abstract class SimLaser extends SimCompanion {
   private baseDisabled: ReadonlySet<BehaviorId> | null = null;
   // ---- laser ----
   private laserWasOn = false;
+  private laserOffAt = -Infinity;
   private laserDotSeenAt = -Infinity;
   private laserPressAt = -Infinity;
   private laserPrevButton = false;
@@ -190,6 +193,7 @@ export abstract class SimLaser extends SimCompanion {
 
   private noteLaserEdge(on: boolean): void {
     this.laserWasOn = on;
+    if (!on) this.laserOffAt = this.now;
     this.laserChaseMs = 0;
     this.laserBodyMs = 0;
     this.laserEngaged = false;
@@ -273,7 +277,10 @@ export abstract class SimLaser extends SimCompanion {
 
   /** Autonomous hunts, watches and studies are not started over the laser body. */
   protected override request(to: BehaviorState, cause: TransitionCause, init: ActivityInit = {}): RequestStatus {
-    if ((cause === 'autonomous' || cause === 'stimulus') && LASER_REFUSED.has(to) && this.act.variant === 'laser' && !this.act.done && this.laserModeOn()) return 'blocked';
+    // The light is never prey: while Laser Mode is on (whether or not the cat has taken the light yet), and for a
+    // moment after it ends (the hand-back is a calm sit or stand, not an instant hunt of the pointer), no hunt,
+    // watch or study starts by itself.
+    if ((cause === 'autonomous' || cause === 'stimulus') && LASER_REFUSED.has(to) && (this.laserModeOn() || this.now - this.laserOffAt < LASER_HANDBACK_MS)) return 'blocked';
     return super.request(to, cause, init);
   }
 

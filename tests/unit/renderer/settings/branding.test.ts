@@ -46,7 +46,9 @@ describe('settings window: product names', () => {
     const old = ALL.filter(([, s]) => s.includes('Desktop Cat')).map(([at]) => at);
     // 1.4.0: macOS Finder shows the app under the same installed name (Applications › Desktop Cat).
     expect(text('about.uninstallMac')).toContain('drag Desktop Cat from Applications to the Trash');
-    expect(old.sort()).toEqual(['about.identity', 'about.uninstall', 'about.uninstallMac', 'general.launchStatus.windowsDisabled']);
+    // 1.4.0: the Dock row tells where to reopen Settings: the Applications folder lists the app as installed.
+    expect(text('general.dockDesc')).toContain('open Desktop Cat from the Applications folder');
+    expect(old.sort()).toEqual(['about.identity', 'about.uninstall', 'about.uninstallMac', 'general.dockDesc', 'general.launchStatus.windowsDisabled']);
   });
 
   it('the walk reaches the strings it checks', () => {

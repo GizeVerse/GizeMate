@@ -8,8 +8,10 @@ export interface SecretNoteDoc {
 }
 
 /** Returns a detach function. */
-export function attachSecretNote(nameInput: HTMLInputElement, secret: WebSecretName | undefined, doc: SecretNoteDoc = document): () => void {
+export function attachSecretNote(nameInput: HTMLInputElement, secret: WebSecretName | undefined, docArg?: SecretNoteDoc): () => void {
   if (!secret || !secret.available) return () => undefined;
+  // Resolved only when there is something to show: a build with no payload never touches `document`.
+  const doc: SecretNoteDoc = docArg ?? document;
   let note: HTMLElement | null = null;
 
   const show = (message: string): void => {

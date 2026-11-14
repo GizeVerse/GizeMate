@@ -452,5 +452,5 @@ jobs:
             exit 1
           fi
           ls -la to-attach
-          # Without --clobber: an asset that already has this name makes the upload fail.
+          # Never overwriting: an asset that already has this name makes the upload fail.
           gh release upload "$TAG" to-attach/*

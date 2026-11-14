@@ -213,9 +213,9 @@ describe('Laser Mode: the user and the world come first', () => {
   });
 
   it('wakes a sleeping cat gently: not at once, after a short delay, through the wake-up and then it follows', () => {
-    const h = ready();
-    h.step([{ type: 'command.sleep' }]);
-    expect(h.runUntil((o) => o.state === 'sleeping', 20_000)).toBe(true);
+    // A cat that dozed off by itself (a "Sleep" command is the user's own, forced sleep: see the next test).
+    const h = ready(settingsWith({ behavior: { cursorPlay: 1 } }), 3, catWith(3, { energy: 0.05 }));
+    expect(h.runUntil((o) => o.state === 'sleeping' && variant(h) !== 'forced', 20 * MIN)).toBe(true);
     h.env.laserMode = true;
     h.env.cursor = dotAway(h, 700);
     const t0 = h.now;
@@ -224,6 +224,17 @@ describe('Laser Mode: the user and the world come first', () => {
     expect(h.runUntil((o) => o.state === 'wakingUp', 8000)).toBe(true);
     expect(h.now - t0).toBeGreaterThanOrEqual(2400);
     expect(h.runUntil(() => following(h), 20_000)).toBe(true);
+  });
+
+  it('does not wake a cat the user put to sleep with the Sleep command', () => {
+    const h = ready();
+    h.step([{ type: 'command.sleep' }]);
+    expect(h.runUntil((o) => o.state === 'sleeping', 20_000)).toBe(true);
+    h.env.laserMode = true;
+    h.env.cursor = dotAway(h, 700);
+    h.run(20_000, 33);
+    expect(h.last!.state).toBe('sleeping');
+    expect(following(h)).toBe(false);
   });
 
   it('hands control back smoothly when Laser Mode ends: a calm sit or stand, no teleport, no snap', () => {

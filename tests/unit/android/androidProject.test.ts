@@ -16,7 +16,9 @@ const read = (...parts: string[]): string => fs.readFileSync(file(...parts), 'ut
 const KOTLIN_DIR = ['android', 'app', 'src', 'main', 'java', 'io', 'github', 'gizeverse', 'gizecat'];
 
 /** Kotlin/Gradle source without block comments and whole-line `//` comments (keeps "https://" in strings). */
-const stripCode = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const stripCode = (src: string): string =>
+  // String literals are matched first and kept whole: FileBridge's `type = "*/*"` contains `/*`, which is not a comment.
+  src.replace(/"(?:\\.|[^"\\\n])*"|\/\*[\s\S]*?\*\//g, (m) => (m.startsWith('"') ? m : '')).replace(/^\s*\/\/.*$/gm, '');
 const stripXml = (src: string): string => src.replace(/<!--[\s\S]*?-->/g, '');
 
 const manifest = stripXml(read('android', 'app', 'src', 'main', 'AndroidManifest.xml'));
