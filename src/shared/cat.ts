@@ -83,6 +83,20 @@ export const ANIM_CLIPS = [
   'scratch', // sitting, hind leg scratching behind the ear (loop)
   'shake', // standing full-body shake-off, as after getting wet (~1.1 s, one-shot)
   'confused', // sitting, head tilting side to side, one ear up (loop)
+  // GizeMate: shared performance clips for the other characters' signature behaviours. The cat does
+  // not select them (its renderer draws them as a stand); each character's renderer draws the ones it
+  // lists in its module (src/shared/characters/) and the rest resolve through the clip fallbacks.
+  'hop', // discrete hops as locomotion: crouch, spring, land, repeat (loop; rate scales with speed)
+  'bounce', // springy bouncing as locomotion or play: continuous squash and stretch (loop)
+  'float', // hovering in the air, drifting; the body does not touch the ground (loop; rate scales with speed)
+  'vanish', // fade and shrink out of sight (~0.9 s, one-shot; the brain relocates the character while hidden)
+  'appear', // fade and grow into sight (~0.9 s, one-shot)
+  'swing', // hanging by the hands from a ledge, swinging (loop)
+  'squish', // compress flat, then spring back (~0.6 s, one-shot)
+  'scan', // looking around methodically, head sweeping (loop)
+  'beam', // emitting a light or energy effect (~1.4 s, one-shot)
+  'peek', // peeking out from hiding, ducking back (loop)
+  'dance', // a playful rhythmic dance (loop)
 ] as const;
 export type AnimClip = (typeof ANIM_CLIPS)[number];
 
@@ -100,6 +114,10 @@ export const ONE_SHOT_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>([
   'hiss',
   'stretch',
   'shake',
+  'vanish',
+  'appear',
+  'squish',
+  'beam',
 ]);
 
 /**
@@ -115,7 +133,7 @@ export const LANDING_IMPACTS = ['soft', 'medium', 'hard'] as const;
 export type LandingImpact = (typeof LANDING_IMPACTS)[number];
 
 /** v1.2: optional procedural sounds (ADR 0003 §10). Off unless settings.sound.enabled. */
-export const SOUND_CUES = ['meow', 'chirp', 'trill', 'purr', 'hiss', 'growl', 'thud', 'squeak', 'rumble', 'chime', 'splash'] as const;
+export const SOUND_CUES = ['meow', 'chirp', 'trill', 'purr', 'hiss', 'growl', 'thud', 'squeak', 'rumble', 'chime', 'splash', 'chatter', 'yip', 'boing', 'whoo', 'bleep', 'squelch'] as const;
 export type SoundCue = (typeof SOUND_CUES)[number];
 /**
  * Living Companion: the cues that belong to the world (world events), not to the cat. Their own

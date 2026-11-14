@@ -36,6 +36,13 @@ export const CUE_DURATION_S: Readonly<Record<SoundCue, number>> = {
   rumble: 0.85,
   chime: 1,
   splash: 0.6,
+  // GizeMate: the other characters' voices (synthesized by the sound layer; lengths here).
+  chatter: 0.5,
+  yip: 0.28,
+  boing: 0.45,
+  whoo: 0.9,
+  bleep: 0.35,
+  squelch: 0.5,
 };
 
 // The slice of Web Audio this player uses (the real AudioContext satisfies it; tests use a fake).

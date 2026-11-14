@@ -183,13 +183,13 @@ describe('the field policy is exhaustive', () => {
     }
   });
 
-  it('never: login item, perception, AI and diagnostics; device: shortcuts, startup, Dock icon, multi-monitor, click-through, capture hiding', () => {
+  it('never: login item, perception, AI and diagnostics; device: shortcuts, startup, Dock icon, language, active character and the names and palettes of the other companions, multi-monitor, click-through, capture hiding', () => {
     const entries = Object.entries(PROFILE_FIELD_POLICY as unknown as Record<string, unknown>);
     expect(entries.filter(([, v]) => v === 'never').map(([k]) => k).sort()).toEqual(['ai', 'diagnostics', 'loginItem', 'perception']);
     const leaves = (cls: string): string[] =>
       entries.flatMap(([section, v]) => (v === 'never' ? [] : Object.entries(v as Record<string, string>).filter(([, c]) => c === cls).map(([k]) => `${section}.${k}`))).sort();
     expect(leaves('device')).toEqual(
-      ['appearance.hideFromScreenCapture', 'behavior.allowMultiMonitor', 'general.firstRunCompleted', 'general.rememberedState', 'general.shortcutsEnabled', 'general.showDockIcon', 'general.startupState', 'general.toggleShortcut', 'interaction.enabled'].sort(),
+      ['appearance.characterSkins', 'appearance.hideFromScreenCapture', 'behavior.allowMultiMonitor', 'general.activeCharacter', 'general.characterNames', 'general.firstRunCompleted', 'general.language', 'general.rememberedState', 'general.shortcutsEnabled', 'general.showDockIcon', 'general.startupState', 'general.toggleShortcut', 'interaction.enabled'].sort(),
     );
     expect(leaves('cat')).toEqual(['general.catName']);
     expect(leaves('derived')).toEqual(['behavior.activityPreset']);

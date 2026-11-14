@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RENDER_STYLES, SKINS } from './cat';
+import { CHARACTER_IDS } from './characters/types';
 import { ALL_EVENT_IDS, EVENT_PACE_RANGE, PERSONALITY_IDS, type AnyEventId } from './companion';
 import { ACTIVITY_PRESET_IDS, matchingPreset, PRESET_VALUES } from './settingsPresets';
 import { DEFAULT_TOGGLE_SHORTCUT, MAX_SHORTCUT_LENGTH, parseShortcut } from './shortcut';
@@ -186,6 +187,20 @@ const GeneralSchema = z.object({
    * accessory (menu-bar only). Ignored on other platforms; the schema default keeps older files valid.
    */
   showDockIcon: field(z.boolean(), true),
+  /**
+   * GizeMate: which companion lives on the desktop (one at a time). 'cat' is every existing install's
+   * companion; an unknown or invalid value falls back to it. The cat keeps general.catName and
+   * appearance.skin; the other characters use characterNames and appearance.characterSkins.
+   */
+  activeCharacter: field(z.enum(CHARACTER_IDS), 'cat'),
+  /**
+   * The interface language. 'auto' follows the system (Turkish when the system language is Turkish,
+   * otherwise English) and is the default; an explicit 'en' or 'tr' is never overwritten by detection.
+   * The detected language itself is never stored.
+   */
+  language: field(z.enum(['auto', 'en', 'tr']), 'auto'),
+  /** The names of the non-cat companions, by character id (1..24 characters; an empty or missing entry means the character's default name). */
+  characterNames: field(z.record(z.string(), z.string().trim().min(1).max(24)), {}),
 });
 
 /**
@@ -211,6 +226,8 @@ const LoginItemSchema = z.object({
 
 const AppearanceSchema = z.object({
   skin: field(z.enum(SKINS), 'ginger'),
+  /** GizeMate: the chosen palette of each non-cat character, by character id (validated against the character's module where used). */
+  characterSkins: field(z.record(z.string(), z.string().min(1).max(24)), {}),
   style: field(z.enum(RENDER_STYLES), 'smooth'),
   size: field(z.number().min(0.5).max(2.5), 1),
   opacity: field(z.number().min(0.3).max(1), 1),

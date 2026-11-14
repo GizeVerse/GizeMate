@@ -68,6 +68,11 @@ export const ONE_SHOT_DURATION_S: Readonly<Partial<Record<AnimClip, number>>> = 
   stretch: 1.6,
   // Living Companion
   shake: 1.1,
+  // GizeMate shared performance clips (the cat draws them as a stand; other characters' renderers use these lengths)
+  vanish: 0.9,
+  appear: 0.9,
+  squish: 0.6,
+  beam: 1.4,
 };
 
 /**
@@ -1906,6 +1911,18 @@ const CLIPS: Readonly<Record<AnimClip, ClipFn>> = {
   scratch: clipScratch,
   shake: clipShake,
   confused: clipConfused,
+  // GizeMate shared performance clips: the cat never selects them; if one is requested it is drawn as the nearest cat pose.
+  hop: clipWalk,
+  bounce: clipWalk,
+  float: clipStand,
+  vanish: clipStand,
+  appear: clipStand,
+  swing: clipStand,
+  squish: clipLand,
+  scan: clipSit,
+  beam: clipStand,
+  peek: clipHide,
+  dance: clipStand,
 };
 
 /** Samples `clip` at the context's phase into `out`. One-shot clips hold their last pose. */

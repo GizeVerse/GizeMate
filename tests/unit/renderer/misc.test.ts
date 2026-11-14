@@ -44,7 +44,7 @@ describe('render state validation', () => {
       42,
       { ...valid, x: Number.NaN },
       { ...valid, facing: 0 },
-      { ...valid, clip: 'dance' },
+      { ...valid, clip: 'notAClip' },
       { ...valid, state: 'flying' },
       { ...valid, skin: 'zebra' },
       { ...valid, style: 'oil' },

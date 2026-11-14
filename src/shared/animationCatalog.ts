@@ -115,6 +115,18 @@ export const CLIP_META: Readonly<Record<AnimClip, ClipMeta>> = {
   scratch: loop('sit', { tags: ['bodyCare'], footprintDip: fp(72, 64) }),
   shake: once('stand', 1.1, { tags: ['bodyCare', 'reaction'], priority: 2, interruptible: false }),
   confused: loop('sit', { tags: ['emotion'], footprintDip: fp(64, 64) }),
+  // GizeMate shared performance clips (each character's renderer draws the ones its module lists).
+  hop: loop('stand', { tags: ['locomotion', 'play'], fadeInMs: 120, footprintDip: fp(90, 72) }),
+  bounce: loop('stand', { tags: ['locomotion', 'play'], fadeInMs: 120, footprintDip: fp(90, 76) }),
+  float: loop('stand', { tags: ['locomotion'], fadeInMs: 220, support: ['floor', 'ledge', 'air'], footprintDip: fp(90, 80) }),
+  vanish: once('stand', 0.9, { tags: ['emotion', 'play'], priority: 2, interruptible: false, fadeInMs: 80 }),
+  appear: once('stand', 0.9, { tags: ['emotion', 'play'], priority: 2, interruptible: false, fadeInMs: 80 }),
+  swing: loop('stand', { tags: ['play', 'environment'], support: ['ledge', 'wall'], footprintDip: fp(70, 84) }),
+  squish: once('stand', 0.6, { tags: ['play', 'reaction'], priority: 2, interruptible: false }),
+  scan: loop('stand', { tags: ['emotion', 'play'], footprintDip: fp(72, 70) }),
+  beam: once('stand', 1.4, { tags: ['play', 'emotion'], priority: 2, interruptible: false, footprintDip: fp(100, 90) }),
+  peek: loop('crouch', { tags: ['emotion', 'play'], priority: 1, footprintDip: fp(70, 40) }),
+  dance: loop('stand', { tags: ['play', 'emotion'], footprintDip: fp(80, 72) }),
 };
 
 // ---- the posture transition model ------------------------------------------------------------
@@ -232,6 +244,18 @@ export const CLIP_FALLBACK: Readonly<Partial<Record<AnimClip, AnimClip>>> = {
   impact: 'land',
   landRecover: 'stand',
   stretch: 'stand',
+  // GizeMate: a renderer that does not draw one of the shared performance clips falls back to the nearest it does.
+  hop: 'walk',
+  bounce: 'walk',
+  float: 'stand',
+  vanish: 'stand',
+  appear: 'stand',
+  swing: 'stand',
+  squish: 'land',
+  scan: 'sit',
+  beam: 'stand',
+  peek: 'hide',
+  dance: 'stand',
 };
 
 /** Resolve a requested clip to one that is known and supported (walks the fallback chain; 'stand' is the floor of it). */

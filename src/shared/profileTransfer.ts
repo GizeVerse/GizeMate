@@ -113,11 +113,17 @@ export const PROFILE_FIELD_POLICY = {
     rememberedState: 'device',
     /** macOS Dock icon: a per-device shell choice. */
     showDockIcon: 'device',
+    /** GizeMate: which companion is out, the interface language and the other companions' names are per-device choices. */
+    activeCharacter: 'device',
+    language: 'device',
+    characterNames: 'device',
   },
   /** Startup entry and a machine path: main-owned, never carried. */
   loginItem: 'never',
   appearance: {
     skin: 'carry',
+    /** GizeMate: the other companions' palettes stay on the device until per-character profile sections exist. */
+    characterSkins: 'device',
     style: 'carry',
     size: 'carry',
     opacity: 'carry',
