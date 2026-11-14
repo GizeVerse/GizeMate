@@ -7,6 +7,7 @@ import type { PlatformReport } from './platform';
 import type { BehaviorState, CatRenderState, HitRegion } from './cat';
 import type { CatSummary } from './catState';
 import type { AnyEventId, JournalEntry, Mood, PersonalityId } from './companion';
+import type { Locale } from './i18n/locale';
 import { IDENTITY } from './identity';
 import type { PerceptionStatus, SceneReport, VisualEventKind, VisualFeatures } from './perception';
 import type { ProfilePart, ProfileParts, ProfilePreview, ProfileRejectReason } from './profileTransfer';
@@ -261,6 +262,8 @@ export interface SettingsViewState {
   cat: CatSummary;
   /** Living Companion live status; absent from older builds' snapshots. */
   companion?: CompanionStatus;
+  /** GizeMate: the effective interface language (main resolves settings.general.language against the system language). Absent = English. */
+  locale?: Locale;
   apiKeys: { anthropic: boolean; openaiCompatible: boolean };
   resources: ResourceSample[];
   versions: { app: string; electron: string; chrome: string; node: string; os: string };
