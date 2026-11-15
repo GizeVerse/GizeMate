@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The trial build type (sideload trials only, debug-keystore signed): its own label and its own cat. -->
+<!-- The trial build type (sideload trials only, debug-keystore signed): its own label and its own companion. -->
 <resources>
-    <string name="app_name">GizeCat (trial)</string>
+    <string name="app_name">GizeMate (trial)</string>
 </resources>

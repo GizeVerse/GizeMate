@@ -1,5 +1,6 @@
 // Shared vocabulary for the single cat: behaviour states, animation clips, emotes,
 // skins and the render snapshot the main process sends to overlay renderers.
+import type { CharacterId } from './characters/types';
 import type { Mood, RenderProp } from './companion';
 
 /** Behaviour states of the cat's state machine (src/core/behavior). */
@@ -235,7 +236,8 @@ export interface CatRenderState {
   /** 0..1 overall opacity (fade-in/out, user transparency). */
   opacity: number;
   visible: boolean;
-  skin: SkinId;
+  /** Palette id: a SkinId for the cat, a free string local to the character otherwise (the renderer resolves unknown ids to its first palette). */
+  skin: SkinId | (string & {});
   style: RenderStyle;
   shadow: boolean;
   /** Animation playback speed multiplier (settings.appearance.animationSpeed). */
@@ -269,6 +271,8 @@ export interface CatRenderState {
   reducedMotion?: boolean;
   /** Worn accessory drawn by the renderer; absent = none. */
   accessory?: CatAccessory;
+  /** GizeMate: the character this snapshot draws; absent (or unknown) = the cat. */
+  character?: CharacterId;
 }
 
 /** Accessories the renderer can draw on the cat. */

@@ -19,14 +19,14 @@ import { clearMemory } from './memory';
 import { newPersistedCat, TRAIT_MAX, TRAIT_MIN } from './personality';
 import { ACTIVE_STATES, ASLEEP_STATES, CALM_STATES, PHYSICAL_STATES, STATE_CHANGE_WINDOW_MS, STATE_SPECS } from './states';
 import { baseContentment, stepStats } from './stats';
-import { SimLaser } from './simLaser';
+import { SimCharacter } from './simCharacter';
 import type { SimHooks } from './simCore';
 import { PERCEPTION_FLOOR_MS, SAVE_MIN_INTERVAL_MS, REACTION_HOLD_MS, FADE_MS, MAX_SIM_DT_MS, WALL_PAW_REACH_BL, SLOWEST_TICK_MS, SELF_TIMED, AROUSAL, CONTENTMENT_BIAS, isFinitePoint } from './simCore';
 
 export type { SimHooks, SimMode, TransitionRecord } from './simCore';
 export { MAX_COMMAND_IGNORE_CHANCE, MAX_SIM_DT_MS, PERCEPTION_FLOOR_MS, PLAY_RETREAT_COOLDOWN_MS, REACTION_MIN_GAP_MS, SLOWEST_TICK_MS, SURPRISE_COOLDOWN_MS } from './simCore';
 
-export class CatSimImpl extends SimLaser implements CatSim {
+export class CatSimImpl extends SimCharacter implements CatSim {
   // ---- CatSim API -------------------------------------------------------------
 
   get state(): BehaviorState {
@@ -158,7 +158,7 @@ export class CatSimImpl extends SimLaser implements CatSim {
   }
 
   resetPersonality(): void {
-    const fresh = newPersistedCat(this.random, this.wall());
+    const fresh = newPersistedCat(this.random, this.wall(), this.character.id);
     fresh.memory.counters.sessions = 1;
     fresh.lastPosition = this.cat.lastPosition;
     this.cat = fresh;
@@ -322,7 +322,12 @@ export class CatSimImpl extends SimLaser implements CatSim {
     return isFinitePoint(p) ? p : null;
   }
 
+  /** The clip the active character draws for what the sim chose (the cat draws it as chosen). */
   protected computeClip(): AnimClip {
+    return this.charClip(this.computeCanonicalClip());
+  }
+
+  protected computeCanonicalClip(): AnimClip {
     const a = this.act;
     const m = this.mover;
     if (this.oneShot && this.now >= this.oneShot.until) this.oneShot = null;
@@ -344,7 +349,7 @@ export class CatSimImpl extends SimLaser implements CatSim {
     const scale = m.scale;
     const clip = clipFor(a.state, a.phase, {
       groundSpeed: m.groundSpeed,
-      runThreshold: 140 * this.settings.behavior.movementSpeed * scale,
+      runThreshold: 140 * this.settings.behavior.movementSpeed * this.gaitMul() * scale,
       moveThreshold: 6 * scale,
       vy: m.vy,
     });
@@ -476,7 +481,7 @@ export class CatSimImpl extends SimLaser implements CatSim {
       sound: visible ? this.sound : null,
       // Living Companion render hints (props are world px, passed through as the engine made them).
       props: this.props,
-      mood: this.mood,
+      mood: this.outputMood(),
       sleepDepth: clamp(this.sleepDepth, 0, 1),
       worldEvent: this.worldEventSnapshot(),
       journalEntry: this.takeJournalEntry(),

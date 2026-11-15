@@ -16,7 +16,7 @@
 // Electron-free: the app is injected. Never throws. Source reading only: never run on a Mac.
 import { BRAND } from '../../shared/brand';
 import { IDENTITY } from '../../shared/identity';
-import type { ActionResult, LoginItemStatus } from '../../shared/ipc';
+import type { ActionResult, LoginCode, LoginItemStatus } from '../../shared/ipc';
 import type { Logger } from '../contracts';
 import type { SettingsStore } from '../store/settingsStore';
 
@@ -103,10 +103,22 @@ export function evaluateDarwinGate(g: { packaged: boolean; test: boolean; envOff
   return { writable: blockedBy.length === 0, blockedBy };
 }
 
-function gateReason(blockedBy: readonly DarwinLoginGateBlock[]): string {
-  if (blockedBy.includes('unpackaged') || blockedBy.includes('test')) return DARWIN_LOGIN_REASONS.unpackaged;
-  if (blockedBy.includes('env-off')) return DARWIN_LOGIN_REASONS.envOff;
-  return DARWIN_LOGIN_REASONS.notInApplications;
+type DarwinReasonKey = keyof typeof DARWIN_LOGIN_REASONS;
+const DARWIN_REASON_CODE: Record<DarwinReasonKey, LoginCode> = {
+  unpackaged: 'macUnpackaged',
+  envOff: 'macEnvOff',
+  notInApplications: 'macNotInApplications',
+  requiresApproval: 'macRequiresApproval',
+  notRegistered: 'macNotRegistered',
+  notFound: 'macNotFound',
+  unknown: 'macUnknown',
+  onOutside: 'macOnOutside',
+};
+
+function gateReason(blockedBy: readonly DarwinLoginGateBlock[]): DarwinReasonKey {
+  if (blockedBy.includes('unpackaged') || blockedBy.includes('test')) return 'unpackaged';
+  if (blockedBy.includes('env-off')) return 'envOff';
+  return 'notInApplications';
 }
 
 /**
@@ -122,20 +134,21 @@ export function darwinLoginStatus(
   const active = state === 'enabled';
   const chosenOn = li.preference === 'enabled';
   const enabled = chosenOn || active;
-  let reason: string | null = null;
-  if (!gate.writable) reason = gateReason(gate.blockedBy);
-  else if (state === 'unknown') reason = DARWIN_LOGIN_REASONS.unknown;
-  else if (active && !chosenOn) reason = DARWIN_LOGIN_REASONS.onOutside;
-  else if (chosenOn && state === 'requires-approval') reason = DARWIN_LOGIN_REASONS.requiresApproval;
-  else if (chosenOn && state === 'not-registered') reason = DARWIN_LOGIN_REASONS.notRegistered;
-  else if (chosenOn && state === 'not-found') reason = DARWIN_LOGIN_REASONS.notFound;
+  let key: DarwinReasonKey | null = null;
+  if (!gate.writable) key = gateReason(gate.blockedBy);
+  else if (state === 'unknown') key = 'unknown';
+  else if (active && !chosenOn) key = 'onOutside';
+  else if (chosenOn && state === 'requires-approval') key = 'requiresApproval';
+  else if (chosenOn && state === 'not-registered') key = 'notRegistered';
+  else if (chosenOn && state === 'not-found') key = 'notFound';
   return {
     enabled,
     preference: li.preference,
     disabledBy: enabled ? null : li.preference === 'disabled' ? li.disabledBy : null,
     active,
     writable: gate.writable,
-    reason,
+    reason: key === null ? null : DARWIN_LOGIN_REASONS[key],
+    ...(key === null ? {} : { reasonCode: DARWIN_REASON_CODE[key] }),
     // The one-time "startup was turned on" notice is for the Windows installer default only.
     showNotice: false,
   };
@@ -202,14 +215,14 @@ export function createDarwinLoginItemService(opts: DarwinLoginItemOptions): Darw
         return darwinLoginStatus(opts.settings.get().loginItem, readState(false), gate);
       } catch (err) {
         log.error('login item status failed', { error: err });
-        return { enabled: false, preference: 'unset', disabledBy: null, active: false, writable: false, reason: DARWIN_LOGIN_REASONS.unknown, showNotice: false };
+        return { enabled: false, preference: 'unset', disabledBy: null, active: false, writable: false, reason: DARWIN_LOGIN_REASONS.unknown, reasonCode: 'macUnknown', showNotice: false };
       }
     },
     setLaunchAtLogin(on) {
       if (!gate.writable) {
         // The choice is kept, so it applies once the app runs from Applications; nothing is registered now.
         log.info('launch at login changed by the user; not writable here', { on, blockedBy: gate.blockedBy });
-        return persist(on) ? { ok: true, message: MESSAGES.notWritable } : { ok: false, message: MESSAGES.saveFailed };
+        return persist(on) ? { ok: true, message: MESSAGES.notWritable, code: 'macNotWritable' } : { ok: false, message: MESSAGES.saveFailed, code: 'saveFailed' };
       }
       try {
         opts.app.setLoginItemSettings({ openAtLogin: on });
@@ -218,21 +231,21 @@ export function createDarwinLoginItemService(opts: DarwinLoginItemOptions): Darw
         lastWriteError = err instanceof Error ? err.message : String(err);
         log.error('writing the login item failed', { error: err, openAtLogin: on });
         readState(true);
-        return { ok: false, message: MESSAGES.failed };
+        return { ok: false, message: MESSAGES.failed, code: 'macFailed' };
       }
       const state = readState(true);
-      if (!persist(on)) return { ok: false, message: MESSAGES.saveFailed };
+      if (!persist(on)) return { ok: false, message: MESSAGES.saveFailed, code: 'saveFailed' };
       log.info('launch at login changed by the user', { on, state });
-      if (on && state === 'requires-approval') return { ok: true, message: MESSAGES.approval };
+      if (on && state === 'requires-approval') return { ok: true, message: MESSAGES.approval, code: 'macApproval' };
       if (on && state !== 'enabled') {
         lastWriteError = `status ${state} after registering`;
-        return { ok: false, message: MESSAGES.failed };
+        return { ok: false, message: MESSAGES.failed, code: 'macFailed' };
       }
       if (!on && state === 'enabled') {
         lastWriteError = 'still enabled after unregistering';
-        return { ok: false, message: MESSAGES.failed };
+        return { ok: false, message: MESSAGES.failed, code: 'macFailed' };
       }
-      return { ok: true, message: on ? MESSAGES.on : MESSAGES.off };
+      return { ok: true, message: on ? MESSAGES.on : MESSAGES.off, code: on ? 'macOn' : 'macOff' };
     },
     dismissNotice() {
       // There is no launch notice on macOS (showNotice is always false).

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultSettings, type Settings } from '../../../src/shared/settings';
 import type { SimOutput } from '../../../src/shared/sim';
 import { mapRenderState } from '../../../src/main/overlay/renderMapping';
+import { characterDisplayName } from '../../../src/main/characterIdentity';
 import { createSecretName } from '../../../src/main/secretName';
 import type { EggMatcher, EggState } from '../../../src/shared/secretEgg';
 
@@ -86,5 +87,44 @@ describe('mapRenderState accessory', () => {
     expect(mapRenderState(out, appearance, { ...base, accessory: 'heartPendant' }).accessory).toBe('heartPendant');
     const none = mapRenderState(out, appearance, base);
     expect('accessory' in none).toBe(false);
+  });
+});
+
+describe('createSecretName with the active character (nameOf)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('tracks the ACTIVE character name, so the mechanism works for any character and follows a swap', async () => {
+    const trigger = rnd();
+    let current: Settings = defaultSettings();
+    const listeners = new Set<(n: Settings, p: Settings) => void>();
+    const store = {
+      get: () => current,
+      onChange(cb: (n: Settings, p: Settings) => void) {
+        listeners.add(cb);
+        return () => listeners.delete(cb);
+      },
+    };
+    const patch = (fn: (s: Settings) => Settings): void => {
+      const prev = current;
+      current = fn(current);
+      for (const cb of [...listeners]) cb(current, prev);
+    };
+    const s = createSecretName({
+      settings: store,
+      matcher: stubMatcher(trigger, rnd()),
+      nameOf: (st) => characterDisplayName(st, st.general.activeCharacter, 'en'),
+      delayMs: 10,
+    });
+    // the cat's own name is not what the monkey is called
+    patch((st) => ({ ...st, general: { ...st.general, catName: trigger } }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(s.accessory()).toBe('heartPendant');
+    patch((st) => ({ ...st, general: { ...st.general, activeCharacter: 'monkey' } }));
+    expect(s.accessory()).toBeUndefined();
+    patch((st) => ({ ...st, general: { ...st.general, characterNames: { monkey: trigger } } }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(s.accessory()).toBe('heartPendant');
+    s.dispose();
   });
 });

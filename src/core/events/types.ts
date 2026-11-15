@@ -186,6 +186,8 @@ export interface CreateEventEngineOptions {
   random: () => number;
   /** Persisted history, if any. */
   memory?: EventEngineMemory;
+  /** GizeMate: per-event weight multipliers of the active character (missing = 1; 0 disables the event). */
+  affinity?: Readonly<Partial<Record<AnyEventId, number>>>;
 }
 
 export type OutcomeWeights = readonly { id: OutcomeId; weight: number }[];

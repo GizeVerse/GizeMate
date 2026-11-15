@@ -135,7 +135,8 @@ describe('web storage: settings', () => {
     s.companion.journal.enabled = false;
     const stored = storedSettings(s);
     expect(Object.keys(stored).sort()).toEqual(['appearance', 'behavior', 'companion', 'general', 'interaction', 'schemaVersion', 'sound']);
-    expect(stored.general).toEqual({ catName: 'Pamuk' });
+    // GizeMate: the active companion, language and the other companions' names are stored with the cat's name.
+    expect(stored.general).toEqual({ catName: 'Pamuk', activeCharacter: 'cat', language: 'auto', characterNames: {} });
     // 1.4.0 (profile transfer): every behaviour and interaction value a profile carries is stored, so a
     // loaded profile survives a reload and exports intact; device-only values are not.
     expect(Object.keys(stored.behavior as object).sort()).toEqual(['activityPreset', ...PROFILE_SETTINGS_FIELDS.behavior].sort());

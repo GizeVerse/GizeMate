@@ -191,6 +191,21 @@ export type ProfileApplyResponse =
 export const SettingsPatchSchema = z.record(z.string().max(32), z.record(z.string().max(64), z.unknown()));
 
 /** Launch at Windows sign-in, as main sees it right now. */
+/**
+ * Why startup at sign-in is (not) in the state shown, or what a change did, as a code: main states the
+ * fact, the settings window words it in the interface language (strings.loginText). The English
+ * `reason` / `message` beside it stay for diagnostics and older readers.
+ */
+export const LOGIN_CODES = [
+  'unsupportedPlatform', 'envOff', 'pathTooLong', 'devOtherCopy', 'devPortable', 'unreadable', 'registersNextStart',
+  'windowsDisabled', 'wrongLocation', 'noEntry', 'stillStarts',
+  'startsOn', 'startsOff', 'notWritable', 'registryUnreadable', 'windowsDisabledSaved', 'windowsDisabledRestored',
+  'saveFailed', 'writeFailed',
+  'macUnpackaged', 'macEnvOff', 'macNotInApplications', 'macRequiresApproval', 'macNotRegistered', 'macNotFound', 'macUnknown', 'macOnOutside',
+  'macOn', 'macOff', 'macApproval', 'macNotWritable', 'macFailed',
+] as const;
+export type LoginCode = (typeof LOGIN_CODES)[number];
+
 export interface LoginItemStatus {
   /** Effective preference: 'unset' resolves to the product default (on). */
   enabled: boolean;
@@ -202,6 +217,8 @@ export interface LoginItemStatus {
   writable: boolean;
   /** Short explanation when active differs from enabled (e.g. 'Disabled in Windows Startup apps'), or null. */
   reason: string | null;
+  /** The same explanation as a code (the window words it in its language); absent when `reason` is null. */
+  reasonCode?: LoginCode;
   /** Show the one-time 'startup was turned on' notice. */
   showNotice: boolean;
 }
@@ -273,6 +290,8 @@ export interface SettingsViewState {
 export interface ActionResult {
   ok: boolean;
   message?: string;
+  /** Login-item outcomes also carry a code; the window words it in its language and falls back to `message`. */
+  code?: LoginCode;
 }
 
 export interface AiTestResult {

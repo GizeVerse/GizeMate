@@ -22,6 +22,8 @@ import type {
   ThrowReactionKind,
 } from '../../shared/behaviorProfile';
 import { activityClassOf } from '../../shared/behaviorProfile';
+import { characterOrDefault, getCharacter } from '../../shared/characters/registry';
+import type { CharacterModule } from '../../shared/characters/types';
 import type { SubBehavior } from '../../shared/behaviorGates';
 import { subBehaviorAllowed } from '../../shared/behaviorGates';
 import type { PersistedCat, Traits } from '../../shared/catState';
@@ -38,7 +40,7 @@ import { MOVEMENT, Mover } from '../movement';
 import type { Activity, ActivityInit, FollowUp } from './activity';
 import { makeActivity } from './activity';
 import type { Phase } from './clips';
-import type { Candidate, DecisionView, EdgeTarget, Variant } from './decide';
+import type { Candidate, DecisionView, EdgeTarget, SignatureOffer, Variant } from './decide';
 import { sleepiness, userIdleForSleep } from './decide';
 import { decayForDowntime, DOWNTIME_DECAY_CAP_MS } from './drives';
 import { decayStatsForDowntime } from './stats';
@@ -264,6 +266,9 @@ export const CONTENTMENT_BIAS: Partial<Record<BehaviorState, number>> = {
 
 export const ZERO: Point = { x: 0, y: 0 };
 
+/** A multiplier from a module: finite and positive, else 1. */
+export const finiteScale = (v: number): number => (Number.isFinite(v) && v > 0 ? v : 1);
+
 /** Where the cat can go up from where it stands, and why not (v1.1.1; reachability ignores cooldowns). */
 export interface TargetScan {
   at: number;
@@ -416,6 +421,8 @@ export abstract class SimCore {
   protected readonly recentStates: BehaviorState[] = [];
   protected readonly log: TransitionRecord[] = [];
   protected readonly hooks: SimHooks;
+  /** GizeMate: the active character's module, resolved once (the cat unless the options say otherwise). */
+  protected readonly character: CharacterModule;
 
   protected act: Activity;
   protected suspended: Activity | null = null;
@@ -595,6 +602,7 @@ export abstract class SimCore {
 
   constructor(opts: CatSimOptions, hooks: SimHooks = {}) {
     this.hooks = hooks;
+    this.character = getCharacter(characterOrDefault(opts.character));
     // eslint-disable-next-line no-restricted-properties -- the injection default (ADR 0003 D1)
     this.random = safeRandom(opts.random ?? Math.random);
     // eslint-disable-next-line no-restricted-properties -- the injection default (ADR 0003 D1)
@@ -608,11 +616,11 @@ export abstract class SimCore {
     const wall = this.wall();
     let restoring = false;
     if (opts.persisted) {
-      const m = migrateCatState(opts.persisted, this.random, wall);
+      const m = migrateCatState(opts.persisted, this.random, wall, this.character.id);
       this.cat = m.cat;
       restoring = !m.recovered;
     } else {
-      this.cat = newPersistedCat(this.random, wall);
+      this.cat = newPersistedCat(this.random, wall, this.character.id);
     }
     bumpCounter(this.cat.memory, 'sessions');
     // v1.2 drives (ADR 0003 §1.2): a restored cat's moods decay for the downtime (capped at 1 h),
@@ -663,6 +671,11 @@ export abstract class SimCore {
     return 1 - (this.knobs.calmness - 0.5) * 0.6;
   }
 
+  /** GizeMate: the character's speed factor (body.gaitScale x behavior.speedScale); exactly 1 for the cat. */
+  protected gaitMul(): number {
+    return finiteScale(this.character.body.gaitScale) * finiteScale(this.character.behavior.speedScale);
+  }
+
   protected wall(): number {
     try {
       const w = this.wallClock();
@@ -682,16 +695,20 @@ export abstract class SimCore {
     const t = this.traits;
     const limits = jumpDownLimitsFor(b.heights, t.confidence, this.cat.stats.energy);
     this.safeDipNow = limits.safeDip;
+    // GizeMate: the character's gait: speed scales with body.gaitScale and behavior.speedScale, and so do the clean-gait limits.
+    const gait = this.gaitMul();
+    const climbs = this.character.capabilities.climbsEdges;
     return {
       size: this.settings.appearance.size,
-      movementSpeed: b.movementSpeed,
+      movementSpeed: b.movementSpeed * gait,
+      gaitScale: gait,
       allowMultiMonitor: b.allowMultiMonitor,
       // A shown taskbar is always a support ('taskbarPlay' only gates the reactions to it, see onTaskbarShown).
       perchOnWindows: !b.disabledBehaviors.includes('perchOnWindows'),
-      walls: !b.disabledBehaviors.includes('climbWindows'),
+      walls: climbs && !b.disabledBehaviors.includes('climbWindows'),
       tabStrips: !b.disabledBehaviors.includes('tabStrips'),
       // A confident cat jumps more readily; an energetic, curious one minds climbing less.
-      jumpEffort: 1.3 - 0.6 * clamp(t.confidence, 0, 1),
+      jumpEffort: (1.3 - 0.6 * clamp(t.confidence, 0, 1)) / finiteScale(this.character.behavior.jumpiness),
       climbEffort: 1.4 - 0.5 * clamp(t.energyLevel, 0, 1) - 0.2 * clamp(t.curiosity, 0, 1),
       // v1.2 (ADR 0003 §6): screen edges only with the host's bands (the click guard, fail closed).
       screenEdges: this.edgesOn,
@@ -706,7 +723,7 @@ export abstract class SimCore {
 
   /** Screen edges follow env.edgeBands and the opt-outs: a host without the guard never gets edge climbs. */
   protected syncEdges(env: SimEnv): void {
-    const on = Array.isArray(env.edgeBands) && this.subAllowed('screenEdgeClimb');
+    const on = Array.isArray(env.edgeBands) && this.subAllowed('screenEdgeClimb') && this.character.capabilities.climbsEdges;
     if (on === this.edgesOn) return;
     this.edgesOn = on;
     if (this.mover.setConfig(this.moverConfig())) this.snapNext = true;
@@ -1011,10 +1028,13 @@ export abstract class SimCore {
   protected playSound(kind: SoundCue): void {
     const s = this.settings.sound;
     const world = WORLD_SOUND_CUES.has(kind);
-    if (!s.enabled || (world ? !s.world : !s.cat) || this.mode !== 'normal' || this.now - this.lastSoundAt < SOUND_MIN_GAP_MS) return;
+    if (!s.enabled || (world ? !s.world : !s.cat) || this.mode !== 'normal' || this.now - this.lastSoundAt < Math.max(SOUND_MIN_GAP_MS, this.character.sound.cooldownMs)) return;
     if (!world && kind !== 'purr' && ASLEEP_STATES.has(this.act.state)) return;
     this.lastSoundAt = this.now;
-    this.sound = { kind, at: this.now, volume: Number.isFinite(s.volume) ? clamp(s.volume, 0, 1) : 0.4 };
+    // GizeMate: the cat's three voice cues are the character's own (identity for the cat).
+    const cues = this.character.sound.cues;
+    const out: SoundCue = world ? kind : kind === 'meow' ? cues.voice : kind === 'purr' ? cues.happy : kind === 'hiss' ? cues.startled : kind;
+    this.sound = { kind: out, at: this.now, volume: Number.isFinite(s.volume) ? clamp(s.volume, 0, 1) : 0.4 };
   }
 
   /** Remembers a throw, rough drag or annoyed reaction in the rough-handling list (and the v1.1 ring). */
@@ -1657,8 +1677,19 @@ export abstract class SimCore {
     }
   }
 
+  /** GizeMate: does the character's memory allow-list keep this kind of episode ('all' keeps every kind)? */
+  protected memoryAllows(kind: string): boolean {
+    const k = this.character.memory.kinds;
+    return k === 'all' || k.includes(kind);
+  }
+
+  /** GizeMate: the signature actions eligible right now (the character layer overrides this; the default offers none). */
+  protected signatureOffers(): SignatureOffer[] {
+    return [];
+  }
+
   protected rememberEvent(kind: Parameters<typeof remember>[1], detail?: MemoryDetail): void {
-    remember(this.cat.memory, kind, this.wall(), detail);
+    if (this.memoryAllows(kind)) remember(this.cat.memory, kind, this.wall(), detail);
     // v1.2 (ADR 0003 §5.4): rough handling also goes to its own bounded list, which frequent
     // ordinary entries (pets, naps) cannot evict.
     if (kind === 'throw' || kind === 'annoyed') this.rememberRough(kind);

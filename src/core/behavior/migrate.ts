@@ -1,6 +1,7 @@
 // Loading a stored cat: schema validation, forward compatibility and recovery.
 import type { PersistedCat } from '../../shared/catState';
 import { CAT_STATE_SCHEMA_VERSION, PersistedCatSchema } from '../../shared/catState';
+import type { CharacterId } from '../../shared/characters/types';
 import { MEMORY_DETAILS, MEMORY_KINDS } from './memory';
 import { newPersistedCat } from './personality';
 import type { Random } from './random';
@@ -17,9 +18,9 @@ export interface MigrationResult {
  * is unusable a new cat is created and `recovered` is true. Newer schema versions
  * are read best-effort: known fields are kept, unknown ones dropped.
  */
-export function migrateCatState(raw: unknown, random: Random, nowEpochMs: number): MigrationResult {
+export function migrateCatState(raw: unknown, random: Random, nowEpochMs: number, character?: CharacterId): MigrationResult {
   const now = Number.isFinite(nowEpochMs) && nowEpochMs > 0 ? nowEpochMs : 0;
-  const fresh = (): MigrationResult => ({ cat: newPersistedCat(random, now), recovered: true });
+  const fresh = (): MigrationResult => ({ cat: newPersistedCat(random, now, character), recovered: true });
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return fresh();
   const obj: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
   const version = obj.schemaVersion;

@@ -2,9 +2,9 @@
 
 <!-- Generated from src/shared/platform.ts by `node scripts/capability-matrix.mjs`. Do not edit by hand: a unit test fails when this file is stale. -->
 
-What GizeCat claims about each capability on each platform. A status is a claim about **evidence**, not a promise; see ADR 0004 §2 and CONTRIBUTING.md. No platform other than Windows is supported until the app has run on it and the result is recorded.
+What GizeMate claims about each capability on each platform. A status is a claim about **evidence**, not a promise; see ADR 0004 §2 and CONTRIBUTING.md. No platform other than Windows is supported until the app has run on it and the result is recorded.
 
-**Which release this evidence is from.** These statuses (VERIFIED for IMPLEMENTED_AND_LOCALLY_VERIFIED; "IMPL, UNVERIFIED" for IMPLEMENTED_BUT_NOT_PLATFORM_VERIFIED; and the others) are the per-capability engineering record, and every run behind them was made with GizeCat 1.3.0 or earlier. **No 1.4.0 artifact has been installed or run, and no platform, Windows included, has been tested with 1.4.0.** The 1.4.0 status of each target and artifact is in [docs/platforms/README.md](../platforms/README.md).
+**Which release this evidence is from.** These statuses (VERIFIED for IMPLEMENTED_AND_LOCALLY_VERIFIED; "IMPL, UNVERIFIED" for IMPLEMENTED_BUT_NOT_PLATFORM_VERIFIED; and the others) are the per-capability engineering record, and every run behind them was made with GizeMate 1.3.0 or earlier. **No 1.4.0 artifact has been installed or run, and no platform, Windows included, has been tested with 1.4.0.** The 1.4.0 status of each target and artifact is in [docs/platforms/README.md](../platforms/README.md).
 
 ## Statuses
 

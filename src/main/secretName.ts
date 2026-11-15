@@ -17,6 +17,8 @@ export interface SecretNameOptions {
   /** Tests only; defaults to the matcher built from the embedded payload. */
   matcher?: EggMatcher;
   delayMs?: number;
+  /** The name to track: the ACTIVE character's display name (default: general.catName, the cat's). */
+  nameOf?: (settings: Settings) => string;
 }
 
 export interface SecretName {
@@ -37,8 +39,9 @@ export function createSecretName(opts: SecretNameOptions): SecretName {
     },
     opts.delayMs,
   );
-  tracker.setName(opts.settings.get().general.catName);
-  const off = opts.settings.onChange((next) => tracker.setName(next.general.catName));
+  const nameOf = opts.nameOf ?? ((s: Settings) => s.general.catName);
+  tracker.setName(nameOf(opts.settings.get()));
+  const off = opts.settings.onChange((next) => tracker.setName(nameOf(next)));
   return {
     accessory: () => (tracker.state().active ? 'heartPendant' : undefined),
     dispose() {

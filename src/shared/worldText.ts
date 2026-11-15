@@ -4,6 +4,8 @@
 // exclamation marks, no guilt, no streaks. The outcome tokens per event are listed here too, so a UI or
 // a test can verify coverage; a core test checks that they equal the engine's catalogue.
 import type { AnyEventId, OutcomeId } from './companion';
+import { DEFAULT_LOCALE, type Locale } from './i18n/locale';
+import { EVENT_TEXT_TR, GENERIC_TR } from './i18n/worldTextTr';
 
 export interface EventText {
   /** Display name. */
@@ -290,18 +292,28 @@ export const EVENT_OUTCOME_TOKENS: Readonly<Record<AnyEventId, readonly string[]
 
 const GENERIC = 'Something small and unexpected happened.';
 
-export function eventName(id: AnyEventId): string {
-  return EVENT_TEXT[id]?.name ?? String(id);
+// The language of the lookups below when a caller does not pass one. The settings window and the web host
+// set it with their own language (setWorldTextLocale), so existing call sites follow a live language change;
+// the default is English, so output without any setup is byte-identical to before.
+let defaultLocale: Locale = DEFAULT_LOCALE;
+export function setWorldTextLocale(locale: Locale): void {
+  defaultLocale = locale;
 }
 
-export function eventDescription(id: AnyEventId): string {
-  return EVENT_TEXT[id]?.description ?? '';
+const textFor = (id: AnyEventId, locale: Locale): EventText | undefined => (locale === 'tr' ? (EVENT_TEXT_TR[id] ?? EVENT_TEXT[id]) : EVENT_TEXT[id]);
+
+export function eventName(id: AnyEventId, locale: Locale = defaultLocale): string {
+  return textFor(id, locale)?.name ?? String(id);
+}
+
+export function eventDescription(id: AnyEventId, locale: Locale = defaultLocale): string {
+  return textFor(id, locale)?.description ?? '';
 }
 
 /** The journal sentence for an event and its outcome; the event's fallback for an unknown outcome, a generic line for an unknown event. */
-export function journalText(id: AnyEventId, outcome: OutcomeId): string {
-  const t = EVENT_TEXT[id];
-  if (!t) return GENERIC;
+export function journalText(id: AnyEventId, outcome: OutcomeId, locale: Locale = defaultLocale): string {
+  const t = textFor(id, locale);
+  if (!t) return locale === 'tr' ? GENERIC_TR : GENERIC;
   // Own properties only: an outcome token that happens to name an Object.prototype member (a hand-edited
   // file can carry 'constructor') must fall back to the event's sentence, never return a non-string.
   return Object.prototype.hasOwnProperty.call(t.outcomes, outcome) ? (t.outcomes[outcome] ?? t.fallback) : t.fallback;

@@ -18,6 +18,7 @@
 // elements this module creates. The one timer (live status, every 2 s) runs only while the panel is
 // open and the page is visible.
 import { h, uid } from '../renderer/settings/dom';
+import { BRAND } from '../shared/brand';
 import { coatArt } from '../renderer/settings/skins';
 import { SKINS, type BehaviorState, type SkinId } from '../shared/cat';
 import { ALL_EVENT_IDS, JOURNAL_MAX, PERSONALITY_IDS, type AnyEventId, type JournalEntry, type Mood, type PersonalityChoice, type PersonalityId } from '../shared/companion';
@@ -188,7 +189,7 @@ export function createAndroidPanel(deps: AndroidPanelDeps): AndroidPanel {
   const chip = h('span', { class: 'chip', 'aria-live': 'polite' });
   const head = h('header', { class: 'panel-head' }, [
     h('img', { class: 'panel-logo', src: 'icons/icon-192.png', alt: '', width: 48, height: 48 }),
-    h('div', { class: 'panel-title' }, [h('h1', { text: 'GizeCat' }), h('p', { text: WS.panel.subtitle })]),
+    h('div', { class: 'panel-title' }, [h('h1', { text: BRAND.product }), h('p', { text: WS.panel.subtitle })]),
     chip,
   ]);
 
@@ -410,7 +411,7 @@ export function createAndroidPanel(deps: AndroidPanelDeps): AndroidPanel {
   const footer = h('footer', { class: 'panel-foot' }, [h('div', { class: 'actions' }, [stageBtn, allBtn]), h('p', { class: 'note', text: WS.about.version(deps.version) })]);
 
   const grid = h('div', { class: 'panel-grid' }, [hero, catCard, personalityCard, behaviorCard, interactionsCard, audioCard, accessibilityCard, journalCard]);
-  const root = h('main', { class: 'panel', id: 'panel', 'aria-label': 'GizeCat', hidden: true }, [head, grid, footer]);
+  const root = h('main', { class: 'panel', id: 'panel', 'aria-label': BRAND.product, hidden: true }, [head, grid, footer]);
 
   /** The live status chips and the journal: read from the cat (or its stored snapshot), never written here. */
   function refreshLive(): void {

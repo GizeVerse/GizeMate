@@ -30,15 +30,17 @@ export function paceDip(pace: PaceName): number {
 }
 
 /** Pace speed in DIP/s at this movement speed, clamped to 1.1 x its clip's clean-gait limit. */
-export function clampedPaceDip(pace: PaceName, movementSpeed: number): number {
+export function clampedPaceDip(pace: PaceName, movementSpeed: number, gaitScale = 1): number {
   const speed = Number.isFinite(movementSpeed) && movementSpeed > 0 ? movementSpeed : 1;
-  return Math.min(paceDip(pace) * speed, MOVEMENT.gaitLimitFactor * GAIT_LIMIT_DIP[PACE_GAIT[pace]]);
+  const g = Number.isFinite(gaitScale) && gaitScale > 0 ? gaitScale : 1;
+  return Math.min(paceDip(pace) * speed, MOVEMENT.gaitLimitFactor * GAIT_LIMIT_DIP[PACE_GAIT[pace]] * g);
 }
 
 /** Climbing speed (up or down) in DIP/s, clamped to 1.1 x the climb clip's limit. */
-export function clampedClimbDip(up: boolean, movementSpeed: number): number {
+export function clampedClimbDip(up: boolean, movementSpeed: number, gaitScale = 1): number {
   const speed = Number.isFinite(movementSpeed) && movementSpeed > 0 ? movementSpeed : 1;
-  return Math.min((up ? MOVEMENT.climbUpDip : MOVEMENT.climbDownDip) * speed, MOVEMENT.gaitLimitFactor * GAIT_LIMIT_DIP.climb);
+  const g = Number.isFinite(gaitScale) && gaitScale > 0 ? gaitScale : 1;
+  return Math.min((up ? MOVEMENT.climbUpDip : MOVEMENT.climbDownDip) * speed, MOVEMENT.gaitLimitFactor * GAIT_LIMIT_DIP.climb * g);
 }
 
 /** Height (DIP) from which a free drop lands hard: impactHardFromDip^2 / (2 g), ~492 DIP. */

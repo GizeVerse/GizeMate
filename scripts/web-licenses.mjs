@@ -106,7 +106,7 @@ export function markdownToHtml(markdown) {
   return out.join('\n');
 }
 
-const BACK_LINK = '<p class="doc-back"><a href="index.html">Back to GizeCat</a></p>';
+const BACK_LINK = '<p class="doc-back"><a href="index.html">Back to GizeMate</a></p>';
 
 /** The whole page, from the notices file's text and the Apache-2.0 terms. */
 export function renderLicensesHtml({ notices, apacheTerms }) {
@@ -119,14 +119,14 @@ export function renderLicensesHtml({ notices, apacheTerms }) {
     <meta name="referrer" content="no-referrer" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <title>Third-party notices - GizeCat</title>
+    <title>Third-party notices - GizeMate</title>
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
     <link rel="stylesheet" href="web.css" />
   </head>
   <body>
     ${BACK_LINK}
     <main>
-<p class="note">GizeCat was formerly named Desktop Cat. This page is generated from the project's notices file and covers every GizeCat package, so it also names components that are not part of this copy.</p>
+<p class="note">GizeMate was formerly named GizeCat and Desktop Cat. This page is generated from the project's notices file and covers every GizeMate package, so it also names components that are not part of this copy.</p>
 ${markdownToHtml(notices)}
 <h2>Apache License, Version 2.0</h2>
 <p>The terms that apply to every component listed above as Apache-2.0.</p>

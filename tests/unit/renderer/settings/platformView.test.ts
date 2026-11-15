@@ -122,6 +122,7 @@ describe('Diagnostics page: Platform section', () => {
   it('points to the generated capability matrix without a link', () => {
     expect(PV.docNote).toContain('docs/gizeverse/capability-matrix.md');
     expect(PV.docNote).not.toMatch(/https?:|www\./);
-    expect(PV.capabilities).toBe(CAPABILITY_LABELS);
+    // Equal content, not identity: the strings facade hands out a live view of the active language.
+    expect(PV.capabilities).toEqual(CAPABILITY_LABELS);
   });
 });

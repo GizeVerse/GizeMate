@@ -5,7 +5,8 @@ import { mountApp } from './app';
 import { button } from './controls';
 import { h, icon } from './dom';
 import { errorText } from './store';
-import { S } from './strings';
+import { S, setLocale } from './strings';
+import { resolveLocale } from '../../shared/i18n/locale';
 
 declare global {
   interface Window {
@@ -26,6 +27,10 @@ function message(root: HTMLElement, text: string, retry?: () => void): void {
 }
 
 async function boot(root: HTMLElement): Promise<void> {
+  // Until main's view arrives (it carries the effective language), the boot messages follow the system language.
+  const bootLocale = resolveLocale('auto', navigator.languages?.length ? navigator.languages : navigator.language);
+  setLocale(bootLocale);
+  document.documentElement.lang = bootLocale;
   document.title = S.app.title;
   const api = window.desktopCatSettings;
   if (!api) {

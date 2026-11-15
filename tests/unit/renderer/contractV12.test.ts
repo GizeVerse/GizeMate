@@ -70,6 +70,10 @@ describe('render hints over IPC', () => {
     expect(bad).not.toHaveProperty('impact');
     expect(bad).not.toHaveProperty('balance');
     expect(bad.sound).toBeNull();
-    expect(isRenderState(state({ clip: 'notAClip' }))).toBe(false);
+    // Mixed-version bundles: an unknown clip resolves to a safe one instead of dropping the frame.
+    const unknownClip = state({ clip: 'notAClip' });
+    expect(isRenderState(unknownClip)).toBe(true);
+    expect(unknownClip.clip).toBe('stand');
+    expect(isRenderState(state({ clip: 7 }))).toBe(false);
   });
 });

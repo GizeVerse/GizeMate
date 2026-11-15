@@ -1,12 +1,13 @@
-// Display names (ADR 0004 §9): the product is GizeCat, a GizeVerse character; what Windows lists
-// for the installed app stays "Desktop Cat" until the installer names change. Settings-window
+// Display names (ADR 0004 §9; GizeMate rename): the product is GizeMate (GizeCat before it, Desktop Cat
+// before that); what Windows lists for the installed app stays "Desktop Cat" until the installer names
+// change. Settings-window
 // strings are covered by tests/unit/renderer/settings/branding.test.ts.
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LAUNCH_NOTICE } from '../../../src/main/lifecycle/loginItemNotice';
 import { NO_SANDBOX_MESSAGE, NO_SANDBOX_TITLE } from '../../../src/main/platform/boot';
-import { BRAND } from '../../../src/shared/brand';
+import { BRAND, FORMER_NAMES } from '../../../src/shared/brand';
 import { CAT_CHARACTER } from '../../../src/shared/character';
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -14,9 +15,15 @@ const read = (...parts: string[]): string => fs.readFileSync(path.join(ROOT, ...
 
 describe('BRAND', () => {
   it('names the product, its platform, the installed name and the former name', () => {
-    expect(BRAND).toEqual({ platform: 'GizeVerse', product: 'GizeCat', installedName: 'Desktop Cat', formerName: 'Desktop Cat' });
+    expect(BRAND).toEqual({ platform: 'GizeVerse', product: 'GizeMate', installedName: 'Desktop Cat', formerName: 'Desktop Cat', previousName: 'GizeCat' });
     expect(Object.isFrozen(BRAND)).toBe(true);
     expect(CAT_CHARACTER.displayName).toBe(BRAND.product);
+  });
+
+  it('keeps the earlier names in one place, most recent first, for "formerly ..." text', () => {
+    expect(FORMER_NAMES).toEqual(['GizeCat', 'Desktop Cat']);
+    expect(FORMER_NAMES).not.toContain(BRAND.product);
+    expect(Object.isFrozen(FORMER_NAMES)).toBe(true);
   });
 
   it('installedName is what the installer really shows in Windows (shortcut, Apps list, exe description)', () => {
@@ -30,10 +37,10 @@ describe('BRAND', () => {
 });
 
 describe('product name in the main process and the window titles', () => {
-  it('dialogs and the startup notice say GizeCat', () => {
-    expect(NO_SANDBOX_TITLE).toBe('GizeCat cannot start safely');
-    expect(NO_SANDBOX_MESSAGE.startsWith('GizeCat was started with --no-sandbox')).toBe(true);
-    expect(LAUNCH_NOTICE.title).toBe('GizeCat now starts with Windows');
+  it('dialogs and the startup notice say GizeMate', () => {
+    expect(NO_SANDBOX_TITLE).toBe('GizeMate cannot start safely');
+    expect(NO_SANDBOX_MESSAGE.startsWith('GizeMate was started with --no-sandbox')).toBe(true);
+    expect(LAUNCH_NOTICE.title).toBe('GizeMate now starts with Windows');
   });
 
   it('window titles, the tray tooltip and the page titles use the product name', () => {
@@ -45,7 +52,7 @@ describe('product name in the main process and the window titles', () => {
     expect(read('src', 'renderer', 'settings', 'index.html')).toContain(`<title>${BRAND.product} Settings</title>`);
   });
 
-  it('no code outside brand.ts and identity.ts spells the old name (comments may, for history)', () => {
+  it('no code outside brand.ts and identity.ts spells an earlier name (comments may, for history)', () => {
     const offenders: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -59,7 +66,7 @@ describe('product name in the main process and the window titles', () => {
             .forEach((line, i) => {
               const t = line.trim();
               const comment = t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('<!--');
-              if (!comment && line.includes('Desktop Cat')) offenders.push(`${rel}:${i + 1}`);
+              if (!comment && FORMER_NAMES.some((n) => line.includes(n))) offenders.push(`${rel}:${i + 1}`);
             });
         }
       }

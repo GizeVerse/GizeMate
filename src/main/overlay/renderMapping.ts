@@ -1,7 +1,8 @@
 // Pure mapping from the simulation's world-space output (physical px) to the
 // per-overlay render snapshot (overlay-local DIP), and the presence test that
 // decides which overlays draw the cat.
-import type { CatRenderState } from '../../shared/cat';
+import { CAT_BASE_HEIGHT_DIP, CAT_BASE_WIDTH_DIP, type CatRenderState } from '../../shared/cat';
+import type { CharacterId, CharacterModule } from '../../shared/characters/types';
 import { MAX_PROPS, type RenderProp } from '../../shared/companion';
 import { rectIntersection, type Point, type Rect } from '../../shared/geometry';
 import type { Settings } from '../../shared/settings';
@@ -26,6 +27,8 @@ export const BODY_MARGIN_BOTTOM_DIP = 48;
 export const EMOTE_MARGIN_TOP_DIP = 84;
 
 export type Appearance = Settings['appearance'];
+/** An appearance whose palette is a plain string: the cat's enum for the cat, the character's own palette id otherwise. */
+export type ResolvedAppearance = Omit<Appearance, 'skin'> & { readonly skin: string };
 
 export interface RenderMapContext {
   seq: number;
@@ -59,6 +62,10 @@ export interface RenderMapContext {
   reducedMotion?: boolean;
   /** Worn accessory, the same on every display; absent = none. */
   accessory?: 'heartPendant';
+  /** GizeMate: the active character; absent = the cat (and the snapshot then carries no `character`, as before). */
+  character?: CharacterId;
+  /** GizeMate: palette id of the active character (free string for non-cat characters); absent = appearance.skin. */
+  skin?: string;
 }
 
 /**
@@ -112,22 +119,46 @@ export function mapLaser(laser: Point | null | undefined, ctx: Pick<RenderMapCon
   return Number.isFinite(at.x) && Number.isFinite(at.y) ? { x: at.x, y: at.y } : null;
 }
 
-/** Cat bounds plus emote/body margins, physical px. */
-export function presenceRectPx(out: SimOutput, appearance: Appearance, scaleFactor: number): Rect {
+/** Presence margins around a body, DIP at size 1.0. */
+export interface BodyMargins {
+  readonly sideDip: number;
+  readonly topDip: number;
+  readonly bottomDip: number;
+}
+
+/** The cat's margins: the shipped BODY_MARGIN_* (the default of presenceRectPx). */
+export const CAT_BODY_MARGINS: BodyMargins = { sideDip: BODY_MARGIN_SIDE_DIP, topDip: BODY_MARGIN_TOP_DIP, bottomDip: BODY_MARGIN_BOTTOM_DIP };
+
+/**
+ * Presence margins around a body (DIP at size 1.0): the cat's are exactly the shipped BODY_MARGIN_*;
+ * a larger body widens them in proportion, a smaller one never goes below the cat's (the margin also
+ * holds shadows, tails, emotes and flight poses).
+ */
+export function bodyMargins(module: Pick<CharacterModule, 'body'>): BodyMargins {
+  const w = Math.max(1, module.body.widthDip / CAT_BASE_WIDTH_DIP);
+  const h = Math.max(1, module.body.heightDip / CAT_BASE_HEIGHT_DIP);
+  return { sideDip: Math.round(BODY_MARGIN_SIDE_DIP * w), topDip: Math.round(BODY_MARGIN_TOP_DIP * h), bottomDip: Math.round(BODY_MARGIN_BOTTOM_DIP * h) };
+}
+
+/**
+ * Body bounds plus emote/body margins, physical px. `margins` come from the active character's body
+ * (characterIdentity.bodyMargins); absent = the cat's. With emotes on, the top margin is at least the emote margin.
+ */
+export function presenceRectPx(out: SimOutput, appearance: Pick<Appearance, 'size' | 'emotes'>, scaleFactor: number, margins: BodyMargins = CAT_BODY_MARGINS): Rect {
   const k = appearance.size * scaleFactor;
-  const top = (appearance.emotes ? EMOTE_MARGIN_TOP_DIP : BODY_MARGIN_TOP_DIP) * k;
-  const side = BODY_MARGIN_SIDE_DIP * k;
-  const bottom = BODY_MARGIN_BOTTOM_DIP * k;
+  const top = (appearance.emotes ? Math.max(EMOTE_MARGIN_TOP_DIP, margins.topDip + (EMOTE_MARGIN_TOP_DIP - BODY_MARGIN_TOP_DIP)) : margins.topDip) * k;
+  const side = margins.sideDip * k;
+  const bottom = margins.bottomDip * k;
   const b = out.boundsPx;
   return { x: b.x - side, y: b.y - top, width: b.width + side * 2, height: b.height + top + bottom };
 }
 
 /** Ids of displays whose overlay must draw the cat this tick. */
-export function displaysShowingCat(out: SimOutput, displays: readonly DisplayGeometry[], appearance: Appearance, hidden: boolean): Set<string> {
+export function displaysShowingCat(out: SimOutput, displays: readonly DisplayGeometry[], appearance: Pick<Appearance, 'size' | 'emotes'>, hidden: boolean, margins?: BodyMargins): Set<string> {
   const ids = new Set<string>();
   if (hidden || !out.visible) return ids;
   for (const d of displays) {
-    if (rectIntersection(presenceRectPx(out, appearance, d.scaleFactor), d.workAreaPx)) ids.add(d.id);
+    if (rectIntersection(presenceRectPx(out, appearance, d.scaleFactor, margins), d.workAreaPx)) ids.add(d.id);
   }
   return ids;
 }
@@ -135,7 +166,7 @@ export function displaysShowingCat(out: SimOutput, displays: readonly DisplayGeo
 const clamp01 = (v: number): number => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
 const finiteOr = (v: number, d: number): number => (Number.isFinite(v) ? v : d);
 
-export function mapRenderState(out: SimOutput, appearance: Appearance, ctx: RenderMapContext): CatRenderState {
+export function mapRenderState(out: SimOutput, appearance: ResolvedAppearance, ctx: RenderMapContext): CatRenderState {
   const anchor = ctx.toLocalDip({ x: out.x, y: out.y });
   const look = out.look ? ctx.toLocalDip(out.look) : null;
   const sf = ctx.scaleFactor > 0 ? ctx.scaleFactor : 1;
@@ -160,7 +191,7 @@ export function mapRenderState(out: SimOutput, appearance: Appearance, ctx: Rend
     // The simulation's opacity already includes appearance.opacity (times its fade).
     opacity: clamp01(out.opacity),
     visible: out.visible && !ctx.hidden,
-    skin: appearance.skin,
+    skin: ctx.skin !== undefined && ctx.skin.length > 0 ? ctx.skin : appearance.skin,
     style: appearance.style,
     shadow: appearance.shadow,
     animSpeed: appearance.animationSpeed,
@@ -180,6 +211,7 @@ export function mapRenderState(out: SimOutput, appearance: Appearance, ctx: Rend
     ...(ctx.laser !== undefined ? { laser: mapLaser(ctx.laser, ctx) } : {}),
     ...(ctx.reducedMotion !== undefined ? { reducedMotion: ctx.reducedMotion === true } : {}),
     ...(ctx.accessory !== undefined ? { accessory: ctx.accessory } : {}),
+    ...(ctx.character !== undefined && ctx.character !== 'cat' ? { character: ctx.character } : {}),
   };
 }
 

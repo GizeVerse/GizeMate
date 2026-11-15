@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { BRAND } from '../../../src/shared/brand';
 // @ts-expect-error a plain .mjs script without declarations
 import * as cspModule from '../../../scripts/web-csp.mjs';
 // @ts-expect-error a plain .mjs script without declarations
@@ -59,7 +60,7 @@ describe('the page and the manifest under any path', () => {
   it('declares a relative start_url and scope, relative icons, a stable id, and the 192 and 512 icons in both purposes', () => {
     expect(csp.manifestProblems(MANIFEST)).toEqual([]);
     const m = JSON.parse(MANIFEST) as { id: string; name: string; short_name: string; display: string; start_url: string; scope: string };
-    expect([m.name, m.short_name, m.display, m.start_url, m.scope, m.id]).toEqual(['GizeCat', 'GizeCat', 'standalone', './', './', 'gizecat']);
+    expect([m.name, m.short_name, m.display, m.start_url, m.scope, m.id]).toEqual([BRAND.product, BRAND.product, 'standalone', './', './', 'gizecat']);
   });
 
   it('refuses a manifest that is absolute, has no id, or lacks an icon', () => {
@@ -130,7 +131,7 @@ describe('the notices page', () => {
 
   it('carries the third-party notices and the full Apache-2.0 terms, and a way back', () => {
     for (const needed of ['zod', 'androidx.webkit', 'END OF TERMS AND CONDITIONS', '(a) You must give any other recipients']) expect(PAGE, needed).toContain(needed);
-    expect(PAGE).toContain('<a href="index.html">Back to GizeCat</a>');
+    expect(PAGE).toContain(`<a href="index.html">Back to ${BRAND.product}</a>`);
   });
 
   it('leaves out the sentence that the app does not show these notices', () => {

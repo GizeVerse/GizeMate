@@ -145,8 +145,8 @@ describe('startup (index.ts)', () => {
     expect(exits()).toEqual(['exit:1']);
     expect(h.dialog.showErrorBox).toHaveBeenCalledTimes(1);
     // The product name (ADR 0004 §9).
-    expect(h.dialog.showErrorBox.mock.calls[0]![0]).toBe('GizeCat could not start');
-    expect(String(h.dialog.showErrorBox.mock.calls[0]![1])).toMatch(/^GizeCat ran into a problem while starting and has closed\./);
+    expect(h.dialog.showErrorBox.mock.calls[0]![0]).toBe('GizeMate could not start');
+    expect(String(h.dialog.showErrorBox.mock.calls[0]![1])).toMatch(/^GizeMate ran into a problem while starting and has closed\./);
   });
 
   it('under test, the failure exits without a blocking dialog', async () => {

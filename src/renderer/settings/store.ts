@@ -95,6 +95,16 @@ export class SettingsStore {
     return () => this.bindings.delete(binding);
   }
 
+  /**
+   * Drops every binding and view listener. The pages that registered them are being discarded (the
+   * shell is rebuilt in a new language, or the window closes); changes still pending or in flight are
+   * untouched and keep reporting through their own promises.
+   */
+  unbindAll(): void {
+    this.bindings.clear();
+    this.listeners.clear();
+  }
+
   subscribe(listener: ViewListener): () => void {
     this.listeners.add(listener);
     listener(this.current);

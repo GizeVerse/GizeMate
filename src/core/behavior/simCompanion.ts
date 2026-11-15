@@ -160,7 +160,7 @@ export abstract class SimCompanion extends SimActivities {
   constructor(opts: CatSimOptions, hooks: SimHooks = {}) {
     super(opts, hooks);
     this.companionRandom = mulberry32(hashSeed(this.cat.catId, this.cat.memory.counters.sessions, Math.floor(this.wall() / 1000)));
-    this.events = createWorldEventEngine({ now: this.now, random: this.companionRandom, memory: { history: this.cat.world.events, counts: this.cat.world.counts } });
+    this.events = createWorldEventEngine({ now: this.now, random: this.companionRandom, memory: { history: this.cat.world.events, counts: this.cat.world.counts }, ...(Object.keys(this.character.behavior.eventAffinity).length > 0 ? { affinity: this.character.behavior.eventAffinity } : {}) });
     this.syncPersonality();
   }
 

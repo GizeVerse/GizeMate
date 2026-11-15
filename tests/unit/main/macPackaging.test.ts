@@ -49,7 +49,7 @@ describe('electron-builder.yml mac section', () => {
 
   it('replaces Electron’s camera, microphone, audio-capture and Bluetooth usage strings with honest text, and adds no screen-capture key (D9)', () => {
     for (const key of ['NSCameraUsageDescription', 'NSMicrophoneUsageDescription', 'NSAudioCaptureUsageDescription', 'NSBluetoothAlwaysUsageDescription', 'NSBluetoothPeripheralUsageDescription']) {
-      expect(value(mac, key), key).toMatch(/^"GizeCat never /);
+      expect(value(mac, key), key).toMatch(/^"GizeMate never /);
     }
     expect(mac).not.toMatch(/NSScreenCaptureUsageDescription|LSUIElement/);
   });

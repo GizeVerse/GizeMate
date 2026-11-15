@@ -1,6 +1,9 @@
 // Creating a new cat: identity and randomised (seeded) personality traits.
 import type { PersistedCat, Stats, Traits } from '../../shared/catState';
 import { CAT_STATE_SCHEMA_VERSION, DrivesSchema, MemorySchema, StatsSchema, WorldMemorySchema } from '../../shared/catState';
+import { getCharacter } from '../../shared/characters/registry';
+import { drawSevenTraits, storedFromSeven } from '../../shared/characters/seven';
+import { DEFAULT_CHARACTER, type CharacterId } from '../../shared/characters/types';
 import type { Random } from './random';
 import { mulberry32, randomHex, safeRandom } from './random';
 
@@ -60,18 +63,41 @@ export function defaultStats(): Stats {
   return StatsSchema.parse({ bond: 0.15 });
 }
 
-export function newCatId(random: Random): string {
-  return `cat-${randomHex(safeRandom(random), 16)}`;
+/** A new companion's id: 'cat-' + 16 hex digits for the cat (unchanged), '<character>-' + 16 hex digits for the others. */
+export function newCatId(random: Random, character: CharacterId = DEFAULT_CHARACTER): string {
+  return `${character}-${randomHex(safeRandom(random), 16)}`;
 }
 
-/** A brand-new cat with seeded traits. `nowEpochMs` becomes its birth time. */
-export function newPersistedCat(random: Random, nowEpochMs: number): PersistedCat {
+/** FNV-1a over a string: the seed of a character's dedicated trait stream. */
+function seedOf(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+
+/**
+ * A brand-new companion with seeded traits. `nowEpochMs` becomes its birth time. For the cat (the
+ * default) this is exactly the v1.x generator: same draws, same order. A newborn of another character
+ * consumes the very same draws from `random` (so every stream stays aligned) and then takes its seven
+ * personality dimensions from the character's means/spread on a DEDICATED stream seeded by the
+ * character, the id and the birth time: the cat's draws can never change.
+ */
+export function newPersistedCat(random: Random, nowEpochMs: number, character: CharacterId = DEFAULT_CHARACTER): PersistedCat {
   const now = Number.isFinite(nowEpochMs) && nowEpochMs > 0 ? nowEpochMs : 0;
   const memory = MemorySchema.parse({});
   memory.lastSeenAt = now;
-  const catId = newCatId(random);
+  const catId = newCatId(random, character);
   const traits = randomTraits(random);
   traits.startleSensitivity = startleSensitivityFor(now, traits.confidence);
+  const drives = DrivesSchema.parse({});
+  if (character !== DEFAULT_CHARACTER) {
+    const mod = getCharacter(character);
+    const seven = drawSevenTraits(mod.personality.means, mod.personality.spread, mulberry32(seedOf(`${character}:${catId}:${Math.floor(now)}`)));
+    const s = storedFromSeven(seven);
+    for (const k of Object.keys(s.traits) as Array<keyof typeof s.traits>) traits[k] = clampTrait(s.traits[k]);
+    traits.startleSensitivity = startleSensitivityFor(now, traits.confidence);
+    drives.mischief = clampTrait(s.mischiefDrive);
+  }
   return {
     schemaVersion: CAT_STATE_SCHEMA_VERSION,
     catId,
@@ -79,7 +105,7 @@ export function newPersistedCat(random: Random, nowEpochMs: number): PersistedCa
     traits,
     stats: defaultStats(),
     memory,
-    drives: DrivesSchema.parse({}),
+    drives,
     world: WorldMemorySchema.parse({}),
     lastPosition: null,
     savedAt: now,

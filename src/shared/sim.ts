@@ -3,6 +3,7 @@
 import type { BehaviorProfileSnapshot } from './behaviorProfile';
 import type { AnimClip, BehaviorState, CatReaction, CatSoundCue, Emote, Facing, JumpKind } from './cat';
 import type { PersistedCat } from './catState';
+import type { CharacterId } from './characters/types';
 import type { Point, Rect } from './geometry';
 import type { SceneReport, VisualSummary } from './perception';
 import type { Settings } from './settings';
@@ -229,6 +230,11 @@ export interface CatSimOptions {
   random?: () => number;
   /** Wall clock (epoch ms) for persisted timestamps; injectable for tests. */
   wallClock?: () => number;
+  /**
+   * GizeMate: the active character (default 'cat'; an unknown id is the cat too). The sim resolves its
+   * module once; with the cat every output is exactly what it was before characters existed.
+   */
+  character?: CharacterId;
 }
 
 export interface CatSim {

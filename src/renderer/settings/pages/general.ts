@@ -5,6 +5,7 @@ import type { PageContext, PageView } from '../context';
 import { button, group, page, row, runAction, segmentedRow, setNote, textRow, toggleRow, toggleSwitch, type NoteTone } from '../controls';
 import { h, icon } from '../dom';
 import { displayAccelerator } from '../format';
+import { loginMessage, loginReason } from '../loginText';
 import { errorText } from '../store';
 import { platformWording, S, type PlatformWording } from '../strings';
 import { validateShortcut } from '../validate';
@@ -20,12 +21,12 @@ const G = S.general;
 export function launchStatusView(s: LoginItemStatus): { text: string; tone: NoteTone } {
   const L = G.launchStatus;
   // Main says why this build may not manage it (dev/portable build, path too long, switched off).
-  if (!s.writable) return { text: s.reason ?? L.notAvailable, tone: 'info' };
+  if (!s.writable) return { text: loginReason(s) ?? L.notAvailable, tone: 'info' };
   if (s.enabled && s.active) return { text: L.active, tone: 'ok' };
   // Only while Windows really does not start it: what the registry shows wins over the recorded reason.
   if (s.disabledBy === 'windows' && !s.active) return { text: L.windowsDisabled, tone: 'warn' };
   if (!s.enabled && !s.active) return { text: s.disabledBy === 'external' ? L.removedOutside : L.off, tone: 'info' };
-  return { text: s.reason ?? (s.enabled ? L.pending : L.off), tone: 'warn' };
+  return { text: loginReason(s) ?? (s.enabled ? L.pending : L.off), tone: 'warn' };
 }
 
 /**
@@ -35,10 +36,10 @@ export function launchStatusView(s: LoginItemStatus): { text: string; tone: Note
  */
 export function launchStatusViewMac(s: LoginItemStatus): { text: string; tone: NoteTone; openSettings: boolean } {
   const L = G.launchStatusMac;
-  if (!s.writable) return { text: s.reason ?? L.notAvailable, tone: 'info', openSettings: false };
-  if (s.enabled && s.active) return { text: s.reason ?? L.active, tone: 'ok', openSettings: false };
+  if (!s.writable) return { text: loginReason(s) ?? L.notAvailable, tone: 'info', openSettings: false };
+  if (s.enabled && s.active) return { text: loginReason(s) ?? L.active, tone: 'ok', openSettings: false };
   if (!s.enabled && !s.active) return { text: L.off, tone: 'info', openSettings: false };
-  return { text: s.reason ?? L.pending, tone: 'warn', openSettings: s.enabled && !s.active };
+  return { text: loginReason(s) ?? L.pending, tone: 'warn', openSettings: s.enabled && !s.active };
 }
 
 export type LaunchRowView = { showSwitch: true; title?: string } | { showSwitch: false; title: string; reason: string };
@@ -138,7 +139,7 @@ export function generalPage(ctx: PageContext): PageView {
     void (async () => {
       try {
         const res = await ctx.api.action(on ? 'enableLaunchAtLogin' : 'disableLaunchAtLogin');
-        if (!res.ok) setNote(launch.error, S.errors.actionFailed(res.message ?? S.errors.unexpected), 'error');
+        if (!res.ok) setNote(launch.error, S.errors.actionFailed(loginMessage(res) ?? S.errors.unexpected), 'error');
       } catch (e) {
         setNote(launch.error, S.errors.actionFailed(errorText(e)), 'error');
       }

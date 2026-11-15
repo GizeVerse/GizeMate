@@ -17,10 +17,12 @@ import type { CatRenderState } from '../shared/cat';
 import { distance, type Point, type Rect } from '../shared/geometry';
 import { HitRegionSchema, type OverlayApi, type OverlayConfig } from '../shared/ipc';
 import type { Settings } from '../shared/settings';
+import { activeCharacterOf, renderAppearance } from './characterHost';
+import { getCharacter } from '../shared/characters/registry';
 import type { SimOutput } from '../shared/sim';
 import type { HostOverlays } from '../main/catHost';
 import type { DisplayService, Logger } from '../main/contracts';
-import { displaysShowingCat, displaysShowingProps, hiddenRenderState, mapRenderState } from '../main/overlay/renderMapping';
+import { bodyMargins, displaysShowingCat, displaysShowingProps, hiddenRenderState, mapRenderState } from '../main/overlay/renderMapping';
 import type { PresenceInfo } from './overlaySurface';
 
 /**
@@ -158,7 +160,7 @@ export function createWebOverlays(opts: WebOverlaysOptions): WebOverlays {
     const settings = opts.getSettings();
     const appearance = settings.appearance;
     const d = opts.display.world.displays[0];
-    const catShowing = d ? displaysShowingCat(out, [d], appearance, hidden) : new Set<string>();
+    const catShowing = d ? displaysShowingCat(out, [d], appearance, hidden, bodyMargins(getCharacter(activeCharacterOf(settings)))) : new Set<string>();
     // World-event props are drawn whether or not the cat is on this display (its presence rect is not theirs).
     const propsShowing = d ? displaysShowingProps(out, [d], hidden) : new Set<string>();
     const showing = new Set<string>([...catShowing, ...propsShowing]);
@@ -177,7 +179,9 @@ export function createWebOverlays(opts: WebOverlaysOptions): WebOverlays {
       log.warn('overlay presence listener failed', { error: err });
     }
     if (d && showing.has(d.id)) {
-      const mapped = mapRenderState(out, appearance, {
+      const character = activeCharacterOf(settings);
+      // Every web frame names its companion (the field the renderer reads), the cat included.
+      const mapped: CatRenderState = { ...mapRenderState(out, renderAppearance(settings), {
         seq: ++seq,
         toLocalDip: (p) => opts.display.toLocalDip(d.id, p),
         scaleFactor: d.scaleFactor,
@@ -191,7 +195,9 @@ export function createWebOverlays(opts: WebOverlaysOptions): WebOverlays {
         ...(laser !== undefined ? { laser } : {}),
         // The OS preference (Android: "remove animations") or the user's own switch.
         reducedMotion: extras?.reducedMotion === true || settings.companion.reducedMotion,
-      });
+        // GizeMate: which renderer draws this frame (RenderMapContext.character; the palette travels in `skin`).
+        character,
+      }), character };
       // Props without the cat on this display: still a visible frame, so the renderer draws the props.
       const state = !catHere && !hidden ? { ...mapped, visible: true } : mapped;
       if (!active) {

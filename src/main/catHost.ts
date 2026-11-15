@@ -38,7 +38,8 @@
 // - The event caps never drop pointer, lifecycle, system or command events.
 import { distanceToRect } from '../core/display/displayMath';
 import { DEFAULT_POLL_INTERVALS, EVERYWHERE, suggestPollIntervalMs, wallGuardRects } from '../core/interaction/clickThrough';
-import { CAT_BASE_WIDTH_DIP, type BehaviorState } from '../shared/cat';
+import type { BehaviorState } from '../shared/cat';
+import { DEFAULT_CHARACTER, getCharacter, type CharacterId } from '../shared/characters/registry';
 import type { Point, Rect } from '../shared/geometry';
 import type { Settings } from '../shared/settings';
 import type { CatSim, SimEnv, SimEvent, SimOutput, SimRequest } from '../shared/sim';
@@ -47,7 +48,8 @@ import type { WorldGeometry } from '../shared/world';
 import { simWorld } from '../core/display/simWorld';
 import type { ActivityMonitor, DisplayService, Logger, PerceptionService, SurfaceProvider, TaskbarTracker, Win32Api, WindowTracker } from './contracts';
 import type { OverlayInteractionStats, OverlayRenderExtras } from './overlay/overlayManager';
-import { BODY_MARGIN_SIDE_DIP, presenceRectPx } from './overlay/renderMapping';
+import { presenceRectPx } from './overlay/renderMapping';
+import { bodyMargins } from './characterIdentity';
 import type { CatPosition, ScreenEdgeGuard } from './surfaces/hostTypes';
 import { bandXRange } from './surfaces/edgeBands';
 import { hasWin32InputExtensions, type Win32InputExtensions } from './win32/win32Api';
@@ -184,6 +186,8 @@ export interface HostTimers {
 
 export interface CatHostOptions {
   sim: CatSim;
+  /** GizeMate: the character this host animates (its body width feeds the footprint and guard reach); default the cat. */
+  character?: CharacterId;
   win32: Win32Api;
   tracker: WindowTracker;
   activity: ActivityMonitor & { setSleepThresholdMs?: (ms: number) => void };
@@ -334,6 +338,11 @@ export function createCatHost(opts: CatHostOptions): CatHost {
     clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
   };
   const { sim, win32, tracker, activity, perception, overlays } = opts;
+  /** Nominal body width (DIP at size 1.0) of the active character; the cat's is the old CAT_BASE_WIDTH_DIP. */
+  const bodyModule = getCharacter(opts.character ?? DEFAULT_CHARACTER);
+  const bodyWidthDip = bodyModule.body.widthDip;
+  /** Presence margins of that body (the cat's are the shipped BODY_MARGIN_*). */
+  const margins = bodyMargins(bodyModule);
 
   let running = false;
   let paused = false;
@@ -451,7 +460,7 @@ export function createCatHost(opts: CatHostOptions): CatHost {
 
   /** The cat's real width on a display (body width x size plus both side margins), px. */
   function footprintPx(displayId: string): number {
-    return (CAT_BASE_WIDTH_DIP * opts.getSettings().appearance.size + 2 * BODY_MARGIN_SIDE_DIP) * displayScale(displayId);
+    return (bodyWidthDip * opts.getSettings().appearance.size + 2 * margins.sideDip) * displayScale(displayId);
   }
 
   /** The cat's bounds come within GUARD_BAND_REACH_BW body widths of a cling band. */
@@ -462,7 +471,7 @@ export function createCatHost(opts: CatHostOptions): CatHost {
       const d = opts.display.world.displays.find((x) => x.id === b.displayId);
       if (!d) continue;
       const work = d.workAreaPx;
-      const reach = GUARD_BAND_REACH_BW * CAT_BASE_WIDTH_DIP * opts.getSettings().appearance.size * d.scaleFactor;
+      const reach = GUARD_BAND_REACH_BW * bodyWidthDip * opts.getSettings().appearance.size * d.scaleFactor;
       const x = bandXRange(work, b.side, footprintPx(b.displayId));
       const band: Rect = { x: x.x0, y: work.y, width: x.x1 - x.x0, height: work.height };
       if (rectGap(band, bounds) <= reach) return true;
@@ -691,7 +700,7 @@ export function createCatHost(opts: CatHostOptions): CatHost {
     // The presence rect holds all the renderer can draw, so every hit rect: an obstacle that misses
     // the hit rects after all is a plain cut-out and takes nothing away.
     const largestScale = displays.reduce((m, d) => Math.max(m, d.scaleFactor), 1);
-    const rects = wallGuardRects(presenceRectPx(out, opts.getSettings().appearance, largestScale), grown);
+    const rects = wallGuardRects(presenceRectPx(out, opts.getSettings().appearance, largestScale, margins), grown);
     setGuard('active', reason);
     guardRects = rects.length;
     return rects;
@@ -1264,6 +1273,12 @@ export function createCatHost(opts: CatHostOptions): CatHost {
       tickTimer = null;
       pollTimer = null;
       tickDueAt = Infinity;
+      // A character swap stops this host and starts another: the obstacle hooks it armed must not outlive it.
+      if (armed && input !== null) {
+        armed = false;
+        lastFreshObstacles = null;
+        attempt(() => input.setObstacleWatch(false), 'obstacle watch');
+      }
       resolveQuit();
     },
     get running() {

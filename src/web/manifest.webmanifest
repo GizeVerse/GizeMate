@@ -1,8 +1,8 @@
 {
   "id": "gizecat",
-  "name": "GizeCat",
-  "short_name": "GizeCat",
-  "description": "GizeCat, a GizeVerse character: an animated cat to pet, pick up and keep you company.",
+  "name": "GizeMate",
+  "short_name": "GizeMate",
+  "description": "GizeMate, a GizeVerse character: an animated cat to pet, pick up and keep you company.",
   "lang": "en",
   "dir": "ltr",
   "start_url": "./",

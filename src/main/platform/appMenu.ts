@@ -7,20 +7,22 @@
 // cat's visibility is app state (show/hide in the tray menu) and overlays are never hidden
 // (Electron transparent-window bugs). So there is no 'hide' item. Pure: the name is a parameter.
 import type { MenuItemConstructorOptions } from 'electron';
+import { t } from '../../shared/i18n';
+import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n/locale';
 
-export function darwinApplicationMenu(appName: string): MenuItemConstructorOptions[] {
+export function darwinApplicationMenu(appName: string, locale: Locale = DEFAULT_LOCALE): MenuItemConstructorOptions[] {
   return [
     {
       label: appName,
       submenu: [
-        { role: 'about', label: `About ${appName}` },
+        { role: 'about', label: t(locale, 'menu.about', { product: appName }) },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
         { role: 'hideOthers' },
         { role: 'unhide' },
         { type: 'separator' },
-        { role: 'quit', label: `Quit ${appName}` },
+        { role: 'quit', label: t(locale, 'menu.quit', { product: appName }) },
       ],
     },
     { role: 'editMenu' },

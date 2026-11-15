@@ -24,6 +24,7 @@
     "test:e2e": "node scripts/build.mjs && playwright test",
     "test:web": "node scripts/build.mjs --web-only --web-test && playwright test -c playwright.web.config.mts",
     "icons": "electron scripts/gen-icons.cjs",
+    "preview:characters": "node scripts/with-lock.mjs preview-chars -- npx electron scripts/preview-characters.cjs",
     "package": "node scripts/build.mjs && electron-builder --win nsis --x64 --publish never",
     "package:win:arm64": "node scripts/stage-koffi-arch.mjs --arch arm64 && node scripts/build.mjs && electron-builder --win nsis --arm64 --publish never",
     "package:win": "node scripts/stage-koffi-arch.mjs --arch arm64 && node scripts/build.mjs && electron-builder --win nsis --x64 --arm64 --publish never",

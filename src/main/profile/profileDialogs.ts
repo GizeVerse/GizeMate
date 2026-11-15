@@ -4,16 +4,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dialog, type BrowserWindow, type OpenDialogOptions, type SaveDialogOptions } from 'electron';
 import { BRAND } from '../../shared/brand';
+import { t } from '../../shared/i18n';
+import type { Locale } from '../../shared/i18n/locale';
 import { PROFILE_FILE_EXTENSION } from '../../shared/profileTransfer';
 import type { CappedRead, ProfileDialogs, ProfileFs } from './profileService';
 
-const FILTERS = [{ name: `${BRAND.product} profile`, extensions: [PROFILE_FILE_EXTENSION] }];
+const filters = (locale: Locale): Array<{ name: string; extensions: string[] }> => [
+  { name: t(locale, 'dialog.profileFilter', { product: BRAND.product }), extensions: [PROFILE_FILE_EXTENSION] },
+];
 
 export interface ProfileDialogOptions {
   /** The settings window (dialogs are modal to it), or null. */
   parent: () => BrowserWindow | null;
   /** Where the save dialog starts (app.getPath('documents')); may throw. */
   documentsDir: () => string;
+  /** The effective interface language, read each time a dialog opens. */
+  locale: () => Locale;
 }
 
 export function createElectronProfileDialogs(opts: ProfileDialogOptions): ProfileDialogs {
@@ -27,9 +33,9 @@ export function createElectronProfileDialogs(opts: ProfileDialogOptions): Profil
   return {
     async chooseSavePath(defaultName) {
       const options: SaveDialogOptions = {
-        title: `Save ${BRAND.product} to a file`,
+        title: t(opts.locale(), 'dialog.profileSaveTitle', { product: BRAND.product }),
         defaultPath: startIn(defaultName),
-        filters: FILTERS,
+        filters: filters(opts.locale()),
         // Windows and macOS confirm an overwrite natively; Linux needs the flag.
         properties: ['createDirectory', 'showOverwriteConfirmation'],
       };
@@ -39,8 +45,8 @@ export function createElectronProfileDialogs(opts: ProfileDialogOptions): Profil
     },
     async chooseOpenPath() {
       const options: OpenDialogOptions = {
-        title: `Load a ${BRAND.product} profile`,
-        filters: FILTERS,
+        title: t(opts.locale(), 'dialog.profileOpenTitle', { product: BRAND.product }),
+        filters: filters(opts.locale()),
         properties: ['openFile'],
       };
       const parent = opts.parent();

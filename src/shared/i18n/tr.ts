@@ -7,10 +7,12 @@ import { ghostTr } from './characters/ghost';
 import { monkeyTr } from './characters/monkey';
 import { rabbitTr } from './characters/rabbit';
 import { slimeTr } from './characters/slime';
+import { systemTr } from './system';
 
 type Mirror<T> = { [K in keyof T]: T[K] extends string ? string : Mirror<T[K]> };
 
 export const tr: Mirror<typeof en> = {
+  ...systemTr,
   product: {
     name: 'GizeMate',
   },

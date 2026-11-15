@@ -6,6 +6,7 @@ import { screen, type BrowserWindow } from 'electron';
 import type { CatRenderState, HitRegion } from '../../shared/cat';
 import { distance, type Point, type Rect } from '../../shared/geometry';
 import { IPC, type OverlayConfig, type OverlayPointerEvent } from '../../shared/ipc';
+import type { CharacterId } from '../../shared/characters/registry';
 import type { Settings } from '../../shared/settings';
 import type { SimEvent, SimOutput } from '../../shared/sim';
 import type { SurfaceLinesPayload } from '../../shared/surfaceDiagnosticsSchema';
@@ -18,6 +19,8 @@ import { SCREEN_EDGE_KIND } from '../../shared/surfaces';
 import type { GesturePointerEvent, GestureRecognizer } from '../../core/interaction/gestures';
 import { WIN32_OVERLAY_PROFILE, type OverlayProfile } from './overlayProfile';
 import { createOverlayShell, createOverlayWindow, overlayUrl, type OverlayShell } from './overlayWindow';
+import { appearanceFor, bodyMargins } from '../characterIdentity';
+import { getCharacter } from '../../shared/characters/registry';
 import { displaysShowingCat, displaysShowingProps, hiddenRenderState, mapRenderState } from './renderMapping';
 import { surfaceLinesForDisplay, type SurfaceLinesSink } from './surfaceLines';
 
@@ -137,6 +140,8 @@ export interface OverlayManagerOptions {
   getSettings: () => Settings;
   /** Worn accessory for every overlay's render state; absent or undefined = none. */
   getAccessory?: () => 'heartPendant' | undefined;
+  /** GizeMate: the character the sim runs now (sent as `character` in every render state; absent = the cat). */
+  getCharacter?: () => CharacterId;
   gestures: GestureRecognizer;
   /** Gesture results for the simulation. */
   onSimEvents: (events: SimEvent[]) => void;
@@ -230,6 +235,11 @@ export interface OverlayManager extends SurfaceLinesSink {
   applySettings(next: Settings, prev: Settings | null): void;
   /** Re-sends the last frame to the overlays (an accessory changed while the cat is idle). */
   refresh(): void;
+  /**
+   * The active character changed: the last frame belongs to the previous one and is dropped, every
+   * overlay snaps on its next frame, its hit region and any press are reset. The next host tick redraws.
+   */
+  characterChanged(): void;
   /** Test hook: true/false forces every overlay interactive/click-through; null restores routing. */
   forceInteractive(value: boolean | null): void;
   /**
@@ -808,10 +818,12 @@ export function createOverlayManager(opts: OverlayManagerOptions): OverlayManage
     lastHidden = hidden;
     lastExtras = extras;
     const settingsNow = opts.getSettings();
-    const appearance = settingsNow.appearance;
+    const character = opts.getCharacter?.();
+    // The active character's palette in `skin` (the cat: appearance.skin untouched).
+    const appearance = character === undefined ? settingsNow.appearance : appearanceFor(settingsNow, character);
     const movementSpeed = settingsNow.behavior.movementSpeed;
     const world = opts.display.world;
-    const catShowing = displaysShowingCat(out, world.displays, appearance, hidden);
+    const catShowing = displaysShowingCat(out, world.displays, appearance, hidden, character === undefined ? undefined : bodyMargins(getCharacter(character)));
     // Props and the laser dot also show where the cat is not (an event or the cursor on another
     // display); the cat itself being hidden or out of sight clears the dot.
     const showing = new Set(catShowing);
@@ -861,6 +873,8 @@ export function createOverlayManager(opts: OverlayManagerOptions): OverlayManage
           ...(laserOn || clearLaser ? { laser: laserPoint && !laserQuiet.includes(e.displayId) ? laserPoint : null } : {}),
           ...(reducedMotion ? { reducedMotion: true } : {}),
           ...(accessory !== undefined ? { accessory } : {}),
+          // The cat is the default when absent.
+          ...(character !== undefined ? { character } : {}),
         });
         // An overlay that shows only props or the dot still gets a visible frame: the cat's own
         // visibility is about the cat, which is not drawn there (it lies on another display).
@@ -1315,6 +1329,18 @@ export function createOverlayManager(opts: OverlayManagerOptions): OverlayManage
     },
     refresh() {
       if (!disposed && lastOutput) render(lastOutput, lastSimNow, lastHidden, lastExtras);
+    },
+    characterChanged() {
+      if (disposed) return;
+      lastOutput = null;
+      lastExtras = undefined;
+      for (const e of entries.values()) {
+        if (ownsPress(e)) endPress(e, 'cancel');
+        e.needSnap = true;
+        e.hitRectsPx = null;
+        e.hitAnchor = null;
+        e.lastState = null;
+      }
     },
     applySettings(next, prev) {
       if (prev && prev.appearance.hideFromScreenCapture === next.appearance.hideFromScreenCapture) return;

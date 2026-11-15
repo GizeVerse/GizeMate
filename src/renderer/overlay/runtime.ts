@@ -11,6 +11,7 @@ import { blendProps, drawLaser, drawProps, laserBounds, propsBounds, type PropRe
 import { HIT_REFRESH_MS, HitRegionReporter } from './hitRegion';
 import { attachPointerInput } from './input';
 import { SnapshotInterpolator, type InterpSample } from './interpolation';
+import { createCharacterRenderer } from './characters/registry';
 import { CatScene, type DeviceRect, type Layer, type LayerProvider } from './scene';
 import { createSoundPlayer, type AudioContextLike, type SoundPlayer } from './sound';
 import { isOverlayConfig, isRenderState } from './validate';
@@ -66,7 +67,8 @@ export class OverlayRuntime {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly interp = new SnapshotInterpolator();
   private readonly sample: InterpSample;
-  private readonly scene = new CatScene(Math.random);
+  /** The scene creates (and on a snapshot's character change swaps) its renderer through the registry. */
+  private readonly scene = new CatScene(Math.random, createCharacterRenderer);
   private readonly pacer = new FramePacer();
   private readonly hits: HitRegionReporter;
   /** v1.2 (ADR 0003 §10): plays the cues main sends this overlay (only while sound is on). */

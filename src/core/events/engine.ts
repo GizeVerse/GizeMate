@@ -334,6 +334,7 @@ export function createWorldEventEngine(opts: CreateEventEngineOptions): WorldEve
       rare: input.choices.rare,
       disabled: input.choices.disabled,
       ignoreHours,
+      affinity: opts.affinity,
     };
   }
 

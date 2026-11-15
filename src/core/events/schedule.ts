@@ -115,12 +115,21 @@ export interface OfferContext {
   disabled: readonly AnyEventId[];
   /** Skip the hour window (the dev menu may force the midnight visitor by day). */
   ignoreHours?: boolean;
+  /** GizeMate: the character's per-event weight multipliers (missing = 1; 0 = never offered). Absent: all 1 (the cat). */
+  affinity?: Readonly<Partial<Record<AnyEventId, number>>>;
+}
+
+/** A character's weight multiplier for an event: missing or non-finite = 1, negative = 0. */
+export function affinityOf(affinity: Readonly<Partial<Record<AnyEventId, number>>>, id: AnyEventId): number {
+  const v = affinity[id];
+  return v === undefined || !Number.isFinite(v) ? 1 : Math.max(0, v);
 }
 
 /** Can this event be offered on this stage at this hour, under these choices? */
 export function canOffer(def: EventDef, o: OfferContext): boolean {
   if (def.rare && !o.rare) return false;
   if (o.disabled.includes(def.id)) return false;
+  if (o.affinity && !(affinityOf(o.affinity, def.id) > 0)) return false;
   if (def.skipReduced && o.reducedMotion) return false;
   const unit = o.bodyW > 0 && Number.isFinite(o.bodyW) ? o.bodyW : CAT_BASE_WIDTH_DIP;
   if (o.stage.width < def.minFloorPx * (unit / CAT_BASE_WIDTH_DIP)) return false;
@@ -145,7 +154,7 @@ function poolFor(
   for (const id of rare ? RARE_POOL : NORMAL_POOL) {
     const def = EVENT_CATALOG[id];
     if (!def || !canOffer(def, o) || recent.includes(id)) continue;
-    const w = def.weight * timeFactor(def, o.localHour) * recencyFactor(id, history, wallNow) * (counts ? noveltyWeight(counts[id]) : 1);
+    const w = def.weight * timeFactor(def, o.localHour) * recencyFactor(id, history, wallNow) * (counts ? noveltyWeight(counts[id]) : 1) * (o.affinity ? affinityOf(o.affinity, id) : 1);
     if (w > 0) out.push({ id, w });
   }
   return out;

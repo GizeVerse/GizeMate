@@ -62,6 +62,8 @@ export interface MoveGoal {
 export interface MoverConfig {
   size: number;
   movementSpeed: number;
+  /** GizeMate: scales the clean-gait speed limits (module.body.gaitScale x behavior.speedScale); absent or 1 = the cat's. */
+  gaitScale?: number;
   allowMultiMonitor: boolean;
   /** Window tops ('Sit on windows'). Taskbars are always supports: a shown one covers the floor ('taskbarPlay' is the sim's). */
   perchOnWindows: boolean;
@@ -644,12 +646,12 @@ export class Mover {
    * of the clip it is drawn with (GAIT_LIMIT_DIP, ADR 0003 §6.7), x the display scale.
    */
   paceSpeedPx(pace: Pace): number {
-    return clampedPaceDip(pace, this.cfg.movementSpeed) * this.scale;
+    return clampedPaceDip(pace, this.cfg.movementSpeed, this.cfg.gaitScale) * this.scale;
   }
 
   /** Climbing speed in px/s (clamped to 1.1 x the climb clip's clean-gait limit). */
   private climbSpeedPx(up: boolean): number {
-    return clampedClimbDip(up, this.cfg.movementSpeed) * this.scale;
+    return clampedClimbDip(up, this.cfg.movementSpeed, this.cfg.gaitScale) * this.scale;
   }
 
   // ---- v1.2 (ADR 0003 §6) ------------------------------------------------------------------
@@ -1015,7 +1017,7 @@ export class Mover {
         seen.add(`climbDown:${w.key}`);
         const footDip = exit.y - w.yBottom > MOVEMENT.wallReachBodyHeights * bh ? (exit.y - w.yBottom) / w.scale : 0;
         if (footDip > limits.maxDip) continue;
-        const down = clampedClimbDip(false, this.cfg.movementSpeed);
+        const down = clampedClimbDip(false, this.cfg.movementSpeed, this.cfg.gaitScale);
         const walkSec = Math.abs(e.fromLo - this.x) / walk;
         add(
           {
@@ -1109,7 +1111,7 @@ export class Mover {
     const scale = w.scale;
     const limits = leaveLimits(this.cfg);
     const out: Array<{ option: LeaveOption; plan: LeavePlan }> = [];
-    const climb = clampedClimbDip(false, this.cfg.movementSpeed);
+    const climb = clampedClimbDip(false, this.cfg.movementSpeed, this.cfg.gaitScale);
     const exit = this.graph.dismountTarget(this.navWorld, w, this.y);
     if (exit && !this.offLimitsAt(exit.surface, exit.x)) {
       out.push({

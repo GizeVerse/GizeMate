@@ -1,6 +1,7 @@
 // Deterministic test fixtures for the cat simulation.
 import type { BehaviorState } from '../../../../src/shared/cat';
 import type { PersistedCat } from '../../../../src/shared/catState';
+import type { CharacterId } from '../../../../src/shared/characters/types';
 import type { Rect } from '../../../../src/shared/geometry';
 import type { Settings } from '../../../../src/shared/settings';
 import { defaultSettings } from '../../../../src/shared/settings';
@@ -74,7 +75,7 @@ export class Harness {
    * in the real display space, as the provider builds them. false: the raw world.
    */
   constructor(
-    opts: { seed?: number; settings?: Settings; world?: WorldGeometry; persisted?: PersistedCat | null; now?: number; wall?: number; floorInset?: boolean; hooks?: Omit<SimHooks, 'onTransition'> } = {},
+    opts: { seed?: number; character?: CharacterId; settings?: Settings; world?: WorldGeometry; persisted?: PersistedCat | null; now?: number; wall?: number; floorInset?: boolean; hooks?: Omit<SimHooks, 'onTransition'> } = {},
   ) {
     this.now = opts.now ?? 1000;
     this.worldGeometry = opts.world ?? SINGLE;
@@ -88,6 +89,7 @@ export class Harness {
         now: this.now,
         random: mulberry32(opts.seed ?? 1),
         wallClock: () => (wall += 1),
+        ...(opts.character !== undefined ? { character: opts.character } : {}),
       },
       { ...opts.hooks, onTransition: (r) => this.transitions.push(r) },
     );

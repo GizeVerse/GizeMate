@@ -9,14 +9,30 @@ import { createLogger, type LogLevel, type RootLogger } from './diagnostics/logg
 import { appVersion } from './lifecycle/appInfo';
 import { createCrashGuard } from './lifecycle/crashGuard';
 import { hasFlag, isTestMode, LAUNCHED_AT_LOGIN_FLAG, parseTimeScale, parseUserDataOverride } from './lifecycle/launchArgs';
-import { explicitOzone, NO_SANDBOX_MESSAGE, NO_SANDBOX_TITLE, sandboxDecision } from './platform/boot';
+import { explicitOzone, noSandboxDialog, sandboxDecision } from './platform/boot';
 import { registerAppSchemePrivileges } from './protocol';
 import { createJsonStore } from './store/jsonStore';
 import { createSettingsStore } from './store/settingsStore';
 import { BRAND } from '../shared/brand';
+import { t } from '../shared/i18n';
+import { DEFAULT_LOCALE, resolveLocale, type Locale } from '../shared/i18n/locale';
 import { IDENTITY } from '../shared/identity';
+import type { Settings } from '../shared/settings';
 
 export const APP_USER_MODEL_ID = IDENTITY.appUserModelId;
+/**
+ * The language of the dialogs shown before the app runs: settings.general.language once the settings are
+ * read, else the system's. Never throws (app.getLocale() may be unavailable this early).
+ */
+let languageChoice: Settings['general']['language'] = 'auto';
+function dialogLocale(): Locale {
+  try {
+    return resolveLocale(languageChoice, app.getLocale());
+  } catch {
+    return DEFAULT_LOCALE;
+  }
+}
+
 /** macOS: 'activate' events this soon after start belong to the launch itself. */
 const MAC_ACTIVATE_GRACE_MS = 3000;
 
@@ -38,8 +54,9 @@ function exitAfterStartupFailure(err: unknown, logger: RootLogger | null, test: 
   }
   if (!test) {
     try {
-      const where = logger?.logDir ? `\n\nDetails were written to the log in:\n${logger.logDir}` : '';
-      dialog.showErrorBox(`${BRAND.product} could not start`, `${BRAND.product} ran into a problem while starting and has closed.${where}`);
+      const lang = dialogLocale();
+      const where = logger?.logDir ? t(lang, 'dialog.startFailedLog', { dir: logger.logDir }) : '';
+      dialog.showErrorBox(t(lang, 'dialog.startFailedTitle', { product: BRAND.product }), `${t(lang, 'dialog.startFailedBody', { product: BRAND.product })}${where}`);
     } catch {
       /* exiting anyway */
     }
@@ -71,7 +88,10 @@ function start(test: boolean, boot: { logger: RootLogger | null }): void {
   // renderers without the Chromium sandbox.
   const sandbox = sandboxDecision(app.isPackaged, app.commandLine.hasSwitch('no-sandbox'));
   if (sandbox === 'refuse') {
-    if (!test) dialog.showErrorBox(NO_SANDBOX_TITLE, NO_SANDBOX_MESSAGE);
+    if (!test) {
+      const refusal = noSandboxDialog(dialogLocale());
+      dialog.showErrorBox(refusal.title, refusal.message);
+    }
     app.exit(1);
     return;
   }
@@ -143,6 +163,7 @@ function start(test: boolean, boot: { logger: RootLogger | null }): void {
     logger: logger.child('settings'),
   });
   const loaded = settings.load();
+  languageChoice = loaded.settings.general.language;
   logger.setLevel(loaded.settings.diagnostics.logLevel);
   if (!loaded.settings.diagnostics.hardwareAcceleration) {
     app.disableHardwareAcceleration();

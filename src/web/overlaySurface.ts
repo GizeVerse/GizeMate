@@ -18,24 +18,47 @@
 //
 // Pure apart from the injected bridge and clock: no DOM types, no globals.
 import { BODY_MARGIN_BOTTOM_DIP, BODY_MARGIN_SIDE_DIP, BODY_MARGIN_TOP_DIP, EMOTE_MARGIN_TOP_DIP } from '../main/overlay/renderMapping';
-import { CAT_BASE_HEIGHT_DIP, CAT_BASE_WIDTH_DIP } from '../shared/cat';
+import { DEFAULT_CHARACTER, getCharacter, type CharacterId } from '../shared/characters/registry';
 import type { Point, Rect } from '../shared/geometry';
 import type { Settings } from '../shared/settings';
 import type { SimOutput } from '../shared/sim';
-import type { OverlayCommand, OverlayInbound, OverlayOutbound, PointerKind, ScreenMetrics } from './floatingProtocol';
+import { STAGE_MAX_H_DP, STAGE_MAX_W_DP, TOUCH_MAX_DP, type OverlayCommand, type OverlayInbound, type OverlayOutbound, type PointerKind, type ScreenMetrics } from './floatingProtocol';
 import { laserBounds, propsBounds } from '../renderer/overlay/propBounds';
 import { createOverlayDisplayService, type OverlayDisplayService } from './overlayDisplay';
 import type { RoutedEvent } from './pointerRouter';
 import { createStageTracker } from './stageWindow';
 
 /** Size of the window that holds the cat, dp: the footprint plus the room the renderer may draw into (renderMapping.presenceRectPx). */
-export function windowSizeDip(appearance: Pick<Settings['appearance'], 'size' | 'emotes'>): { width: number; height: number } {
+export function windowSizeDip(appearance: Pick<Settings['appearance'], 'size' | 'emotes'>, character: CharacterId = DEFAULT_CHARACTER): { width: number; height: number } {
   const k = appearance.size;
   const top = appearance.emotes ? EMOTE_MARGIN_TOP_DIP : BODY_MARGIN_TOP_DIP;
+  // The active module's nominal body (the cat's is CAT_BASE_WIDTH_DIP x CAT_BASE_HEIGHT_DIP: its numbers are unchanged).
+  const body = getCharacter(character).body;
   return {
-    width: (CAT_BASE_WIDTH_DIP + 2 * BODY_MARGIN_SIDE_DIP) * k,
-    height: (CAT_BASE_HEIGHT_DIP + top + BODY_MARGIN_BOTTOM_DIP) * k,
+    width: (body.widthDip + 2 * BODY_MARGIN_SIDE_DIP) * k,
+    height: (body.heightDip + top + BODY_MARGIN_BOTTOM_DIP) * k,
   };
+}
+
+/** A window message's rectangles forced inside what native accepts (OverlayWindow.kt refuses a larger one whole). */
+export interface WinRects {
+  w: number;
+  h: number;
+  tw: number;
+  th: number;
+}
+
+/**
+ * Clamps the visual window to the stage caps and the touch window to MAX_TOUCH_DP and to the visual
+ * window, so a message is never silently dropped by native (a tall ghost or wide slime at size 2.5 stays
+ * well inside the caps; this is the guarantee, not the expectation). Mutates and returns `m`.
+ */
+export function clampWinRects<T extends WinRects>(m: T): T {
+  m.w = Math.max(1, Math.min(m.w, STAGE_MAX_W_DP));
+  m.h = Math.max(1, Math.min(m.h, STAGE_MAX_H_DP));
+  m.tw = Math.max(1, Math.min(m.tw, TOUCH_MAX_DP, m.w));
+  m.th = Math.max(1, Math.min(m.th, TOUCH_MAX_DP, m.h));
+  return m;
 }
 
 /**
@@ -44,10 +67,10 @@ export function windowSizeDip(appearance: Pick<Settings['appearance'], 'size' | 
  * sub-pixel position every frame and a window that native rounds to pixels never jitters against it.
  * The origin is rounded to the nearest pixel, the size up.
  */
-export function windowRectFor(bounds: Rect, appearance: Pick<Settings['appearance'], 'size' | 'emotes'>, density: number): Rect {
+export function windowRectFor(bounds: Rect, appearance: Pick<Settings['appearance'], 'size' | 'emotes'>, density: number, character: CharacterId = DEFAULT_CHARACTER): Rect {
   const k = appearance.size;
   const d = Number.isFinite(density) && density > 0 ? density : 1;
-  const size = windowSizeDip(appearance);
+  const size = windowSizeDip(appearance, character);
   const top = appearance.emotes ? EMOTE_MARGIN_TOP_DIP : BODY_MARGIN_TOP_DIP;
   const snap = (v: number): number => Math.round(v * d) / d;
   const up = (v: number): number => Math.ceil(v * d - 1e-6) / d;
@@ -153,6 +176,8 @@ export function createOverlaySurface(
   touchable: () => boolean = () => true,
   /** The page's clock (ms, performance.now): the domain the router and the recognizer work in. */
   now: () => number = () => performance.now(),
+  /** The active companion: its body sizes the windows. */
+  getCharacter: () => CharacterId = () => DEFAULT_CHARACTER,
 ): OverlaySurface {
   const display = createOverlayDisplayService(initial);
   /** The widened visual window while props or the laser dot exist (stageWindow.ts). */
@@ -173,7 +198,7 @@ export function createOverlaySurface(
   };
 
   function report(rect: Rect | null, touchRect: Rect | null, catTouch = true): void {
-    const size = windowSizeDip(getAppearance());
+    const size = windowSizeDip(getAppearance(), getCharacter());
     const touch = touchable() && catTouch;
     const next: Win =
       rect && touchRect
@@ -191,6 +216,7 @@ export function createOverlaySurface(
             tw: lastWin?.tw ?? 1,
             th: lastWin?.th ?? 1,
           };
+    clampWinRects(next);
     if (lastWin && (Object.keys(next) as (keyof Win)[]).every((k) => lastWin?.[k] === next[k])) return;
     lastWin = next;
     port.post({ t: 'win', ...next });
@@ -216,7 +242,7 @@ export function createOverlaySurface(
       }
       const appearance = getAppearance();
       const density = display.metrics.density;
-      const catWin = windowRectFor(out.boundsPx, appearance, density);
+      const catWin = windowRectFor(out.boundsPx, appearance, density, getCharacter());
       const m = display.metrics;
       const props = out.props && out.props.length > 0 ? propsBounds(out.props, appearance.size) : null;
       const dot = info.laser ? laserBounds(info.laser.x, info.laser.y) : null;

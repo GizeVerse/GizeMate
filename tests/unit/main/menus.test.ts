@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { catContextMenuModel, trayIconVariant, trayMenuModel, trayTooltip, type MenuContext, type MenuItemModel } from '../../../src/main/lifecycle/menuModel';
+import { BRAND } from '../../../src/shared/brand';
 import { drawTrayBitmap } from '../../../src/main/lifecycle/trayIcon';
 
 const base: MenuContext = {
@@ -49,17 +50,17 @@ describe('product name in menus (ADR 0004 §9)', () => {
     return found && found.kind !== 'separator' ? found.label : null;
   };
 
-  it('the tray menu and the cat menu quit GizeCat', () => {
-    expect(label(trayMenuModel(base), 'quit')).toBe('Quit GizeCat');
-    expect(label(catContextMenuModel(base), 'quit')).toBe('Quit GizeCat');
+  it('the tray menu and the cat menu quit the product by its brand name', () => {
+    expect(label(trayMenuModel(base), 'quit')).toBe(`Quit ${BRAND.product}`);
+    expect(label(catContextMenuModel(base), 'quit')).toBe(`Quit ${BRAND.product}`);
   });
 });
 
 describe('tray tooltip and icon', () => {
   it('describes state and vision mode', () => {
-    expect(trayTooltip(base)).toBe('GizeCat — idle · Vision: off');
-    expect(trayTooltip({ ...base, state: 'chasingCursor', perceptionMode: 'local-stats' })).toBe('GizeCat — chasing the cursor · Vision: local stats');
-    expect(trayTooltip({ ...base, hidden: true, perceptionMode: 'ai-local', perceptionPaused: true })).toBe('GizeCat — hidden · Vision: AI (local) (paused)');
+    expect(trayTooltip(base)).toBe(`${BRAND.product} — idle · Vision: off`);
+    expect(trayTooltip({ ...base, state: 'chasingCursor', perceptionMode: 'local-stats' })).toBe(`${BRAND.product} — chasing the cursor · Vision: local stats`);
+    expect(trayTooltip({ ...base, hidden: true, perceptionMode: 'ai-local', perceptionPaused: true })).toBe(`${BRAND.product} — hidden · Vision: AI (local) (paused)`);
     expect(trayTooltip({ ...base, paused: true })).toContain('paused');
     expect(trayTooltip(base).length).toBeLessThanOrEqual(127);
   });

@@ -42,6 +42,17 @@ const HEART = '#e0243c';
 const HEART_RIM = '#9d1229';
 const HEART_SHINE = '#ffd9de';
 
+/** Colours of the pendant parts (every renderer may recolour it; absent = the cat's palette). */
+export interface PendantPalette {
+  chain: string;
+  cord: string;
+  cordEdge: string;
+  heart: string;
+  heartRim: string;
+  heartShine: string;
+}
+export const DEFAULT_PENDANT_PALETTE: PendantPalette = { chain: CHAIN, cord: CORD, cordEdge: CORD_EDGE, heart: HEART, heartRim: HEART_RIM, heartShine: HEART_SHINE };
+
 // ---------------------------------------------------------------------------
 // Attachment metadata. Base values at scale 1, then per-pose adjustments.
 
@@ -294,7 +305,7 @@ export function computeNecklace(rig: Rig, p: Pose, out: NecklaceGeom): void {
  * stroke in `outline` (so it matches every coat) under its own colour. Pixel mode (< 0.6 device
  * px per unit) uses a polygon heart without rim or highlight.
  */
-export function drawNecklace(ctx: Ctx2D, g: NecklaceGeom, outline: string, ol: number, pixelsPerUnit: number): void {
+export function drawNecklace(ctx: Ctx2D, g: NecklaceGeom, outline: string, ol: number, pixelsPerUnit: number, palette: PendantPalette = DEFAULT_PENDANT_PALETTE): void {
   if (!g.ok) return;
   const pixel = pixelsPerUnit < 0.6;
   const px = 1 / Math.max(1e-3, pixelsPerUnit);
@@ -310,10 +321,10 @@ export function drawNecklace(ctx: Ctx2D, g: NecklaceGeom, outline: string, ol: n
   ctx.strokeStyle = outline;
   ctx.lineWidth = cordW + ol * 1.2;
   ctx.stroke();
-  ctx.strokeStyle = CORD_EDGE;
+  ctx.strokeStyle = palette.cordEdge;
   ctx.lineWidth = cordW;
   ctx.stroke();
-  ctx.strokeStyle = CORD;
+  ctx.strokeStyle = palette.cord;
   ctx.lineWidth = cordW * 0.6;
   ctx.stroke();
 
@@ -329,7 +340,7 @@ export function drawNecklace(ctx: Ctx2D, g: NecklaceGeom, outline: string, ol: n
   ctx.strokeStyle = outline;
   ctx.lineWidth = chainW + ol * 0.8;
   ctx.stroke();
-  ctx.strokeStyle = CHAIN;
+  ctx.strokeStyle = palette.chain;
   ctx.lineWidth = chainW;
   ctx.stroke();
 
@@ -359,17 +370,75 @@ export function drawNecklace(ctx: Ctx2D, g: NecklaceGeom, outline: string, ol: n
   ctx.strokeStyle = outline;
   ctx.lineWidth = Math.max(1, ol * 1.5);
   ctx.stroke();
-  ctx.fillStyle = HEART;
+  ctx.fillStyle = palette.heart;
   ctx.fill();
   if (!pixel) {
-    ctx.strokeStyle = HEART_RIM;
+    ctx.strokeStyle = palette.heartRim;
     ctx.lineWidth = 0.8;
     ctx.stroke();
     ctx.globalAlpha *= 0.75;
-    ctx.fillStyle = HEART_SHINE;
+    ctx.fillStyle = palette.heartShine;
     ctx.beginPath();
     ctx.ellipse(-0.45 * w, -0.4 * w, 0.22 * w, 0.14 * w, -0.6, 0, TAU);
     ctx.fill();
   }
   ctx.restore();
+}
+
+const pendantScratch = createNecklaceGeom();
+
+/**
+ * The heart pendant for any character: a collar cord from collar end A to B, two chain strands
+ * meeting a drop below the collar's middle along the unit-ish hang direction (hangX, hangY), and the
+ * heart at the end. Everything in the caller's current local frame (inside its pose matrix), so it
+ * follows the body. `scale` is 1 for a cat-sized neck; `ol` is the outline width in local units.
+ * Uses the very painter the cat's necklace uses (drawNecklace), so the look is identical.
+ * Allocation-free; draws nothing for non-finite input.
+ */
+export function drawPendantBetween(
+  ctx: Ctx2D,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  hangX: number,
+  hangY: number,
+  scale: number,
+  outline: string,
+  ol: number,
+  pixelsPerUnit: number,
+  palette?: PendantPalette,
+): void {
+  const k = clamp(Number.isFinite(scale) ? scale : 1, 0.3, 3);
+  let hx = hangX;
+  let hy = hangY;
+  const hl = Math.hypot(hx, hy);
+  if (!(hl > 1e-6)) {
+    hx = 0;
+    hy = 1;
+  } else {
+    hx /= hl;
+    hy /= hl;
+  }
+  const g = pendantScratch;
+  const cx = (ax + bx) / 2;
+  const cy = (ay + by) / 2;
+  const drop = clamp(DROP * k, DROP_MIN * 0.5, DROP_MAX * 2);
+  const hw = clamp(HEART_HW * k, HW_MIN * 0.5, HW_MAX * 2);
+  g.ax = ax;
+  g.ay = ay;
+  g.bx = bx;
+  g.by = by;
+  g.qx = cx + hx * 2.2 * k * 2;
+  g.qy = cy + hy * 2.2 * k * 2;
+  g.sx = cx + hx * drop;
+  g.sy = cy + hy * drop;
+  g.hw = hw;
+  g.hx = g.sx + hx * hw * 0.7;
+  g.hy = g.sy + hy * hw * 0.7;
+  g.ang = Math.atan2(hy, hx) - Math.PI / 2;
+  g.dx = hx;
+  g.dy = hy;
+  g.ok = Number.isFinite(g.ax + g.ay + g.bx + g.by + g.qx + g.qy + g.sx + g.sy + g.hx + g.hy + g.ang);
+  drawNecklace(ctx, g, outline, ol, pixelsPerUnit, palette);
 }

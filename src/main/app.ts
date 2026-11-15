@@ -11,10 +11,15 @@ import { BRAND } from '../shared/brand';
 import type { AppStatus, CompanionStatus, SettingsViewState } from '../shared/ipc';
 import { IPC } from '../shared/ipc';
 import type { PerceptionStatus } from '../shared/perception';
+import { DEFAULT_CHARACTER, type CharacterId } from '../shared/characters/registry';
+import type { Locale } from '../shared/i18n/locale';
+import type { CatSim, CatSimOptions } from '../shared/sim';
 import { CAPABILITY_MATRIX, type PlatformReport } from '../shared/platform';
 import type { Settings } from '../shared/settings';
 import { parseSurfaceDiagnostics } from '../shared/surfaceDiagnosticsSchema';
 import { createCatHost, perceptionPausedFor, type CatHost } from './catHost';
+import { activeCharacterOf, characterDisplayName, effectiveLocale } from './characterIdentity';
+import { createCharacterRuntime, type CharacterRuntime } from './characterRuntime';
 import type { Logger, PerceptionHost, PerceptionService } from './contracts';
 import { buildDiagnosticsReport } from './diagnostics/diagnosticsReport';
 import { watchDpiAwareness } from './diagnostics/dpiAwareness';
@@ -55,7 +60,8 @@ import { createProfileTransferService } from './profile/profileService';
 import { installAppProtocol } from './protocol';
 import { createWindowRegistry, installSecurity } from './security';
 import { createSettingsWindowController } from './settingsWindow';
-import { createCatStore } from './store/catStore';
+import { createCatStore, type CatStore } from './store/catStore';
+import { createCharacterStores } from './store/characterStore';
 import { createJsonStore, type JsonReadStatus } from './store/jsonStore';
 import { createSecretFile, createSecretStore } from './store/secretStore';
 import type { SettingsStore } from './store/settingsStore';
@@ -122,7 +128,11 @@ export function startApp(boot: AppBootstrap): RunningApp {
   // GizeVerse (ADR 0004 §3): every per-OS choice of the shell comes from here.
   const platform = createPlatformServices(probeFromProcess(process.platform, process.env, explicitOzone((name) => app.commandLine.getSwitchValue(name))), screen);
   log.info('platform', { id: platform.id, coordinates: platform.coordinates.strategy, overlay: platform.overlayProfile.create });
-  Menu.setApplicationMenu(platform.applicationMenu === 'darwin-minimal' ? Menu.buildFromTemplate(darwinApplicationMenu(BRAND.product)) : null);
+  // The application menu (macOS) follows the interface language: built here, rebuilt when it changes.
+  const applyApplicationMenu = (lang: Locale): void => {
+    Menu.setApplicationMenu(platform.applicationMenu === 'darwin-minimal' ? Menu.buildFromTemplate(darwinApplicationMenu(BRAND.product, lang)) : null);
+  };
+  applyApplicationMenu(effectiveLocale(settings.get(), app.getLocale()));
   // macOS (1.4.0, D4): "Show GizeCat in the Dock" (general.showDockIcon, on by default). 'regular' is
   // Electron's default policy, so only an 'off' choice needs a call at start (no Dock flicker otherwise).
   if (platform.dockPolicyConfigurable && !settings.get().general.showDockIcon) applyDockPolicy(app, false, logger.child('dock'));
@@ -130,14 +140,18 @@ export function startApp(boot: AppBootstrap): RunningApp {
   installAppProtocol(session.defaultSession, rendererRoot, logger.child('protocol'));
 
   // Persistence
+  // cat-state.json is exactly as shipped (v1.5.0 layout); the other characters have their own files
+  // (characters/<id>.json, characterStore.ts) and never touch it.
+  const catJson = createJsonStore({ filePath: path.join(boot.userData, 'cat-state.json'), logger: logger.child('store') });
   const catStore = createCatStore({
-    store: createJsonStore({ filePath: path.join(boot.userData, 'cat-state.json'), logger: logger.child('store') }),
+    store: catJson,
     migrate: migrateCatState,
     random: Math.random,
     logger: logger.child('cat-store'),
   });
   const catLoad = catStore.load();
   if (catLoad.recovered) log.warn('cat state recovered', { source: catLoad.source });
+  const characterStores = createCharacterStores({ userData: boot.userData, catStore, logger: logger.child('store'), random: Math.random });
   const secrets = createSecretStore({
     // No .bak or quarantined copy: a removed key must not come back from a copy.
     store: createSecretFile(path.join(boot.userData, 'secrets.json'), logger.child('store')),
@@ -188,7 +202,14 @@ export function startApp(boot: AppBootstrap): RunningApp {
   })();
   const surfaces = createSurfaceProvider({ logger, tracker, win32, taskbars, tabStrips, display, settings: initial, now: surfaceClock });
 
-  const sim = createCatSim({ persisted: catLoad.cat, settings: initial, world: simWorld(display.world), now: 0, random: Math.random, wallClock: Date.now });
+  // The sim of the active character (assigned with the runtime below, replaced by a character swap).
+  let sim: CatSim;
+  let runtime: CharacterRuntime | null = null;
+  const makeSim = (character: CharacterId, persisted: CatSimOptions['persisted']): CatSim => {
+    // `character` is the sim's GizeMate option; the cat is the default and is built exactly as before.
+    const simOptions = { persisted, settings: settings.get(), world: simWorld(display.world), now: 0, random: Math.random, wallClock: Date.now, character } as CatSimOptions;
+    return createCatSim(simOptions);
+  };
   const registry = createWindowRegistry();
 
   let host: CatHost | null = null;
@@ -304,12 +325,18 @@ export function startApp(boot: AppBootstrap): RunningApp {
     };
   }
 
+  /** The effective interface language: the setting, else the system's (never written back). */
+  const locale = (s: Settings = settings.get()) => effectiveLocale(s, app.getLocale());
+  const activeCharacter = (): CharacterId => runtime?.character ?? activeCharacterOf(settings.get());
+  const activeName = (s: Settings = settings.get()): string => characterDisplayName(s, activeCharacter(), locale(s));
+
   function viewState(): SettingsViewState {
     const s = settings.get();
     return {
       settings: s,
       status: status(),
-      cat: summarizeCat(sim, s.general.catName),
+      locale: locale(s),
+      cat: summarizeCat(sim, activeName(s)),
       // Living Companion: absent when the sim cannot report it; the settings window works without.
       ...companionField(s),
       apiKeys: { anthropic: secrets.has('anthropic'), openaiCompatible: secrets.has('openai-compatible') },
@@ -339,7 +366,8 @@ export function startApp(boot: AppBootstrap): RunningApp {
     const s = settings.get();
     const h = requireHost();
     return {
-      catName: s.general.catName,
+      catName: activeName(s),
+      locale: locale(s),
       hidden: h.hidden,
       paused: h.paused,
       state: h.state,
@@ -355,7 +383,7 @@ export function startApp(boot: AppBootstrap): RunningApp {
   function saveAllSync(): void {
     attempt(log, 'settings save', () => settings.flushSync());
     attempt(log, 'cat save', () => {
-      catStore.saveSync();
+      (runtime?.store ?? catStore).saveSync();
     });
     attempt(log, 'log flush', () => logger.flushSync());
   }
@@ -443,7 +471,7 @@ export function startApp(boot: AppBootstrap): RunningApp {
     setEventsPaused: (p) => requireHost().setEventsPaused(p),
     clearJournal: () => {
       sim.clearJournal();
-      void catStore.save();
+      void (runtime?.store ?? catStore).save();
     },
     setPaused: (p) => requireHost().setPaused(p),
     setHidden: (h) => requireHost().setHidden(h),
@@ -452,11 +480,11 @@ export function startApp(boot: AppBootstrap): RunningApp {
     catAnchor: () => requireHost().catAnchor(),
     resetPersonality: () => {
       sim.resetPersonality();
-      void catStore.save();
+      void (runtime?.store ?? catStore).save();
     },
     clearHistory: () => {
       sim.clearHistory();
-      void catStore.save();
+      void (runtime?.store ?? catStore).save();
     },
     exportDiagnostics: () => {
       const wc = settingsWindow.webContents;
@@ -465,6 +493,7 @@ export function startApp(boot: AppBootstrap): RunningApp {
         defaultDir: app.getPath('documents'),
         build: buildReport,
         logger: logger.child('diagnostics'),
+        locale: locale(),
       });
     },
     openLogsFolder: async () => {
@@ -526,6 +555,7 @@ export function startApp(boot: AppBootstrap): RunningApp {
     debugOverlay: boot.flags.dev && process.argv.includes('--debug-overlay'),
     getSettings: () => settings.get(),
     getAccessory: () => secretName?.accessory(),
+    getCharacter: activeCharacter,
     gestures: createGestureRecognizer(),
     onSimEvents: (events) => host?.enqueueAll(events),
     onContextMenu: (win) => {
@@ -616,15 +646,17 @@ export function startApp(boot: AppBootstrap): RunningApp {
   // Every way of hiding, showing, pausing or resuming ends in onStatusChange below.
   const viewMemory = createViewStateMemory({ settings, logger: logger.child('startup-state') });
 
-  host = createCatHost({
-    sim,
+  const makeHost = (character: CharacterId, hostSim: CatSim, store: CatStore): CatHost =>
+    createCatHost({
+    sim: hostSim,
+    character,
     win32,
     tracker,
     activity,
     perception,
     display,
     overlays,
-    catStore,
+    catStore: store,
     logger: logger.child('host'),
     getSettings: () => settings.get(),
     cursorFallback,
@@ -651,7 +683,8 @@ export function startApp(boot: AppBootstrap): RunningApp {
           }
         : undefined,
     onStatusChange: () => {
-      const h = host;
+      // During a swap the new host reports before app-level `host` is rebound: ask the runtime.
+      const h = runtime?.host ?? host;
       if (h) {
         // A lock the host let go of on the OS's word alone keeps perception paused (docs/PRIVACY.md).
         perception?.setPaused(perceptionPausedFor(h));
@@ -660,7 +693,30 @@ export function startApp(boot: AppBootstrap): RunningApp {
       refreshUi();
     },
   });
-  catStore.attach(() => sim.serialize());
+  const initialCharacter = activeCharacterOf(initial);
+  runtime = createCharacterRuntime(
+    {
+      storeFor: (id) => characterStores.forCharacter(id),
+      createSim: makeSim,
+      createHost: makeHost,
+      getSettings: () => settings.get(),
+      logger: logger.child('character'),
+      onSwapped: (id, previous) => {
+        const r = runtime;
+        if (!r) return;
+        sim = r.sim;
+        host = r.host;
+        if (id === previous) log.warn('character swap failed; kept the previous character', { character: id });
+        else log.info('active character changed', { from: previous, to: id });
+        // The last frame belonged to the other character: drop it; the new host's first tick redraws.
+        attempt(log, 'overlay character change', () => overlays.characterChanged());
+        refreshUi();
+      },
+    },
+    { character: initialCharacter, load: initialCharacter === DEFAULT_CHARACTER ? catLoad : characterStores.forCharacter(initialCharacter).load() },
+  );
+  sim = runtime.sim;
+  host = runtime.host;
 
   const offPerceptionStatus = perception?.onStatusChange(() => refreshUi()) ?? null;
   const offDisplay = display.onChange((world) => {
@@ -678,6 +734,15 @@ export function startApp(boot: AppBootstrap): RunningApp {
     // follows mode, consent and pause changes, not only edits of the lists.
     if (!sameWindowExclusions(windowExclusionsFor(prev), windowExclusionsFor(next))) {
       attempt(log, 'window exclusions', () => applyWindowExclusions(next));
+    }
+    // GizeMate: a new active character is swapped in first (the new host then gets these settings).
+    if (prev.general.activeCharacter !== next.general.activeCharacter) {
+      attempt(log, 'character swap', () => void runtime?.swapTo(activeCharacterOf(next)));
+    }
+    // The interface language (the setting, or the system's for 'auto'): the app menu is rebuilt; the tray and
+    // the settings window follow through refreshUi() below, which carries the effective locale.
+    if (prev.general.language !== next.general.language) {
+      attempt(log, 'application menu locale', () => applyApplicationMenu(locale(next)));
     }
     host?.updateSettings(next);
     // Also forwards to the tab-strip service (toggle, cat size).
@@ -699,16 +764,27 @@ export function startApp(boot: AppBootstrap): RunningApp {
   });
 
   // After the settings listener, so a rename reaches the host first; a flip re-sends the last frame.
-  secretName = createSecretName({ settings, onChange: () => attempt(log, 'accessory refresh', () => overlays.refresh()) });
+  secretName = createSecretName({
+    settings,
+    // The tracker is fed the ACTIVE character's display name, so the feature works for any character.
+    nameOf: (st) => characterDisplayName(st, activeCharacterOf(st), locale(st)),
+    onChange: () => attempt(log, 'accessory refresh', () => overlays.refresh()),
+  });
 
   // 1.4.0 "Take your cat to another device": main-side export/import (profileService.ts). Files come
   // only from these dialogs; the settings renderer gets previews and reason codes, never paths.
   const profiles = createProfileTransferService({
     settings,
-    getCat: () => sim.serialize(),
+    // Profile files carry the cat (v1.5.0 format). With another character active the cat is read from
+    // its own file and written back to it directly: the live sim is never fed the cat's data.
+    getCat: () => (activeCharacter() === DEFAULT_CHARACTER ? sim.serialize() : catStore.load().cat),
     adoptCat: (cat) => {
-      if (!adoptCatInto(sim, cat)) throw new Error('this simulation cannot adopt a cat');
-      void catStore.save();
+      if (activeCharacter() === DEFAULT_CHARACTER) {
+        if (!adoptCatInto(sim, cat)) throw new Error('this simulation cannot adopt a cat');
+        void catStore.save();
+      } else if (!catJson.writeSync(cat)) {
+        throw new Error('the cat file could not be written');
+      }
       refreshUi();
     },
     dialogs: createElectronProfileDialogs({
@@ -717,6 +793,7 @@ export function startApp(boot: AppBootstrap): RunningApp {
         return wc ? BrowserWindow.fromWebContents(wc) : null;
       },
       documentsDir: () => app.getPath('documents'),
+      locale: () => locale(),
     }),
     fs: nodeProfileFs,
     app: { version, host: platform.id },
@@ -808,6 +885,7 @@ export function startApp(boot: AppBootstrap): RunningApp {
       ['activity monitor', () => activity.stop()],
       ['perception', () => perception?.dispose()],
       ['cat store', () => catStore.dispose()],
+      ['character stores', () => characterStores.dispose()],
       ['settings store', () => settings.dispose()],
       ['settings window', () => settingsWindow.dispose()],
       ['overlays', () => overlays.dispose()],
@@ -936,6 +1014,7 @@ export function startApp(boot: AppBootstrap): RunningApp {
       test: boot.flags.test,
       launchedAtLogin: boot.flags.launchedAtLogin,
       surface: tray,
+      locale: locale(),
       // Also hides the Settings › General callout of an open window.
       markShown: () => {
         loginItem.dismissNotice();

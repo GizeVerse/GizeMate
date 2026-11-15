@@ -3,6 +3,8 @@
 // applied with the desktop's own validation (applySettingsPatch: every patched leaf must survive
 // parsing unchanged) and screen analysis and AI are forced off again (forceWebPrivacy), whatever
 // the patch said. The personality is offered only as the named presets (no custom mix on the web).
+import { CHARACTER_IDS, DEFAULT_CHARACTER, getCharacter, isCharacterId, type CharacterId } from '../shared/characters/registry';
+import { isLocale, type LanguagePreference } from '../shared/i18n/locale';
 import { RENDER_STYLES, SKINS, type RenderStyle, type SkinId } from '../shared/cat';
 import { ALL_EVENT_IDS, EVENT_PACE_RANGE, PERSONALITY_IDS, type AnyEventId, type PersonalityChoice } from '../shared/companion';
 import { applySettingsPatch, IMPLIED_OPT_OUTS, LIVELY_BEHAVIORS, TOGGLEABLE_BEHAVIORS, type BehaviorId, type Settings } from '../shared/settings';
@@ -11,8 +13,8 @@ import { forceWebPrivacy, webSettings } from './storage';
 
 /** The settings leaves the sheet edits directly (the personality goes through presetPatch). */
 export const WEB_EDITABLE: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  general: Object.freeze(['catName']),
-  appearance: Object.freeze(['skin', 'style', 'size', 'shadow', 'emotes']),
+  general: Object.freeze(['catName', 'activeCharacter', 'language', 'characterNames']),
+  appearance: Object.freeze(['skin', 'style', 'size', 'shadow', 'emotes', 'characterSkins']),
   sound: Object.freeze(['enabled', 'volume', 'cat', 'world']),
   /** Living Companion: personality, world events, calmer motion and the journal switch. */
   companion: Object.freeze(['personality', 'events', 'reducedMotion', 'journal']),
@@ -43,6 +45,8 @@ export const SIZE_RANGE = Object.freeze({ min: 0.5, max: 2.5, step: 0.05 });
 export const VOLUME_RANGE = Object.freeze({ min: 0, max: 1, step: 0.05 });
 /** The cat's name: 1 to 24 characters after trimming (GeneralSchema). */
 export const CAT_NAME_MAX = 24;
+/** Every companion id the sheet may pick (the schema's enum). */
+export const WEB_CHARACTER_IDS: readonly CharacterId[] = CHARACTER_IDS;
 
 export type WebPatch = Record<string, Record<string, unknown>>;
 export type WebPatchResult = { ok: true; settings: Settings } | { ok: false; error: string };
@@ -50,6 +54,11 @@ export type WebPatchResult = { ok: true; settings: Settings } | { ok: false; err
 export type WebField =
   | { field: 'catName'; value: string }
   | { field: 'skin'; value: SkinId }
+  /** GizeMate: the active companion, the interface language, a non-cat companion's name and palette. */
+  | { field: 'activeCharacter'; value: CharacterId }
+  | { field: 'language'; value: LanguagePreference }
+  | { field: 'characterName'; id: CharacterId; value: string }
+  | { field: 'characterSkin'; id: CharacterId; value: string }
   | { field: 'style'; value: RenderStyle }
   | { field: 'size'; value: number }
   | { field: 'shadow'; value: boolean }
@@ -89,6 +98,20 @@ export function patchFor(change: WebField): WebPatch | null {
       if (name.length < 1 || name.length > CAT_NAME_MAX) return null;
       return { general: { catName: name } };
     }
+    case 'activeCharacter':
+      return isCharacterId(change.value) ? { general: { activeCharacter: change.value } } : null;
+    case 'language':
+      return change.value === 'auto' || isLocale(change.value) ? { general: { language: change.value } } : null;
+    case 'characterName': {
+      if (!isCharacterId(change.id) || change.id === DEFAULT_CHARACTER || typeof change.value !== 'string') return null;
+      const name = change.value.trim();
+      if (name.length < 1 || name.length > CAT_NAME_MAX) return null;
+      return { general: { characterNames: { [change.id]: name } } };
+    }
+    case 'characterSkin':
+      return isCharacterId(change.id) && change.id !== DEFAULT_CHARACTER && typeof change.value === 'string' && getCharacter(change.id).skins.includes(change.value)
+        ? { appearance: { characterSkins: { [change.id]: change.value } } }
+        : null;
     case 'skin':
       return (SKINS as readonly string[]).includes(change.value) ? { appearance: { skin: change.value } } : null;
     case 'style':
@@ -207,6 +230,20 @@ function isTuningPatch(patch: Record<string, unknown>): boolean {
   return true;
 }
 
+/** Per-character maps (names, palettes): only known non-cat character ids, a palette only from that character's own list. */
+function rejectBadCharacterMaps(section: string, values: Record<string, unknown>): string | null {
+  const map = section === 'general' ? values['characterNames'] : section === 'appearance' ? values['characterSkins'] : undefined;
+  if (map === undefined) return null;
+  const label = section === 'general' ? 'general.characterNames' : 'appearance.characterSkins';
+  if (!isObject(map)) return `${label} must be an object`;
+  for (const [id, v] of Object.entries(map)) {
+    if (!isCharacterId(id) || id === DEFAULT_CHARACTER) return `${label}.${id} is not a companion with its own entry`;
+    if (typeof v !== 'string') return `${label}.${id} must be a string`;
+    if (section === 'appearance' && !getCharacter(id).skins.includes(v)) return `${label}.${id} is not one of its palettes`;
+  }
+  return null;
+}
+
 /** The reason `patch` is outside the web allow-list, or null when every leaf is allowed. */
 export function rejectNonWebPatch(patch: unknown): string | null {
   if (!isObject(patch)) return 'patch must be an object';
@@ -221,6 +258,8 @@ export function rejectNonWebPatch(patch: unknown): string | null {
     if (!allowed) return `${section} cannot be changed on the web`;
     if (!isObject(values)) return `section ${section} must be an object`;
     for (const key of Object.keys(values)) if (!allowed.includes(key)) return `${section}.${key} cannot be changed on the web`;
+    const deep = rejectBadCharacterMaps(section, values);
+    if (deep) return deep;
   }
   return null;
 }

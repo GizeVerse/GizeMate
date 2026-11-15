@@ -1,6 +1,8 @@
 // Defensive shape check for render snapshots arriving over IPC. Main is trusted, but a
 // malformed snapshot must never crash the frame loop.
+import { resolveClip } from '../../shared/animationCatalog';
 import { ANIM_CLIPS, BEHAVIOR_STATES, CAT_REACTIONS, EMOTES, JUMP_KINDS, RENDER_STYLES, SKINS, SOUND_CUES, type CatReaction, type CatRenderState, type CatSoundCue } from '../../shared/cat';
+import { characterOrDefault } from '../../shared/characters/registry';
 import { MAX_PROPS, MOODS, PROP_KINDS, type PropKind, type RenderProp } from '../../shared/companion';
 import type { OverlayConfig } from '../../shared/ipc';
 
@@ -93,9 +95,21 @@ export function isRenderState(v: unknown): v is CatRenderState {
   if (!isNum(s.emoteStartedAt) || !isNum(s.opacity) || !isNum(s.animSpeed)) return false;
   if (typeof s.snap !== 'boolean' || typeof s.visible !== 'boolean' || typeof s.shadow !== 'boolean') return false;
   if (s.facing !== 1 && s.facing !== -1) return false;
-  if (typeof s.clip !== 'string' || !CLIPS.has(s.clip)) return false;
+  if (typeof s.clip !== 'string') return false;
   if (typeof s.state !== 'string' || !STATES.has(s.state)) return false;
-  if (typeof s.skin !== 'string' || !SKIN_SET.has(s.skin)) return false;
+  if (typeof s.skin !== 'string') return false;
+  // Mixed-version bundles: a host may run a newer sim/renderer vocabulary (a clip, a skin or a
+  // character this renderer does not know). That must degrade, never blank the character: an
+  // unknown clip resolves through the catalogue's fallback chain to a safe one ('stand' at worst),
+  // an unknown character is the cat and an unknown cat skin the default coat. Only structural
+  // damage (wrong types, non-finite numbers, bad enums that have no safe reading) drops the frame.
+  if (!CLIPS.has(s.clip)) s.clip = resolveClip(s.clip);
+  if (s.character !== undefined) s.character = characterOrDefault(s.character);
+  if (s.character === undefined || s.character === 'cat') {
+    if (!SKIN_SET.has(s.skin)) s.skin = 'ginger';
+  } else if (s.skin.length === 0 || s.skin.length > 24) {
+    s.skin = '';
+  }
   if (typeof s.style !== 'string' || !STYLE_SET.has(s.style)) return false;
   if (s.emote !== null && (typeof s.emote !== 'string' || !EMOTE_SET.has(s.emote))) return false;
   if (s.look !== null) {

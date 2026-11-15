@@ -21,6 +21,7 @@ import type { CatRenderState } from '../shared/cat';
 import type { Point } from '../shared/geometry';
 import type { OverlayApi } from '../shared/ipc';
 import { PROFILE_MIME } from '../shared/profileTransfer';
+import type { Locale } from '../shared/i18n';
 import type { Settings } from '../shared/settings';
 import type { SimEvent } from '../shared/sim';
 import { createCatHost, type CatHost } from '../main/catHost';
@@ -48,8 +49,9 @@ import { applyWebPatch, patchFor, resetWebSettings, type WebPatchResult } from '
 import { createWebSecretName } from './secretName';
 import { createSettingsPanel, type SettingsPanel } from './settingsPanel';
 import { describeCat, isAsleep } from './status';
+import { activeCharacterOf, applyWebLocale, companionName } from './characterHost';
 import { createWebCatStore, openWebStorage, requestPersistence, type PersistenceState } from './storage';
-import { WS } from './strings';
+import { setLocale as setStringsLocale, WS } from './strings';
 import { registerServiceWorker, type OfflineState } from './swRegister';
 import { installTestHook, type WebTestRecorder } from './testHook';
 import { createWebOverlays } from './webOverlays';
@@ -94,7 +96,22 @@ function boot(): void {
   // ---- persistence (corrupt or blocked storage: a fresh cat, never a crash)
   const storage = openWebStorage(() => window.localStorage, log.child('storage'));
   let settings = storage.loadSettings();
-  const catLoad = storage.loadCat(Math.random, Date.now());
+  // GizeMate: the active companion for this page's life (a swap saves it, then reloads), its stored
+  // state from its own slot (the cat's is the untouched v1 key), and the interface language.
+  const character = activeCharacterOf(settings);
+  const catLoad = storage.loadCat(Math.random, Date.now(), character);
+  // Detected from the browser's language list each time; never stored.
+  let locale: Locale = applyWebLocale(settings, navigator.languages, document, setStringsLocale);
+  /**
+   * Applies the effective language of `settings` (<html lang>, the strings layer); true when it changed. The
+   * page's controls were built in the old language, so a change restarts the page (see restartForLanguage).
+   */
+  const syncLocale = (): boolean => {
+    const next = applyWebLocale(settings, navigator.languages, document, setStringsLocale);
+    const changed = next !== locale;
+    locale = next;
+    return changed;
+  };
 
   // ---- the floating cat (Android app, 1.4.1): this page is either the app screen, or the
   // transparent window the foreground service floats over other apps (`?surface=overlay`). Only the
@@ -102,7 +119,7 @@ function boot(): void {
   const root = document.documentElement;
   const overlayPort = mode.kind === 'android-app' && isOverlaySurface(window.location.search) ? connectOverlayBridge(window) : null;
   const overlayMetrics = overlayPort ? parseMetricsQuery(window.location.search) : null;
-  const surface = overlayPort && overlayMetrics ? createOverlaySurface(overlayMetrics, overlayPort, () => settings.appearance, () => !catBlocked(), clock) : null;
+  const surface = overlayPort && overlayMetrics ? createOverlaySurface(overlayMetrics, overlayPort, () => settings.appearance, () => !catBlocked(), clock, () => character) : null;
   if (surface) root.classList.add('gizecat-overlay');
   const controlPort = mode.kind === 'android-app' && !surface ? connectControlBridge(window) : null;
 
@@ -190,7 +207,7 @@ function boot(): void {
     const again = withAccessory({ ...frame, seq: nextSeq, snap: false, sound: null });
     for (const cb of [...renderSinks]) cb(again);
   });
-  secret.setName(settings.general.catName);
+  secret.setName(companionName(settings, locale));
   const deliverSimEvents = (events: SimEvent[]): void => {
     host?.enqueueAll(events);
     recorder?.noteEvents(events);
@@ -226,10 +243,11 @@ function boot(): void {
     sleepThresholdMs: settings.behavior.sleepAfterIdleMinutes * 60_000,
   });
 
-  const sim = createCatSim({ persisted: catLoad.cat, settings, world: simWorld(display.world), now: 0, random: Math.random, wallClock: Date.now });
+  const sim = createCatSim({ persisted: catLoad.cat, settings, world: simWorld(display.world), now: 0, random: Math.random, wallClock: Date.now, character });
   const catStore = createWebCatStore({
     storage,
     snapshot: () => sim.serialize(),
+    character,
     logger: log.child('cat-store'),
     setInterval: (fn, ms) => window.setInterval(fn, ms),
     clearInterval: (h) => window.clearInterval(h as number),
@@ -340,6 +358,32 @@ function boot(): void {
     catHost.onDisplayChanged(world);
   });
 
+  /**
+   * A clean swap of the active companion: the current one is written to its own slot first, then the
+   * new choice (already in `settings`) is stored and the page restarts with the other companion (the
+   * same freeze-then-reload the profile import uses, so no later save writes the old one into the new
+   * slot). The floating cat's page does the same when it re-reads the settings.
+   */
+  function swapCharacter(): void {
+    catStore.saveSync();
+    storage.saveSettings(settings);
+    catStore.freeze();
+    if (floatingUi?.state.running) controlPort?.send('settingsChanged');
+    window.location.reload();
+  }
+
+  /**
+   * The interface language changed: the toolbar, the sheet and the panel were built in the old one, so
+   * the page restarts in the new one (the choice is stored first, the cat saved and frozen, as in
+   * swapCharacter). Without storage nothing could survive a restart: false, and the page keeps its text
+   * until the next visit while the strings layer already speaks the new language.
+   */
+  function restartForLanguage(): boolean {
+    if (!storage.available) return false;
+    swapCharacter();
+    return true;
+  }
+
   // ---- settings: every change through the web allow-list, then screen analysis and AI forced off
   function applyPatch(patch: unknown, save: boolean): WebPatchResult {
     const r = applyWebPatch(settings, patch);
@@ -347,9 +391,15 @@ function boot(): void {
       log.warn('settings change refused', { error: r.error });
       return r;
     }
+    const swapTo = activeCharacterOf(r.settings);
     settings = r.settings;
+    if (swapTo !== character) {
+      swapCharacter();
+      return r;
+    }
     catHost.updateSettings(settings);
-    secret.setName(settings.general.catName);
+    if (syncLocale() && restartForLanguage()) return r;
+    secret.setName(companionName(settings, locale));
     if (save) {
       storage.saveSettings(settings);
       // The floating cat lives in another WebView of this app: native tells it to re-read the settings.
@@ -392,10 +442,17 @@ function boot(): void {
       apply: (patch, save) => applyPatch(patch, save),
       onSoundGesture: () => audio.unlock(),
       onResetSettings: () => {
+        const wasCharacter = character;
         settings = resetWebSettings();
+        if (activeCharacterOf(settings) !== wasCharacter) {
+          swapCharacter();
+          return;
+        }
+        const languageChanged = syncLocale();
         catHost.updateSettings(settings);
-        secret.setName(settings.general.catName);
+        secret.setName(companionName(settings, locale));
         storage.saveSettings(settings);
+        if (languageChanged && restartForLanguage()) return;
         if (floatingUi?.state.running) controlPort?.send('settingsChanged');
         refreshUi();
         androidPanel?.refresh();
@@ -437,18 +494,23 @@ function boot(): void {
   function adoptProfile(next: Settings, nextCat: PersistedCat): boolean {
     // Same reason as startOver: stop the floating cat first.
     if (floatingUi?.state.running) return false;
+    // A profile file is cat-compatible: its cat goes to the cat's own slot, and the companion chosen on
+    // this device (and the other companions' names and palettes) stay as they are.
+    next = { ...next, general: { ...next.general, activeCharacter: settings.general.activeCharacter, characterNames: settings.general.characterNames, language: settings.general.language }, appearance: { ...next.appearance, characterSkins: settings.appearance.characterSkins } };
     if (!storage.available) {
       const before = settings;
       settings = next;
       catHost.updateSettings(settings);
-      secret.setName(settings.general.catName);
+      secret.setName(companionName(settings, locale));
       try {
+        // Without storage nothing can be written to the cat's slot: only a live cat can take the cat's file.
+        if (character !== 'cat') throw new Error('the active companion is not the cat');
         if (!adoptCatInto(sim, nextCat)) throw new Error('this simulation cannot adopt a cat');
       } catch (err) {
         log.warn('the loaded cat could not be adopted', { error: err instanceof Error ? err.message : String(err) });
         settings = before;
         catHost.updateSettings(settings);
-        secret.setName(settings.general.catName);
+        secret.setName(companionName(settings, locale));
         return false;
       }
       refreshUi();
@@ -456,11 +518,11 @@ function boot(): void {
       androidPanel?.refresh();
       return true;
     }
-    const previous = sim.serialize();
-    if (!storage.saveCat(nextCat)) return false;
+    const previous = character === 'cat' ? sim.serialize() : storage.loadCat(() => 0.5, Date.now(), 'cat').cat;
+    if (!storage.saveCat(nextCat, 'cat')) return false;
     if (!storage.saveSettings(next)) {
       // Put the cat back: nothing changes unless both are kept.
-      storage.saveCat(previous);
+      storage.saveCat(previous, 'cat');
       return false;
     }
     catStore.freeze();
@@ -491,7 +553,8 @@ function boot(): void {
       slot: settingsPanel.transferSlot,
       mode,
       getSettings: () => settings,
-      getCat: () => sim.serialize(),
+      // A profile file carries the cat (cat-compatible): with another companion active, the stored cat is exported.
+      getCat: () => (character === 'cat' ? sim.serialize() : storage.loadCat(() => 0.5, Date.now(), 'cat').cat),
       saver,
       appVersion: __APP_VERSION__,
       now: () => Date.now(),
@@ -628,9 +691,24 @@ function boot(): void {
       onSystem: (kind) => catHost.onSystem(kind),
       saveNow: () => catStore.saveSync(),
       reloadSettings: () => {
-        settings = storage.loadSettings();
+        const reloaded = storage.loadSettings();
+        if (activeCharacterOf(reloaded) !== character) {
+          // The app screen changed the companion: save this one in its slot, then start the other.
+          catStore.saveSync();
+          catStore.freeze();
+          window.location.reload();
+          return;
+        }
+        settings = reloaded;
         catHost.updateSettings(settings);
-        secret.setName(settings.general.catName);
+        if (syncLocale() && storage.available) {
+          // The app screen changed the language: this window restarts in it (nothing to write back).
+          catStore.saveSync();
+          catStore.freeze();
+          window.location.reload();
+          return;
+        }
+        secret.setName(companionName(settings, locale));
         // Laser Mode and the events pause travel the same way: the app page wrote them, native said "changed".
         applyFlags(readSessionFlags(localStore));
       },
@@ -663,7 +741,7 @@ function boot(): void {
         try {
           if (!floatingNow()) return sim.journal();
           // A read of what the floating cat last saved; the random source and clock only matter for a cat that does not exist yet.
-          return storage.loadCat(() => 0.5, Date.now()).cat.world.journal;
+          return storage.loadCat(() => 0.5, Date.now(), character).cat.world.journal;
         } catch {
           return [];
         }

@@ -73,7 +73,7 @@ linux:
   icon: build/icon.png
   # Frozen with the other identifiers (ADR 0004 §9): launchers and later autostart entries use it.
   executableName: desktop-cat
-  synopsis: GizeCat, a desktop cat (GizeVerse)
+  synopsis: GizeMate, desktop companions (GizeVerse)
   description: An animated cat in a transparent, click-through overlay. Shown only on X11 sessions with a compositing window manager.
   artifactName: GizeCat-${version}-linux-${arch}.${ext}
   # koffi binds libX11 for the compositor check (src/main/linux/x11Compositor.ts).
@@ -132,11 +132,11 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
   extendInfo:
-    NSCameraUsageDescription: "GizeCat never uses the camera. If macOS asks, choose Don't Allow."
-    NSMicrophoneUsageDescription: "GizeCat never uses the microphone. If macOS asks, choose Don't Allow."
-    NSAudioCaptureUsageDescription: "GizeCat never records audio. If macOS asks, choose Don't Allow."
-    NSBluetoothAlwaysUsageDescription: "GizeCat never uses Bluetooth. If macOS asks, choose Don't Allow."
-    NSBluetoothPeripheralUsageDescription: "GizeCat never uses Bluetooth. If macOS asks, choose Don't Allow."
+    NSCameraUsageDescription: "GizeMate never uses the camera. If macOS asks, choose Don't Allow."
+    NSMicrophoneUsageDescription: "GizeMate never uses the microphone. If macOS asks, choose Don't Allow."
+    NSAudioCaptureUsageDescription: "GizeMate never records audio. If macOS asks, choose Don't Allow."
+    NSBluetoothAlwaysUsageDescription: "GizeMate never uses Bluetooth. If macOS asks, choose Don't Allow."
+    NSBluetoothPeripheralUsageDescription: "GizeMate never uses Bluetooth. If macOS asks, choose Don't Allow."
   files:
     - out/**/*
     - "!out/preview/**"

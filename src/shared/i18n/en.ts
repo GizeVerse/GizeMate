@@ -7,8 +7,10 @@ import { ghostEn } from './characters/ghost';
 import { monkeyEn } from './characters/monkey';
 import { rabbitEn } from './characters/rabbit';
 import { slimeEn } from './characters/slime';
+import { systemEn } from './system';
 
 export const en = {
+  ...systemEn,
   product: {
     /** The temporary product name (the single display-name source is src/shared/brand.ts; this key mirrors it for UI copy). */
     name: 'GizeMate',
