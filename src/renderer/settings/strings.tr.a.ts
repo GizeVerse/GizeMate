@@ -31,6 +31,10 @@ export const S_TR_A: Part = {
   },
   nav: {
     welcome: 'Hoş geldiniz',
+    home: 'Ana sayfa',
+    characters: 'Karakterler',
+    customize: 'Özelleştir',
+    settings: 'Ayarlar',
     companion: 'Arkadaş',
     general: 'Genel',
     appearance: 'Görünüm',
@@ -38,7 +42,7 @@ export const S_TR_A: Part = {
     behavior: 'Davranış',
     interaction: 'Etkileşim',
     audio: 'Ses',
-    accessibility: 'Erişilebilirlik ve odak',
+    accessibility: 'Erişilebilirlik',
     journal: 'Günlük',
     privacy: 'Gizlilik ve görüntü',
     ai: 'Yapay zekâ',
@@ -129,7 +133,7 @@ export const S_TR_A: Part = {
     separator: ' + ',
   },
   welcome: {
-    title: 'Masaüstü kedinizle tanışın',
+    title: 'Masaüstü yol arkadaşınızla tanışın',
     titleBack: 'Tekrar hoş geldiniz',
     intro: (name) =>
       `${name} masaüstünüzde yaşar. Görev çubuğunda yürür, pencerelerin üstünde şekerleme yapar, keyfi yerindeyken imlecinizi kovalar ve ona nasıl davrandığınızı hatırlar. Asla yolunuza çıkmaz: kedinin kendisi dışında her yerde tıklamalarınız doğrudan uygulamalarınıza geçer.`,
@@ -147,7 +151,7 @@ export const S_TR_A: Part = {
     controlTrayElsewhere: { title: 'Sistem tepsisi simgesi', text: `Sistem tepsisindeki ${PRODUCT} simgesi Gizle, Duraklat ve Ayarlar seçeneklerini içeren bir menü açar.` },
     shortcutTitle: 'Gizle veya göster',
     shortcutText: (shortcut) => `Kediyi gizlemek veya göstermek için istediğiniz zaman ${shortcut} tuşlarına basın.`,
-    shortcutDisabled: 'Gizle/göster klavye kısayolu kapalı. Genel bölümünden açabilirsiniz.',
+    shortcutDisabled: 'Gizle/göster klavye kısayolu kapalı. Ayarlar’ın Masaüstü bölümünden açabilirsiniz.',
     privacyTitle: 'Gizliliğiniz',
     privacyPoints: [
       'Ekran analizi KAPALI. Siz açmadıkça kedi ekranınıza bakmaz.',

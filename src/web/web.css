@@ -791,13 +791,16 @@ html.doc body {
    variables only (light and dark), 48 px touch targets, padded by the safe area. Phones: one column;
    from 720 px: two. */
 .panel {
+  --pad-l: max(1rem, env(safe-area-inset-left));
+  --pad-r: max(1rem, env(safe-area-inset-right));
   position: fixed;
   inset: 0;
   z-index: 30;
   box-sizing: border-box;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: calc(env(safe-area-inset-top, 0px) + 1rem) max(1rem, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom, 0px) + 1.5rem) max(1rem, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) 0 0;
   background: var(--bg);
   color: var(--fg);
   -webkit-user-select: none;
@@ -805,11 +808,15 @@ html.doc body {
 }
 
 .panel-head {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 0.85rem;
+  box-sizing: border-box;
+  width: 100%;
   max-width: 62rem;
-  margin: 0 auto 1rem;
+  margin: 0 auto 0.5rem;
+  padding: 0 var(--pad-r) 0 var(--pad-l);
 }
 
 .panel-logo {
@@ -1165,5 +1172,429 @@ html.gizecat-overlay body::before {
 @media (prefers-reduced-motion: no-preference) {
   .pcard {
     transition: border-color 0.15s ease;
+  }
+}
+
+/* ---- GizeMate panels: four areas (Home, Characters, Customize, Settings) shared by the Android panel and
+   the browser sheet (src/web/ui/*). Same tokens as above; no fixed widths (Turkish runs 15 to 30 percent
+   longer): rows wrap, labels break anywhere, min-width 0 on every flex and grid child. */
+
+/* Skip link: the first tab stop of the panel, visible only while focused. */
+.skip-link {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 5;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.6rem;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+  transform: translateY(-300%);
+}
+
+.skip-link:focus {
+  transform: none;
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The scrolling area of the panel; the tab bar below it never scrolls away. */
+.panel-content {
+  order: 2;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.5rem var(--pad-r) 1rem var(--pad-l);
+  -webkit-overflow-scrolling: touch;
+}
+
+.panel-content:focus {
+  outline: none;
+}
+
+.tab-page {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: minmax(0, 1fr);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 62rem;
+  margin: 0 auto;
+}
+
+.tab-page > * {
+  min-width: 0;
+}
+
+@media (min-width: 720px) {
+  .panel .tab-page {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .panel .tab-page > .characters-view,
+  .panel .tab-page > .customize-view,
+  .panel .tab-page > .home-actions,
+  .panel .tab-page > .active-card,
+  .panel .tab-page > .hero {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The tab bar: one tablist, four equal tabs, 48 px tall. At the bottom of the phone panel (one-handed
+   reach, above the gesture bar) and at the top of the browser sheet. */
+.tabbar {
+  display: flex;
+  gap: 0.25rem;
+  box-sizing: border-box;
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.tab.selected,
+.tab:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--bg);
+  color: var(--accent);
+}
+
+.tab input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.tab:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.tabbar-bottom {
+  order: 3;
+  flex: none;
+  padding: 0.4rem var(--pad-r) calc(env(safe-area-inset-bottom, 0px) + 0.4rem) var(--pad-l);
+  border-top: 1px solid var(--sheet-line);
+  background: var(--sheet-bg);
+}
+
+.tabbar-bottom .tab {
+  max-width: 14rem;
+}
+
+.tabbar-bottom {
+  justify-content: center;
+}
+
+.tabbar-top {
+  padding: 0.4rem 0 0.5rem;
+}
+
+/* The browser sheet: head and tab bar stay put, the content scrolls under them. */
+.sheet-top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--sheet-bg);
+  border-bottom: 1px solid var(--sheet-line);
+}
+
+.sheet-top .sheet-head {
+  position: static;
+  border-bottom: 0;
+}
+
+@media (min-width: 700px) {
+  dialog.sheet .sheet-top .sheet-head {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  }
+}
+
+.sheet .sheet-content {
+  padding-top: 0.75rem;
+}
+
+.sheet .tab-page {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sheet section.pcard,
+.sheet section.pcard:last-child,
+.sheet details.pcard {
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 1rem;
+  background: var(--sheet-bg);
+}
+
+.sheet details.pcard {
+  padding: 0;
+}
+
+.sheet .pcard h2 {
+  font-size: 1.1rem;
+}
+
+.sheet .pcard p {
+  margin: 0.4rem 0;
+}
+
+.sheet .pcard .subhead {
+  font-size: 1rem;
+}
+
+.sheet #transfer-section {
+  padding: 0.5rem 0 0;
+  border: 0;
+}
+
+/* A card that folds away (native <details>): a 48 px summary, the body padded like a card. */
+.fold {
+  padding: 0;
+}
+
+.fold > summary {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 3rem;
+  padding: 0.5rem 1.1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary::after {
+  content: '';
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-left: auto;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+}
+
+.fold[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.fold > summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+  border-radius: 1rem;
+}
+
+.fold .fold-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fold-body {
+  padding: 0 1.1rem 1.1rem;
+}
+
+.customize-view {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.customize-view .who {
+  margin: 0;
+}
+
+/* The active character's card on Home, and the cards of the Characters area. */
+.active-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.char-stage {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--sheet-line);
+  padding: 0.25rem;
+}
+
+.preview-canvas {
+  display: block;
+  width: 8.25rem;
+  height: 6.75rem;
+  max-width: 100%;
+}
+
+.active-card .char-body {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.active-name,
+.char-name {
+  margin: 0;
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.char-tagline {
+  margin: 0.1rem 0 0.4rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.char-desc {
+  margin: 0.4rem 0;
+}
+
+.characters-view .lead {
+  margin: 0 0 0.25rem;
+}
+
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 0.9rem;
+  margin-top: 0.75rem;
+}
+
+.char-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.9rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 1rem;
+  background: var(--sheet-bg);
+}
+
+.char-card.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.char-card .char-stage {
+  align-self: center;
+}
+
+.char-body {
+  min-width: 0;
+}
+
+.char-facts {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.5rem 0;
+}
+
+.char-facts dt {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.char-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.badge {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.char-pick {
+  flex: 1 1 auto;
+  min-height: 3rem;
+}
+
+/* Palette choices of a character other than the cat: the character itself, drawn once per palette. */
+.palette-canvas {
+  display: block;
+  width: 4.4rem;
+  height: 3.6rem;
+}
+
+.home-actions button {
+  flex: 1 1 12rem;
+}
+
+/* Wrapping everywhere: long Turkish labels never push a row off the screen. */
+.panel .field-row label,
+.panel .row-text,
+.panel .card .title,
+.panel .card .desc,
+.sheet .field-row label,
+.sheet .row-text,
+.sheet .card .title,
+.sheet .card .desc {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.panel .cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 7rem), 1fr));
+}
+
+.panel .cards.wide,
+.sheet .cards.wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (forced-colors: active) {
+  .tab.selected,
+  .char-card.active,
+  .card.checked {
+    outline: 2px solid Highlight;
   }
 }

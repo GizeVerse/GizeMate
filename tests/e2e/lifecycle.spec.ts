@@ -7,7 +7,10 @@ import { electronBinary, expect, hook, launchApp, MAIN_ENTRY, quitApp, readLogLi
 const savedGeneral = (userData: string): Record<string, unknown> =>
   (JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')) as { general: Record<string, unknown> }).general;
 
-/** Switches the settings window to a page (navigation is hash-based). */
+/**
+ * Switches the settings window to a page (navigation is hash-based). The earlier page ids ('general',
+ * 'behavior', ...) still work: the router maps them to the new area and tab (Settings > Desktop, Customize > Behaviour).
+ */
 async function showPage(page: Page, id: string): Promise<void> {
   await page.evaluate((hash) => {
     (globalThis as unknown as { location: { hash: string } }).location.hash = hash;

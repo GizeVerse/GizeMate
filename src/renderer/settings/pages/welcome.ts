@@ -1,11 +1,18 @@
 import type { PageContext, PageView } from '../context';
-import { button, page, runAction, setNote, statusLine } from '../controls';
+import { characterCard, allCharacterIds, displayName, paletteOf } from '../charactersView';
+import { button, group, page, radioGroup, row, runAction, setNote, statusLine, type RadioItem } from '../controls';
+import type { CharacterId } from '../../../shared/characters/registry';
+import { activeCharacterOf } from '../charactersView';
+import { fieldId } from '../patch';
+import type { FieldBinding } from '../store';
+import { languageRow } from './language';
 import { h, icon, type GlyphName } from '../dom';
 import { formatShortcut } from '../format';
-import { coatArt } from '../skins';
-import { deviceWords, platformWording, S, type PlatformWording } from '../strings';
+import { previewCanvas } from '../previewCanvas';
+import { deviceWords, getLocale, platformWording, S, type PlatformWording } from '../strings';
 
 const W = S.welcome;
+const UW = S.ui.welcome;
 const CONTROL_ICONS: readonly GlyphName[] = ['touch', 'mouse', 'heart', 'more', 'pin'];
 /** Index in W.privacyPoints of the point about what the app knows. */
 const KNOWS_POINT = 1;
@@ -34,7 +41,8 @@ export function welcomePage(ctx: PageContext): PageView {
   const text = welcomePlatformText(wording);
   const heading = h('h2', { class: 'hero-title' });
   const intro = h('p', { class: 'hero-text' });
-  const art = h('div', { class: 'hero-art', 'aria-hidden': 'true' });
+  const preview = previewCanvas(ctx, activeCharacterOf(ctx.store.settings), '', 'preview-canvas preview-small', 160, 120);
+  const art = h('div', { class: 'hero-art', 'aria-hidden': 'true' }, [preview.element]);
 
   const controls = h(
     'ul',
@@ -62,34 +70,62 @@ export function welcomePage(ctx: PageContext): PageView {
     void runAction(ctx, 'completeFirstRun', start, status).then((ok) => {
       if (ok) {
         setNote(status, W.started, 'ok');
-        ctx.navigate('companion');
+        ctx.navigate('home');
       }
     });
   });
   openPrivacy.addEventListener('click', () => ctx.navigate('privacy'));
 
+  // First run: the language (the detected one is shown, an explicit choice is stored) and the companion.
+  const language = languageRow(ctx);
+  const pickParts = row({ title: UW.characterLabel, desc: UW.characterDesc, icon: 'people', stacked: true });
+  const pickBox = h('div', { class: 'segmented segmented-wrap', 'aria-labelledby': pickParts.titleId, 'aria-describedby': pickParts.describedBy });
+  const pickItems: Array<RadioItem<CharacterId>> = allCharacterIds().map((id) => ({
+    value: id,
+    el: h('button', { type: 'button', class: 'segment', 'data-character': id, text: characterCard(id, getLocale()).name }),
+  }));
+  pickBox.append(...pickItems.map((i) => i.el));
+  pickParts.control.append(pickBox);
+  const pickBinding: FieldBinding = {
+    field: fieldId('general', 'activeCharacter'),
+    isBusy: () => false,
+    sync: (v) => pick.set(typeof v === 'string' ? (v as CharacterId) : 'cat'),
+    showError: (msg) => setNote(pickParts.error, msg, 'error'),
+  };
+  const pick = radioGroup<CharacterId>(pickBox, pickItems, (id) => {
+    pick.set(id);
+    ctx.store.set('general', 'activeCharacter', id, { origin: pickBinding });
+  });
+  ctx.store.bind(pickBinding);
+
   const element = page(S.nav.welcome, [
     h('div', { class: 'hero' }, [art, h('div', { class: 'hero-copy' }, [heading, intro])]),
+    group(UW.groupLanguage, [language.parts.row], UW.languageDesc),
+    group(UW.groupCharacter, [pickParts.row]),
     h('section', { class: 'group' }, [h('h2', { class: 'group-title', text: W.controlsTitle }), controls]),
     privacy,
     h('div', { class: 'actions' }, [start, openPrivacy]),
     status,
   ]);
 
-  let artSkin = '';
   ctx.store.subscribe((view) => {
     const s = view.settings;
     heading.textContent = s.general.firstRunCompleted ? W.titleBack : W.title;
-    intro.textContent = text.intro(s.general.catName);
+    intro.textContent = text.intro(displayName(s, activeCharacterOf(s), getLocale()));
     shortcutText.textContent = s.general.shortcutsEnabled ? W.shortcutText(formatShortcut(s.general.toggleShortcut, wording)) : W.shortcutDisabled;
     start.hidden = s.general.firstRunCompleted;
     const mode = view.status.perception.mode;
     modePoint.textContent = mode === 'off' ? (text.privacyPoints[0] ?? '') : deviceWords(`${S.privacy.banner[mode].title}. ${S.privacy.banner[mode].text}`, wording);
-    if (artSkin !== s.appearance.skin) {
-      artSkin = s.appearance.skin;
-      art.replaceChildren(coatArt(s.appearance.skin));
-    }
+    const id = activeCharacterOf(s);
+    preview.slot.setCharacter(id);
+    preview.slot.setSkin(paletteOf(s, id).current);
   });
 
-  return { id: 'welcome', title: S.nav.welcome, element };
+  return {
+    id: 'welcome',
+    title: S.nav.welcome,
+    element,
+    onShow: () => preview.slot.setVisible(true),
+    onHide: () => preview.slot.setVisible(false),
+  };
 }

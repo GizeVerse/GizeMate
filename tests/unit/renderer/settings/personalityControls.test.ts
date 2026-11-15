@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { applySettingsPatch, defaultSettings, IMPLIED_OPT_OUTS, LIVELY_BEHAVIORS, type LivelyBehavior, type ToggleableBehavior } from '../../../../src/shared/settings';
 import { BEHAVIOR_IDS, LIVELY_IDS, LIVELY_PARENT } from '../../../../src/renderer/settings/catalog';
+import { CHARACTER_FIELD_IDS, LANGUAGE_FIELD_IDS } from '../../../../src/renderer/settings/charactersView';
 import { NUMERIC_FIELDS } from '../../../../src/renderer/settings/fields';
 import { SOUND_FIELD_IDS } from '../../../../src/renderer/settings/pages/audio';
 import { extraParentOff, FINE_TUNE_SLIDERS, PERSONALITY_FIELD_IDS, PERSONALITY_SLIDERS } from '../../../../src/renderer/settings/pages/behavior';
@@ -37,6 +38,11 @@ describe('v1.2 settings controls', () => {
     const added = v3OnlyLeaves();
     expect(added.sort()).toEqual(
       [
+        // GizeMate: the language and the character fields (Settings > Language, Characters, Customize, first run).
+        'appearance.characterSkins',
+        'general.activeCharacter',
+        'general.characterNames',
+        'general.language',
         'behavior.activityPreset',
         'behavior.disabledExtras',
         'behavior.exploration',
@@ -49,7 +55,7 @@ describe('v1.2 settings controls', () => {
         'sound.volume',
       ].sort(),
     );
-    const covered = new Set<string>([...PERSONALITY_FIELD_IDS, ...SOUND_FIELD_IDS]);
+    const covered = new Set<string>([...PERSONALITY_FIELD_IDS, ...SOUND_FIELD_IDS, ...CHARACTER_FIELD_IDS, ...LANGUAGE_FIELD_IDS]);
     expect(added.filter((id) => !covered.has(id))).toEqual([]);
     // Activity and Cursor hunting (the v2 autonomy and cursorPlay) are the up-front sliders.
     expect(PERSONALITY_SLIDERS.map((s) => s.id)).toEqual(['behavior.autonomy', 'behavior.cursorPlay', 'behavior.workDisruption']);

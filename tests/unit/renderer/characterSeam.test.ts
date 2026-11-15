@@ -110,9 +110,9 @@ describe('scene character handling', () => {
   it('shows a fresh pose right after a swap (nothing carried over)', () => {
     const scene = new CatScene(seededRandom(4));
     run(scene, 'run', 800, {});
-    const before = scene.puppet;
+    const before = scene.renderer;
     run(scene, 'stand', 16, { character: 'monkey' }, false);
-    expect(scene.puppet).not.toBe(before);
+    expect(scene.renderer).not.toBe(before);
     expect(scene.isQuiet).toBe(false);
     expect(scene.hitCount).toBeGreaterThanOrEqual(2);
   });

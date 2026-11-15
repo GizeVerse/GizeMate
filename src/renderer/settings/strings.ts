@@ -11,11 +11,14 @@ import { setWorldTextLocale } from '../../shared/worldText';
 import { S_EN } from './strings.en';
 import { S_TR_A } from './strings.tr.a';
 import { S_TR_B } from './strings.tr.b';
+import { UI_EN } from './strings.ui.en';
+import { UI_TR } from './strings.ui.tr';
 
-export type Strings = typeof S_EN;
+const S_EN_ALL = { ...S_EN, ...UI_EN };
+export type Strings = typeof S_EN_ALL;
 
-const S_TR: Strings = { ...S_TR_A, ...S_TR_B } as unknown as Strings;
-const handle = createLocaleFacade<Strings>({ en: S_EN, tr: S_TR });
+const S_TR: Strings = { ...S_TR_A, ...S_TR_B, ...UI_TR } as unknown as Strings;
+const handle = createLocaleFacade<Strings>({ en: S_EN_ALL, tr: S_TR });
 
 /** The settings window's strings in the active locale. */
 export const S: Strings = handle.facade;
@@ -27,7 +30,7 @@ export const setLocale = (locale: Locale): void => {
 };
 export const getLocale = (): Locale => handle.getLocale();
 /** Both catalogues, for tests (parity, length) and tools; the UI reads `S`. */
-export const STRING_TABLES: Readonly<Record<Locale, Strings>> = { en: S_EN, tr: S_TR };
+export const STRING_TABLES: Readonly<Record<Locale, Strings>> = { en: S_EN_ALL, tr: S_TR };
 
 /**
  * Which wording a platform-specific string uses (1.4.0): 'windows' on Windows and without a platform

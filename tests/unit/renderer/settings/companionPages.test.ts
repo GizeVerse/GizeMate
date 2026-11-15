@@ -9,7 +9,7 @@ import { SETTINGS_ACTIONS } from '../../../../src/shared/ipc';
 import { PERSONALITY_TEXT } from '../../../../src/shared/personalityText';
 import { applySettingsPatch, defaultSettings, type PatchResult, type SettingsPatch } from '../../../../src/shared/settings';
 import { eventDescription, eventName } from '../../../../src/shared/worldText';
-import { isPageId, PAGE_IDS } from '../../../../src/renderer/settings/catalog';
+import { CUSTOMIZE_TABS, isPageId, isTabOf, LEGACY_PAGE_IDS, LEGACY_ROUTES, NAV_PAGE_IDS, PAGE_IDS, parseRoute, routeHash, SETTINGS_TABS } from '../../../../src/renderer/settings/catalog';
 import {
   COMPANION_FIELD_IDS,
   EVENT_DEFAULTS,
@@ -44,19 +44,51 @@ const status = (over: Partial<CompanionStatus> = {}): CompanionStatus => ({
 });
 
 describe('page registry', () => {
-  it('adds Companion, Audio, Accessibility & Focus and Journal, each with a nav label and a hash target', () => {
-    for (const id of ['companion', 'audio', 'accessibility', 'journal'] as const) {
-      expect(PAGE_IDS).toContain(id);
+  it('has the four areas (Home first) plus the first-run page, each with a nav label and a hash target', () => {
+    expect([...PAGE_IDS]).toEqual(['welcome', 'home', 'characters', 'customize', 'settings']);
+    expect([...NAV_PAGE_IDS]).toEqual(['home', 'characters', 'customize', 'settings']);
+    for (const id of PAGE_IDS) {
       expect(isPageId(id)).toBe(true);
       expect(S.nav[id].length).toBeGreaterThan(0);
+      expect(parseRoute(`#${id}`)).toEqual({ page: id });
     }
-    expect(S.nav.accessibility).toBe('Accessibility & Focus');
-    // One entry per id, and every id has its label (the nav is built from both).
     expect(new Set(PAGE_IDS).size).toBe(PAGE_IDS.length);
-    expect(Object.keys(S.nav).sort()).toEqual([...PAGE_IDS].sort());
-    // The cat comes first after the welcome page; the pages that already existed are all still there.
-    expect(PAGE_IDS.slice(0, 2)).toEqual(['welcome', 'companion']);
-    for (const old of ['welcome', 'general', 'appearance', 'behavior', 'interaction', 'privacy', 'ai', 'personality', 'diagnostics', 'about']) expect(PAGE_IDS).toContain(old);
+    // S.nav names every area and every earlier page id (they still label the re-homed views).
+    expect(Object.keys(S.nav).sort()).toEqual([...new Set([...PAGE_IDS, ...LEGACY_PAGE_IDS])].sort());
+    expect(S.nav.accessibility).toBe('Accessibility');
+  });
+
+  it('every earlier page id still opens its content: it routes to an area and a real tab', () => {
+    for (const old of LEGACY_PAGE_IDS) {
+      const route = LEGACY_ROUTES[old];
+      expect(PAGE_IDS).toContain(route.page);
+      if (route.tab !== undefined) expect(isTabOf(route.page, route.tab), old).toBe(true);
+      expect(parseRoute(`#${old}`), old).toEqual(route);
+    }
+    // Where the pages went.
+    expect(LEGACY_ROUTES.companion).toEqual({ page: 'home' });
+    expect(LEGACY_ROUTES.appearance).toEqual({ page: 'customize', tab: 'appearance' });
+    expect(LEGACY_ROUTES.journal).toEqual({ page: 'settings', tab: 'data' });
+    expect(LEGACY_ROUTES.ai).toEqual({ page: 'settings', tab: 'privacy' });
+    expect(LEGACY_ROUTES.diagnostics).toEqual({ page: 'settings', tab: 'advanced' });
+  });
+
+  it('parses and prints routes; an unknown tab keeps the area, an unknown id is nothing', () => {
+    expect(parseRoute('#settings/privacy')).toEqual({ page: 'settings', tab: 'privacy' });
+    expect(parseRoute('#customize/nope')).toEqual({ page: 'customize' });
+    expect(parseRoute('#home/appearance')).toEqual({ page: 'home' });
+    expect(parseRoute('#nope')).toBeNull();
+    expect(parseRoute('')).toBeNull();
+    expect(routeHash({ page: 'settings', tab: 'about' })).toBe('#settings/about');
+    expect(routeHash({ page: 'home' })).toBe('#home');
+  });
+
+  it('every tab has a label in both languages', () => {
+    for (const tab of CUSTOMIZE_TABS) expect(S.ui.tabs.customize[tab].length).toBeGreaterThan(0);
+    for (const tab of SETTINGS_TABS) expect(S.ui.tabs.settings[tab].length).toBeGreaterThan(0);
+    // Advanced and About come last: ordinary users meet the everyday tabs first.
+    expect(SETTINGS_TABS.slice(-2)).toEqual(['advanced', 'about']);
+    expect(SETTINGS_TABS[0]).toBe('language');
   });
 
   it('every companion setting has a control, and the actions the Companion page sends exist', () => {

@@ -1,61 +1,42 @@
 // Window shell: navigation rail, page switching (hash-based so a page can be
 // deep-linked, e.g. settings/index.html#privacy) and state wiring.
 import type { SettingsApi, SettingsViewState } from '../../shared/ipc';
-import { isPageId, PAGE_IDS, type PageId } from './catalog';
+import { isPageId, LEGACY_ROUTES, NAV_PAGE_IDS, PAGE_IDS, parseRoute, routeHash, type LegacyPageId, type PageId, type Route, type ViewId } from './catalog';
 import type { PageContext, PageView } from './context';
 import { h, icon, setTextGlyphs, type GlyphName } from './dom';
-import { aboutPage } from './pages/about';
-import { accessibilityPage } from './pages/accessibility';
-import { aiPage } from './pages/ai';
-import { appearancePage } from './pages/appearance';
-import { audioPage } from './pages/audio';
-import { behaviorPage } from './pages/behavior';
-import { companionPage } from './pages/companion';
-import { diagnosticsPage } from './pages/diagnostics';
-import { generalPage } from './pages/general';
-import { interactionPage } from './pages/interaction';
-import { journalPage } from './pages/journal';
-import { personalityPage } from './pages/personality';
-import { privacyPage } from './pages/privacy';
+import { charactersPage } from './pages/characters';
+import { customizePage } from './pages/customize';
+import { homePage } from './pages/home';
+import { settingsPage } from './pages/settings';
 import { welcomePage } from './pages/welcome';
+import { browserPreviewEnv, PreviewLoop } from './previews';
 import { brandMark } from './skins';
 import { SettingsStore, type Timers } from './store';
 import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n/locale';
 import { platformWording, S, setLocale } from './strings';
 
 const NAV_ICONS: Record<PageId, GlyphName> = {
-  welcome: 'home',
-  companion: 'sparkle',
-  general: 'settings',
-  appearance: 'color',
-  personality: 'heart',
-  behavior: 'behavior',
-  interaction: 'touch',
-  audio: 'volume',
-  accessibility: 'view',
-  journal: 'history',
-  privacy: 'shield',
-  ai: 'robot',
-  diagnostics: 'diagnostic',
-  about: 'info',
+  welcome: 'sparkle',
+  home: 'home',
+  characters: 'people',
+  customize: 'color',
+  settings: 'settings',
 };
 
 const FACTORIES: Record<PageId, (ctx: PageContext) => PageView> = {
   welcome: welcomePage,
-  companion: companionPage,
-  general: generalPage,
-  appearance: appearancePage,
-  personality: personalityPage,
-  behavior: behaviorPage,
-  interaction: interactionPage,
-  audio: audioPage,
-  accessibility: accessibilityPage,
-  journal: journalPage,
-  privacy: privacyPage,
-  ai: aiPage,
-  diagnostics: diagnosticsPage,
-  about: aboutPage,
+  home: homePage,
+  characters: charactersPage,
+  customize: customizePage,
+  settings: settingsPage,
 };
+
+/** A page id, an area route or the id of an earlier page, as a route. */
+function toRoute(target: Route | ViewId): Route {
+  if (typeof target !== 'string') return target;
+  if (isPageId(target)) return { page: target };
+  return LEGACY_ROUTES[target as LegacyPageId] ?? { page: 'home' };
+}
 
 const browserTimers: Timers = {
   setTimeout: (fn, ms) => window.setTimeout(fn, ms),
@@ -74,39 +55,52 @@ export function mountApp(root: HTMLElement, api: SettingsApi, initial: SettingsV
   applyDocumentLocale(locale);
   setTextGlyphs(platformWording(initial.status.platform) !== 'windows');
   const store = new SettingsStore(api, initial, browserTimers);
+  const previewEnv = browserPreviewEnv();
+  // Motion is calm when the system asks for it or when the companion's own reduced-motion switch is on.
+  const previews = new PreviewLoop({ ...previewEnv, reducedMotion: () => previewEnv.reducedMotion() || store.settings.companion?.reducedMotion === true });
   let current: PageId | null = null;
+  let currentTab: string | undefined;
   let pages = new Map<PageId, PageView>();
   let navButtons = new Map<PageId, HTMLButtonElement>();
-  let content = h('main', { class: 'content', id: 'content' });
+  let content = h('main', { class: 'content', id: 'content', tabindex: -1 });
   let nav = h('nav', { class: 'rail' });
 
   const ctx: PageContext = {
     api,
     store,
     timers: browserTimers,
+    previews,
     now: () => Date.now(),
-    navigate: (id) => show(id, true),
+    navigate: (target) => show(toRoute(target), true),
+    tabChanged: (route) => {
+      if (route.page !== current) return;
+      currentTab = route.tab;
+      if (location.hash !== routeHash(route)) history.replaceState(null, '', routeHash(route));
+    },
     refresh: async () => receive(await api.getState()),
   };
 
   /** (Re)builds the navigation rail and every page in the active language. */
   function build(): void {
+    previews.dispose();
     pages = new Map<PageId, PageView>();
     navButtons = new Map<PageId, HTMLButtonElement>();
-    content = h('main', { class: 'content', id: 'content' });
+    content = h('main', { class: 'content', id: 'content', tabindex: -1 });
     const navList = h('ul', { class: 'nav-list' });
-    for (const id of PAGE_IDS) {
-      const btn = h('button', { type: 'button', class: 'nav-item', 'data-page': id }, [icon(NAV_ICONS[id], 'nav-icon'), h('span', { class: 'nav-label', text: S.nav[id] })]);
-      btn.addEventListener('click', () => show(id, true));
+    for (const id of NAV_PAGE_IDS) {
+      const btn = h('button', { type: 'button', class: 'nav-item', 'data-page': id, tabindex: -1, 'aria-label': S.nav[id] }, [icon(NAV_ICONS[id], 'nav-icon'), h('span', { class: 'nav-label', text: S.nav[id] })]);
+      btn.addEventListener('click', () => show({ page: id }, true));
+      // Roving tabindex: one stop in the rail (the current page), arrows/Home/End move between items.
       btn.addEventListener('keydown', (e) => {
-        const i = PAGE_IDS.indexOf(id);
+        const i = NAV_PAGE_IDS.indexOf(id);
         let target: PageId | undefined;
-        if (e.key === 'ArrowDown') target = PAGE_IDS[(i + 1) % PAGE_IDS.length];
-        else if (e.key === 'ArrowUp') target = PAGE_IDS[(i - 1 + PAGE_IDS.length) % PAGE_IDS.length];
-        else if (e.key === 'Home') target = PAGE_IDS[0];
-        else if (e.key === 'End') target = PAGE_IDS[PAGE_IDS.length - 1];
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') target = NAV_PAGE_IDS[(i + 1) % NAV_PAGE_IDS.length];
+        else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') target = NAV_PAGE_IDS[(i - 1 + NAV_PAGE_IDS.length) % NAV_PAGE_IDS.length];
+        else if (e.key === 'Home') target = NAV_PAGE_IDS[0];
+        else if (e.key === 'End') target = NAV_PAGE_IDS[NAV_PAGE_IDS.length - 1];
         if (!target) return;
         e.preventDefault();
+        for (const [pid, b] of navButtons) b.tabIndex = pid === target ? 0 : -1;
         navButtons.get(target)?.focus();
       });
       navButtons.set(id, btn);
@@ -121,7 +115,12 @@ export function mountApp(root: HTMLElement, api: SettingsApi, initial: SettingsV
       pages.set(id, view);
       content.append(view.element);
     }
-    root.replaceChildren(h('div', { class: 'app' }, [nav, content]));
+    const skip = h('a', { class: 'skip-link', href: '#content', text: S.ui.skipLink });
+    skip.addEventListener('click', (e) => {
+      e.preventDefault();
+      content.focus();
+    });
+    root.replaceChildren(skip, h('div', { class: 'app' }, [nav, content]));
   }
 
   /**
@@ -135,6 +134,7 @@ export function mountApp(root: HTMLElement, api: SettingsApi, initial: SettingsV
       return;
     }
     const keep = current;
+    const keepTab = currentTab;
     if (keep !== null) pages.get(keep)?.onHide?.();
     // The old pages are about to be discarded: their bindings and listeners go with them.
     store.unbindAll();
@@ -144,55 +144,72 @@ export function mountApp(root: HTMLElement, api: SettingsApi, initial: SettingsV
     store.receive(view);
     build();
     current = null;
-    show(keep ?? fromHash() ?? 'companion', false);
+    show(keep !== null ? { page: keep, ...(keepTab ? { tab: keepTab } : {}) } : (fromHash() ?? { page: 'home' }), false);
   }
 
   build();
 
-  function show(id: PageId, fromUser: boolean): void {
-    if (current === id) return;
+  function show(route: Route, fromUser: boolean): void {
+    const id = route.page;
+    if (current === id) {
+      if (route.tab !== undefined) {
+        pages.get(id)?.selectTab?.(route.tab);
+        currentTab = route.tab;
+        if (location.hash !== routeHash(route)) history.replaceState(null, '', routeHash(route));
+      }
+      return;
+    }
     const previous = current === null ? undefined : pages.get(current);
     current = id;
-    for (const [pid, view] of pages) view.element.hidden = pid !== id;
+    const view = pages.get(id);
+    currentTab = route.tab;
+    if (route.tab !== undefined) view?.selectTab?.(route.tab);
+    for (const [pid, v] of pages) v.element.hidden = pid !== id;
     previous?.onHide?.();
     for (const [pid, btn] of navButtons) {
       if (pid === id) btn.setAttribute('aria-current', 'page');
       else btn.removeAttribute('aria-current');
+      btn.tabIndex = pid === id || (!navButtons.has(id) && pid === NAV_PAGE_IDS[0]) ? 0 : -1;
     }
-    const view = pages.get(id);
     document.title = S.app.pageTitle(view?.title ?? S.app.title);
     content.scrollTop = 0;
     view?.onShow?.();
-    if (location.hash !== `#${id}`) history.replaceState(null, '', `#${id}`);
+    if (location.hash !== routeHash(route)) history.replaceState(null, '', routeHash(route));
     if (fromUser && document.activeElement && !nav.contains(document.activeElement)) {
       view?.element.querySelector<HTMLElement>('.page-title')?.focus();
     }
   }
 
-  const fromHash = (): PageId | null => {
-    const id = location.hash.replace(/^#/, '');
-    return isPageId(id) ? id : null;
-  };
+  const fromHash = (): Route | null => parseRoute(location.hash);
   const onHash = (): void => {
-    const id = fromHash();
-    if (id) show(id, false);
+    const r = fromHash();
+    if (r) show(r, false);
   };
   window.addEventListener('hashchange', onHash);
 
+  let wasReduced = previews.reduced;
+  store.subscribe(() => {
+    if (previews.reduced !== wasReduced) {
+      wasReduced = previews.reduced;
+      previews.refresh();
+    }
+  });
   const unsubscribe = api.onStateChanged((view) => receive(view));
-  const flushOnHide = (): void => {
+  const onVisibility = (): void => {
     if (document.visibilityState === 'hidden') void store.flush();
+    previews.refresh();
   };
-  document.addEventListener('visibilitychange', flushOnHide);
+  document.addEventListener('visibilitychange', onVisibility);
 
   root.removeAttribute('aria-busy');
-  show(fromHash() ?? (initial.settings.general.firstRunCompleted ? 'companion' : 'welcome'), false);
+  show(fromHash() ?? { page: initial.settings.general.firstRunCompleted ? 'home' : 'welcome' }, false);
 
   return () => {
     if (current !== null) pages.get(current)?.onHide?.();
+    previews.dispose();
     store.unbindAll();
     unsubscribe();
     window.removeEventListener('hashchange', onHash);
-    document.removeEventListener('visibilitychange', flushOnHide);
+    document.removeEventListener('visibilitychange', onVisibility);
   };
 }

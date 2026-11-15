@@ -2,15 +2,15 @@
 export const slimeEn = {
   name: 'Slime',
   tagline: 'The bouncy blob',
-  description: 'A squishy, bouncy slime who stretches, squashes, changes shape and giggles at everything you do.',
+  description: 'A squishy, bouncy slime that stretches, squashes, changes shape and giggles at everything you do.',
   personality: 'Playful and affectionate. Everything is a game, and everything wobbles.',
-  interactions: 'Reacts to touch by squishing, bounces after props, stretches toward the cursor.',
+  interactions: 'Squishes and giggles when you pet it, bounces after toys and stretches tall toward your cursor.',
 };
 
 export const slimeTr: typeof slimeEn = {
-  name: 'Balçık',
-  tagline: 'Zıplayan yumuşak',
-  description: 'Esneyen, ezilen, şekil değiştiren ve yaptığınız her şeye kıkırdayan yumuşacık, zıplayan bir balçık.',
+  name: 'Jöle',
+  tagline: 'Zıpır, yumuşacık',
+  description: 'Esneyen, ezilen, şekil değiştiren ve yaptığınız her şeye kıkırdayan, yumuşacık ve zıpır bir jöle.',
   personality: 'Oyunbaz ve sevecen. Her şey bir oyun, her şey sallanır.',
-  interactions: 'Dokunuşa ezilerek karşılık verir, nesnelerin peşinden zıplar, imlece doğru uzanır.',
+  interactions: 'Sevildiğinde ezilip kıkırdar, oyuncakların peşinden zıplar, imlece doğru uzanır.',
 };

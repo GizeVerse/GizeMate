@@ -16,7 +16,7 @@ import type { AiProviderId, BehaviorId, LivelyBehavior, Settings, ToggleableBeha
 import type { ActivityPresetId } from '../../shared/settingsPresets';
 import type { DecisionDiagnostics, DecisionTarget, NavRejectReason, ProviderDiagnostics, ProviderSkipReason, TargetAvailability } from '../../shared/surfaceDiagnostics';
 import type { SupportSurfaceKind, SurfaceKind } from '../../shared/surfaces';
-import type { PageId } from './catalog';
+import type { LegacyPageId, PageId } from './catalog';
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 /** "A", "A and B", "A, B and C". */
@@ -45,20 +45,24 @@ export const S_EN = {
   },
   nav: {
     welcome: 'Welcome',
+    home: 'Home',
+    characters: 'Characters',
+    customize: 'Customize',
+    settings: 'Settings',
     companion: 'Companion',
     general: 'General',
     appearance: 'Appearance',
     personality: 'Personality',
     behavior: 'Behaviour',
     interaction: 'Interaction',
-    audio: 'Audio',
-    accessibility: 'Accessibility & Focus',
+    audio: 'Sound',
+    accessibility: 'Accessibility',
     journal: 'Journal',
     privacy: 'Privacy & Vision',
     ai: 'AI',
     diagnostics: 'Diagnostics',
     about: 'About',
-  } satisfies Record<PageId, string>,
+  } satisfies Record<PageId | LegacyPageId, string>,
   common: {
     on: 'On',
     off: 'Off',
@@ -146,7 +150,7 @@ export const S_EN = {
     separator: ' + ',
   },
   welcome: {
-    title: 'Meet your desktop cat',
+    title: 'Meet your desktop companion',
     titleBack: 'Welcome back',
     intro: (name: string) =>
       `${name} lives on your desktop. It walks along the taskbar, naps on top of windows, chases your pointer when it feels playful and remembers how you treat it. It never gets in the way: everywhere except the cat itself, your clicks go straight through to your apps.`,
@@ -166,7 +170,7 @@ export const S_EN = {
     controlTrayElsewhere: { title: 'Tray icon', text: `The ${PRODUCT} icon in the system tray opens a menu with Hide, Pause and Settings.` },
     shortcutTitle: 'Hide or show',
     shortcutText: (shortcut: string) => `Press ${shortcut} at any time to hide or show the cat.`,
-    shortcutDisabled: 'The hide/show keyboard shortcut is turned off. You can turn it on under General.',
+    shortcutDisabled: 'The hide/show keyboard shortcut is turned off. You can turn it on under Settings, Desktop.',
     privacyTitle: 'Your privacy',
     privacyPoints: [
       'Screen analysis is OFF. The cat does not look at your screen unless you turn it on.',

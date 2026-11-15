@@ -1,23 +1,36 @@
-// The web host's settings sheet (1.4.0): a native <dialog> opened with showModal(), which brings
-// the focus trap, the top layer and Escape-to-close with no code of ours (the page never listens to
-// keys). A bottom sheet on narrow windows, a side sheet from 700 CSS px (web.css), so the cat stays
-// visible as a live preview while it is changed.
+// The web host's settings sheet (GizeMate): a native <dialog> opened with showModal(), which brings the
+// focus trap, the top layer and Escape-to-close with no code of ours (the page never listens to keys). A
+// bottom sheet on narrow windows, a side sheet from 700 CSS px (web.css), so the companion stays visible
+// as a live preview while it is changed.
 //
-// Built with the desktop settings' CSP-safe helpers (h/svg: no innerHTML, no style attributes) and
-// its coat art. No <form>: a method=dialog form could run into form-action 'none', so buttons call
-// close(). Controls report on input/change/click only; every change goes through deps.apply, which
-// main.ts routes through the web allow-list (settingsModel.ts).
+// Four areas behind a tab bar at the top of the sheet (the same structure as the Android panel,
+// androidPanel.ts, and built from the same parts in ui/):
+//   HOME        the active character live, quick switches, how to play;
+//   CHARACTERS  the seven companions, animated, with descriptions and badges; choosing one restarts the page;
+//   CUSTOMIZE   the active companion's name, palette, size, personality, behaviour, animation, interactions;
+//   SETTINGS    language, sound, accessibility, performance, privacy and data (where data lives, saving to
+//               a file and loading one), install and the offline copy, advanced (reset, start over), About.
+//
+// Built with the desktop settings' CSP-safe helpers (h/svg: no innerHTML, no style attributes). No
+// <form>: a method=dialog form could run into form-action 'none', so buttons call close(). Controls
+// report on input/change/click only; every change goes through deps.apply, which main.ts routes through
+// the web allow-list (settingsModel.ts). The live previews share one low-rate loop that runs only on Home
+// and Characters, only while the sheet is open and visible, and never under reduced motion.
 import type { Settings } from '../shared/settings';
-import { ACTIVITY_PRESET_IDS, type ActivityPresetId } from '../shared/settingsPresets';
-import { RENDER_STYLES, SKINS, type RenderStyle, type SkinId } from '../shared/cat';
+import type { CharacterId } from '../shared/characters/registry';
 import { h, uid } from '../renderer/settings/dom';
-import { coatArt } from '../renderer/settings/skins';
 import { showEvictionNote, type HostMode, type InstallHint } from './hostMode';
-import { CAT_NAME_MAX, patchFor, selectedPreset, SIZE_RANGE, VOLUME_RANGE, type WebField, type WebPatchResult } from './settingsModel';
-import { attachSecretNote } from './secretNote';
+import { patchFor, type WebField, type WebPatchResult } from './settingsModel';
 import type { WebSecretName } from './secretName';
 import { installText, WS } from './strings';
 import type { OfflineState } from './swRegister';
+import { createActiveCard, createCharactersView } from './ui/charactersView';
+import { fold, note, subhead, switchRow } from './ui/controls';
+import { createCustomizeView } from './ui/customizeView';
+import { bindReducedMotion } from './ui/motion';
+import { createBrowserPreviewLoop } from './ui/previewLoop';
+import { createCoreSettings } from './ui/settingsView';
+import { createTabs } from './ui/tabs';
 
 export interface SettingsPanelDeps {
   dialog: HTMLDialogElement;
@@ -30,7 +43,7 @@ export interface SettingsPanelDeps {
   /** Inside the click that turns sound on: unlocks audio (audioUnlock.ts). */
   onSoundGesture: () => void;
   onResetSettings: () => void;
-  /** Deletes the cat and reloads; false when storage refused (the sheet says so). */
+  /** Deletes the companion and reloads; false when storage refused (the sheet says so). */
   onStartOver: () => boolean;
   host: HostMode;
   installHint: () => InstallHint;
@@ -52,87 +65,29 @@ export interface SettingsPanel {
   /** Puts the current settings and status into the controls (after a change made elsewhere). */
   refresh(): void;
   /**
-   * "Take your cat to another device": an empty container for the profile export/import, inside a
+   * "Take your companion to another device": an empty container for the profile export/import, inside a
    * section that stays hidden until something is put in it (setTransferVisible).
    */
   readonly transferSlot: HTMLElement;
   setTransferVisible(visible: boolean): void;
 }
 
-interface RadioGroup<T extends string> {
-  root: HTMLElement;
-  set(value: T | null): void;
-}
+/** The tab the person was on survives a restart of the page (language or character change). */
+const TAB_KEY = 'gizecat.sheet.tab';
 
 export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   const { dialog } = deps;
   let isOpen = false;
 
-  const change = (c: WebField, save = true): WebPatchResult | null => {
+  const change = (c: WebField, save = true): void => {
     const patch = patchFor(c);
-    if (!patch) return null;
+    if (!patch) return;
     const r = deps.apply(patch, save);
-    if (!r.ok) refresh();
-    return r;
+    if (!r.ok || save) refresh();
   };
 
-  function radioCards<T extends string>(name: string, label: string, values: readonly T[], content: (v: T) => (Node | string)[], onPick: (v: T) => void, wide = false): RadioGroup<T> {
-    const labelId = uid(`${name}-label`);
-    const inputs = new Map<T, { input: HTMLInputElement; card: HTMLElement }>();
-    const cards = values.map((v) => {
-      // One name per group: the browser keeps one choice checked and moves between them natively.
-      const input = h('input', { type: 'radio', name: `gizecat-${name}`, value: v });
-      input.addEventListener('change', () => {
-        if (!input.checked) return;
-        for (const other of inputs.values()) other.card.classList.toggle('checked', other.input.checked);
-        // A refused patch refreshes the sheet, which puts the old choice back.
-        onPick(v);
-      });
-      const card = h('label', { class: 'card' }, [input, ...content(v)]);
-      inputs.set(v, { input, card });
-      return card;
-    });
-    const root = h('div', {}, [
-      h('p', { class: 'legend', id: labelId, text: label }),
-      h('div', { class: wide ? 'cards wide' : 'cards', role: 'radiogroup', 'aria-labelledby': labelId }, cards),
-    ]);
-    return {
-      root,
-      set(value) {
-        for (const [v, { input, card }] of inputs) {
-          input.checked = v === value;
-          card.classList.toggle('checked', v === value);
-        }
-      },
-    };
-  }
-
-  function switchRow(label: string, onToggle: (on: boolean) => void): { root: HTMLElement; input: HTMLInputElement } {
-    const id = uid('switch');
-    const input = h('input', { type: 'checkbox', role: 'switch', class: 'switch', id });
-    input.addEventListener('change', () => onToggle(input.checked));
-    return { root: h('div', { class: 'field-row' }, [h('label', { for: id, text: label }), input]), input };
-  }
-
-  function range(label: string, r: { min: number; max: number; step: number }, format: (v: number) => string, onValue: (v: number, save: boolean) => void) {
-    const id = uid('range');
-    const input = h('input', { type: 'range', id, min: r.min, max: r.max, step: r.step });
-    const out = h('output', { for: id });
-    input.addEventListener('input', () => {
-      out.textContent = format(Number(input.value));
-      onValue(Number(input.value), false);
-    });
-    input.addEventListener('change', () => onValue(Number(input.value), true));
-    const root = h('div', { class: 'field' }, [h('div', { class: 'field-row' }, [h('label', { for: id, text: label }), out]), input]);
-    return {
-      root,
-      input,
-      set(v: number) {
-        input.value = String(v);
-        out.textContent = format(v);
-      },
-    };
-  }
+  const previews = createBrowserPreviewLoop();
+  const motion = bindReducedMotion(previews, deps.getSettings);
 
   // ---- header
   const titleId = 'settings-title';
@@ -140,97 +95,65 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   closeBtn.addEventListener('click', () => close());
   const head = h('div', { class: 'sheet-head' }, [h('h2', { id: titleId, text: WS.sheet.title }), closeBtn]);
 
-  // ---- your cat
-  const nameId = uid('cat-name');
-  const nameErrId = uid('cat-name-error');
-  const nameInput = h('input', {
-    type: 'text',
-    id: nameId,
-    maxlength: CAT_NAME_MAX,
-    autocomplete: 'off',
-    autocapitalize: 'words',
-    enterkeyhint: 'done',
-    spellcheck: 'false',
-    'aria-describedby': nameErrId,
-  });
-  const nameErr = h('p', { class: 'error', id: nameErrId, 'aria-live': 'polite' });
-  nameInput.addEventListener('change', () => {
-    const r = change({ field: 'catName', value: nameInput.value });
-    if (!r || !r.ok) {
-      nameErr.textContent = WS.cat.nameInvalid;
-      nameInput.value = deps.getSettings().general.catName;
-    } else {
-      nameErr.textContent = '';
-      nameInput.value = r.settings.general.catName;
-    }
-  });
-  const nameField = h('div', { class: 'field' }, [h('label', { for: nameId, text: WS.cat.nameLabel }), nameInput, nameErr]);
-  // Registered after the change handler above, so it reads the value that handler settled on.
-  attachSecretNote(nameInput, deps.secret);
-  const coat = radioCards<SkinId>('coat', WS.cat.coatLabel, SKINS, (s) => [coatArt(s), h('span', { class: 'title', text: WS.skins[s] })], (s) => change({ field: 'skin', value: s }));
-  const style = radioCards<RenderStyle>('style', WS.cat.styleLabel, RENDER_STYLES, (s) => [h('span', { class: 'title', text: WS.styles[s] })], (s) => change({ field: 'style', value: s }));
-  const size = range(WS.cat.sizeLabel, SIZE_RANGE, (v) => `${Math.round(v * 100)}%`, (v, save) => change({ field: 'size', value: v }, save));
-  const shadow = switchRow(WS.cat.shadowLabel, (on) => change({ field: 'shadow', value: on }));
-  const emotes = switchRow(WS.cat.emotesLabel, (on) => change({ field: 'emotes', value: on }));
-  const catSection = h('section', {}, [
-    h('h3', { text: WS.cat.title }),
-    nameField,
-    coat.root,
-    style.root,
-    size.root,
-    shadow.root,
-    emotes.root,
-  ]);
-
-  // ---- personality (named presets only on the web)
-  const personality = radioCards<ActivityPresetId>(
-    'preset',
-    WS.personality.desc,
-    ACTIVITY_PRESET_IDS,
-    (p) => [h('span', { class: 'title', text: WS.presets[p].title }), h('span', { class: 'desc', text: WS.presets[p].desc })],
-    (p) => change({ field: 'preset', value: p }),
-    true,
-  );
-  const personalitySection = h('section', {}, [h('h3', { text: WS.personality.title }), personality.root]);
-
-  // ---- sound
-  const soundSwitch = switchRow(WS.sound.enabledLabel, (on) => {
+  // ================= HOME
+  const activeCard = createActiveCard({ getSettings: deps.getSettings, previews });
+  const quickSound = switchRow(WS.panel.audio.master, null, (on) => {
     // The change of a checkbox is dispatched within the click (a user gesture): audio can start here.
     if (on) deps.onSoundGesture();
     change({ field: 'soundEnabled', value: on });
-    refresh();
   });
-  const volume = range(WS.sound.volumeLabel, VOLUME_RANGE, (v) => `${Math.round(v * 100)}%`, (v, save) => change({ field: 'volume', value: v }, save));
-  const volumeNote = h('p', { class: 'note', text: WS.sound.volumeNeedsSound });
-  const soundSection = h('section', {}, [h('h3', { text: WS.sound.title }), h('p', { class: 'note', text: WS.sound.desc }), soundSwitch.root, volume.root, volumeNote]);
+  const quickEmotes = switchRow(WS.cat.emotesLabel, null, (on) => change({ field: 'emotes', value: on }));
+  const quickId = uid('sheet-quick');
+  const quickCard = h('section', { class: 'pcard', 'aria-labelledby': quickId }, [h('h2', { id: quickId, text: WS.home.quickTitle }), note(WS.home.quickDesc), quickSound.root, quickEmotes.root]);
+  const goCustomize = h('button', { type: 'button', class: 'primary', text: WS.home.customize });
+  const goCharacters = h('button', { type: 'button', text: WS.home.switchCharacter });
+  const howFold = fold(WS.home.howTitle, WS.help.text.map((t) => h('p', { text: t })));
+  const homePanel = h('div', { class: 'tab-page' }, [activeCard.root, quickCard, h('div', { class: 'actions home-actions' }, [goCustomize, goCharacters]), howFold]);
+
+  // ================= CHARACTERS
+  const characters = createCharactersView({
+    getSettings: deps.getSettings,
+    previews,
+    choose: (id: CharacterId) => change({ field: 'activeCharacter', value: id }),
+  });
+  const charactersPanel = h('div', { class: 'tab-page' }, [characters.root]);
+
+  // ================= CUSTOMIZE (no session-only switches here: those belong to the Android panel)
+  const customize = createCustomizeView({ getSettings: deps.getSettings, apply: deps.apply, secret: deps.secret, onChanged: () => refresh() });
+  const customizePanel = h('div', { class: 'tab-page' }, [customize.root]);
+
+  // ================= SETTINGS
+  const core = createCoreSettings({ getSettings: deps.getSettings, apply: deps.apply, onSoundGesture: deps.onSoundGesture, onChanged: () => refresh() });
 
   // ---- install (not in the Android app)
   const installNote = h('p', {});
   const installBtn = h('button', { type: 'button', class: 'primary', text: WS.install.promptButton });
   installBtn.addEventListener('click', () => deps.onInstall());
-  const appleStorageNote = h('p', { class: 'note', text: WS.install.appleStorage });
+  const appleStorageNote = note(WS.install.appleStorage);
   const evictionNote = h('p', { class: 'note warn', text: WS.install.evictionNote });
-  const installSection = h('section', {}, [h('h3', { text: WS.install.title }), installNote, h('div', { class: 'actions' }, [installBtn]), appleStorageNote, evictionNote]);
+  const installFold = fold(WS.install.title, [installNote, h('div', { class: 'actions' }, [installBtn]), appleStorageNote, evictionNote]);
 
-  // ---- storage on this device, and the offline copy (a polite live region: it changes while the sheet is open)
-  const storageNote = h('p', {});
-  const offlineNote = h('p', { class: 'note', 'aria-live': 'polite' });
-  offlineNote.hidden = true;
-  const storageSection = h('section', {}, [h('h3', { text: WS.storage.title }), storageNote, offlineNote]);
-
-  // ---- take your cat to another device
+  // ---- privacy and data: what is kept where, the offline copy, and the file transfer
   // profileUi.ts fills `transferSlot` with the export/import controls built on
   // src/shared/profileTransfer.ts (a local file only, never a network upload) and main.ts then calls
   // setTransferVisible(true). The section stays hidden while it is empty.
+  const storageNote = h('p', {});
+  const offlineNote = h('p', { class: 'note', 'aria-live': 'polite' });
+  offlineNote.hidden = true;
   const transferSlot = h('div', { class: 'transfer-slot', id: 'transfer-slot' });
   const transferSection = h('section', { id: 'transfer-section', 'aria-labelledby': 'transfer-title' }, [h('h3', { id: 'transfer-title', text: WS.transfer.title }), transferSlot]);
   transferSection.hidden = true;
+  const privacyFold = fold(WS.settingsPage.privacy.title, [
+    ...WS.privacy.text(deps.host.place).map((t) => h('p', { text: t })),
+    subhead(WS.settingsPage.privacy.dataTitle),
+    storageNote,
+    offlineNote,
+    subhead(WS.settingsPage.privacy.memoryTitle),
+    note(WS.settingsPage.privacy.memoryDesc),
+    transferSection,
+  ]);
 
-  // ---- how to play, privacy
-  const helpSection = h('section', {}, [h('h3', { text: WS.help.title }), ...WS.help.text.map((t) => h('p', { text: t }))]);
-  const privacySection = h('section', {}, [h('h3', { text: WS.privacy.title }), ...WS.privacy.text(deps.host.place).map((t) => h('p', { text: t }))]);
-
-  // ---- start again
+  // ---- advanced: start again
   const resetNote = h('p', { class: 'note', 'aria-live': 'polite' });
   const resetBtn = h('button', { type: 'button', text: WS.reset.resetSettings });
   resetBtn.addEventListener('click', () => {
@@ -261,12 +184,13 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     if (!deps.onStartOver()) startOverNote.textContent = WS.reset.startOverFailed;
   });
   setConfirming(false);
-  const resetSection = h('section', {}, [
-    h('h3', { text: WS.reset.title }),
-    h('p', { class: 'note', text: WS.reset.resetSettingsDesc }),
+  const advancedFold = fold(WS.settingsPage.advanced.title, [
+    note(WS.settingsPage.advanced.note),
+    h('h3', { class: 'subhead', text: WS.reset.title }),
+    note(WS.reset.resetSettingsDesc),
     h('div', { class: 'actions' }, [resetBtn]),
     resetNote,
-    h('p', { class: 'note', text: WS.reset.startOverDesc }),
+    note(WS.reset.startOverDesc),
     h('div', { class: 'actions' }, [startOverBtn]),
     confirmAsk,
     confirmRow,
@@ -278,46 +202,48 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   // own link comes back here. A new window would leave the Home Screen app for Safari.
   const privacyLink = h('a', { href: 'privacy.html', text: WS.about.privacy });
   const licensesLink = h('a', { href: 'licenses.html', text: WS.about.licenses });
-  const aboutSection = h('section', {}, [
-    h('h3', { text: WS.about.title }),
-    h('p', { text: WS.about.text }),
-    h('p', { class: 'note', text: WS.about.version(deps.version) }),
-    h('p', {}, [privacyLink]),
-    h('p', {}, [licensesLink]),
-  ]);
+  const aboutFold = fold(WS.about.title, [h('p', { text: WS.about.text }), h('p', { class: 'note', text: WS.about.version(deps.version) }), h('p', {}, [privacyLink]), h('p', {}, [licensesLink])]);
 
-  dialog.replaceChildren(
-    head,
-    catSection,
-    personalitySection,
-    soundSection,
-    installSection,
-    storageSection,
-    transferSection,
-    helpSection,
-    privacySection,
-    resetSection,
-    aboutSection,
-  );
+  const settingsPanel = h('div', { class: 'tab-page' }, [core.language, core.sound, core.accessibility, core.performance, installFold, privacyFold, advancedFold, aboutFold]);
+
+  // ================= navigation
+  const content = h('div', { class: 'sheet-content' });
+  const tabs = createTabs({
+    label: WS.nav.label,
+    className: 'tabbar tabbar-top',
+    memoryKey: TAB_KEY,
+    tabs: [
+      { id: 'home', label: WS.nav.home, panel: homePanel },
+      { id: 'characters', label: WS.nav.characters, panel: charactersPanel },
+      { id: 'customize', label: WS.nav.customize, panel: customizePanel },
+      { id: 'settings', label: WS.nav.settings, panel: settingsPanel },
+    ],
+    onSelect: () => syncPreviews(),
+  });
+  content.append(homePanel, charactersPanel, customizePanel, settingsPanel);
+  goCustomize.addEventListener('click', () => tabs.select('customize', true));
+  goCharacters.addEventListener('click', () => tabs.select('characters', true));
+
+  dialog.replaceChildren(h('div', { class: 'sheet-top' }, [head, tabs.bar]), content);
   if (!dialog.hasAttribute('aria-labelledby')) dialog.setAttribute('aria-labelledby', titleId);
+
+  /** The previews run only on the pages that show them, while the sheet is open. */
+  function syncPreviews(): void {
+    previews.setActive(isOpen && (tabs.current === 'home' || tabs.current === 'characters'));
+  }
 
   function refresh(): void {
     const s = deps.getSettings();
-    if (document.activeElement !== nameInput) nameInput.value = s.general.catName;
-    deps.secret?.setName(s.general.catName);
-    coat.set(s.appearance.skin);
-    style.set(s.appearance.style);
-    size.set(s.appearance.size);
-    shadow.input.checked = s.appearance.shadow;
-    emotes.input.checked = s.appearance.emotes;
-    personality.set(selectedPreset(s));
-    soundSwitch.input.checked = s.sound.enabled;
-    volume.set(s.sound.volume);
-    volume.input.disabled = !s.sound.enabled;
-    volumeNote.hidden = s.sound.enabled;
+    activeCard.refresh();
+    characters.refresh();
+    customize.refresh();
+    core.refresh();
+    motion.sync();
+    quickSound.input.checked = s.sound.enabled;
+    quickEmotes.input.checked = s.appearance.emotes;
     const hint = deps.installHint();
     const text = installText(hint);
-    installSection.hidden = text === null && !showEvictionNote(deps.host);
+    installFold.hidden = text === null && !showEvictionNote(deps.host);
     installNote.textContent = text ?? '';
     installNote.hidden = text === null;
     installBtn.hidden = hint !== 'prompt';
@@ -333,6 +259,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   function setOpen(open: boolean): void {
     if (isOpen === open) return;
     isOpen = open;
+    syncPreviews();
     try {
       deps.onOpenChange?.(open);
     } catch {

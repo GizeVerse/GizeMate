@@ -2,15 +2,15 @@
 export const ghostEn = {
   name: 'Ghost',
   tagline: 'The harmless haunter',
-  description: 'A friendly little ghost who floats, fades in and out, slips through things and loves to surprise you, harmlessly.',
-  personality: 'Mischievous and curious, never scary. Lonely ghosts are the best at hide-and-seek.',
-  interactions: 'Vanishes and reappears, floats through props, plays peekaboo.',
+  description: 'A soft, see-through little ghost who drifts around instead of walking. It fades out, pops up somewhere else, slips through your things and loves to surprise you, always harmlessly.',
+  personality: 'Playful, curious and a bit of a prankster, but never scary. It is happiest when someone plays along.',
+  interactions: 'Vanishes and reappears elsewhere, plays peekaboo, says boo and then giggles, floats through props and chases the laser dot.',
 };
 
 export const ghostTr: typeof ghostEn = {
   name: 'Hayalet',
-  tagline: 'Zararsız dolaşan',
-  description: 'Süzülen, belirip kaybolan, eşyaların içinden geçen ve sizi zararsızca şaşırtmayı seven dost bir hayalet.',
-  personality: 'Yaramaz ve meraklı, asla korkutucu değil. Yalnız hayaletler saklambaçta en iyisidir.',
-  interactions: 'Kaybolup yeniden belirir, nesnelerin içinden geçer, ce-ee oynar.',
+  tagline: 'Zararsız küçük hayalet',
+  description: 'Yürümek yerine süzülen, yumuşak ve yarı saydam küçük bir hayalet. Silinip başka bir yerde beliriyor, eşyalarının içinden geçiyor ve seni şaşırtmayı çok seviyor, hem de hep zararsızca.',
+  personality: 'Oyuncu, meraklı ve biraz yaramaz, ama asla korkutucu değil. Biri oyuna katıldığında en mutlu hâlini yaşıyor.',
+  interactions: 'Kaybolup başka yerde belirir, ce-ee oynar, bö der ve kıkırdar, eşyaların içinden süzülür, lazer noktasının peşine düşer.',
 };

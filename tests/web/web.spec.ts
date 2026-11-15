@@ -103,6 +103,19 @@ async function openSheet(page: Page, info: TestInfo): Promise<Locator> {
   return sheet;
 }
 
+/** The sheet has four areas behind a tab bar (Home, Characters, Customize, Settings). */
+async function showTab(sheet: Locator, name: 'Home' | 'Characters' | 'Customize' | 'Settings'): Promise<void> {
+  // The areas are a native radio group drawn as tabs (no key handler: the web host never listens to keys).
+  await sheet.getByRole('radio', { name, exact: true }).check();
+}
+
+/** Opens a fold (a native details) by its title when it is closed. */
+async function openFold(sheet: Locator, title: string, info: TestInfo): Promise<void> {
+  const summary = sheet.locator('summary', { hasText: title }).first();
+  const fold = summary.locator('xpath=..');
+  if ((await fold.getAttribute('open')) === null) await press(summary, info);
+}
+
 async function state(page: Page): Promise<WebTestState> {
   return page.evaluate(() => (globalThis as unknown as PageGlobals).__gizecatWebTest.state());
 }
@@ -535,6 +548,8 @@ test('the service worker takes control; an offline reload still brings the cat',
 test('the settings sheet: name, coat and personality are saved and survive a reload', async ({ page }, info) => {
   const { errors } = await openPage(page);
   let sheet = await openSheet(page, info);
+  await showTab(sheet, 'Customize');
+  await openFold(sheet, 'Behavior', info);
   const name = sheet.getByLabel('Name');
   await name.fill('Pamuk');
   await name.blur();
@@ -548,6 +563,8 @@ test('the settings sheet: name, coat and personality are saved and survive a rel
   await page.reload();
   await waitReady(page);
   sheet = await openSheet(page, info);
+  await showTab(sheet, 'Customize');
+  await openFold(sheet, 'Behavior', info);
   await expect(sheet.getByLabel('Name')).toHaveValue('Pamuk');
   await expect(sheet.getByRole('radio', { name: 'Tuxedo' })).toBeChecked();
   await expect(sheet.getByRole('radio', { name: /^Calm/ })).toBeChecked();
@@ -584,6 +601,9 @@ test('the sheet says the app is ready offline, and its About section opens the s
   await openPage(page);
   await page.waitForFunction(() => Boolean((globalThis as unknown as PageGlobals).navigator.serviceWorker?.controller), undefined, { timeout: 30_000 });
   const sheet = await openSheet(page, info);
+  await showTab(sheet, 'Settings');
+  await openFold(sheet, 'Privacy and data', info);
+  await openFold(sheet, 'About', info);
   await expect(sheet.getByText('Ready to work offline')).toBeVisible();
   const link = sheet.getByRole('link', { name: 'Third-party notices' });
   await expect(link).toHaveAttribute('href', 'licenses.html');
@@ -608,6 +628,8 @@ test('the About section opens the static privacy page, and it opens offline too'
   await openPage(page);
   await page.waitForFunction(() => Boolean((globalThis as unknown as PageGlobals).navigator.serviceWorker?.controller), undefined, { timeout: 30_000 });
   const sheet = await openSheet(page, info);
+  await showTab(sheet, 'Settings');
+  await openFold(sheet, 'About', info);
   const link = sheet.getByRole('link', { name: 'Privacy statement' });
   await expect(link).toHaveAttribute('href', 'privacy.html');
   await Promise.all([page.waitForEvent('load'), press(link, info)]);
@@ -632,6 +654,8 @@ test('Start over deletes the cat: after the reload a new cat arrives', async ({ 
   await page.waitForTimeout(500);
   const before = await state(page);
   const sheet = await openSheet(page, info);
+  await showTab(sheet, 'Settings');
+  await openFold(sheet, 'Advanced', info);
   await press(sheet.getByRole('button', { name: 'Start over with a new cat' }), info);
   await Promise.all([page.waitForEvent('load'), press(sheet.getByRole('button', { name: 'Delete my cat and start over' }), info)]);
   await waitReady(page);

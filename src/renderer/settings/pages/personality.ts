@@ -125,6 +125,7 @@ function personalityChoice(ctx: PageContext): HTMLElement {
 
 const isChoice = (v: unknown): v is Choice => v === 'auto' || (typeof v === 'string' && (PERSONALITY_IDS as readonly string[]).includes(v));
 
+/** Customize › Personality: who the companion is (profile, the personality it shows, its traits). */
 export function personalityPage(ctx: PageContext): PageView {
   const art = h('div', { class: 'profile-art', 'aria-hidden': 'true' });
   const name = h('h2', { class: 'profile-name' });
@@ -133,26 +134,12 @@ export function personalityPage(ctx: PageContext): PageView {
   const spots = h('div', { class: 'profile-line' });
   const profile = h('div', { class: 'profile' }, [art, h('div', { class: 'profile-text' }, [name, state, since, spots])]);
   const traits = card([]);
-  const stats = card([]);
-  const prefs = card([]);
-  const counters = card([]);
-  const recent = card([]);
-  const reset = dangerRow(ctx, P.resetTitle, P.resetDesc, P.resetButton, P.resetConfirmTitle, P.resetConfirmText, 'resetPersonality', P.resetDone);
-  const clear = dangerRow(ctx, P.clearTitle, P.clearDesc, P.clearButton, P.clearConfirmTitle, P.clearConfirmText, 'clearHistory', P.clearDone);
-  // 1.4.0: "Take your cat to another device", right before "Start over".
-  const transfer = transferRows(ctx);
 
   const element = page(P.title, [
     profile,
     group(P.groupChoice, [personalityChoice(ctx)], P.groupChoiceDesc),
     h('p', { class: 'page-note' }, [icon('info'), h('span', { text: deviceWords(P.simulationNote, platformWording(ctx.store.view.status.platform)) })]),
     group(P.groupTraits, [traits], P.traitsNote),
-    group(P.groupStats, [stats]),
-    group(P.groupLearned, [prefs]),
-    group(P.groupCounters, [counters]),
-    group(P.groupMemories, [recent]),
-    group(S.profile.groupTitle, [transfer.exportRow.row, transfer.importRow.row], S.profile.groupDesc),
-    group(P.groupReset, [reset.row, clear.row]),
   ]);
 
   let skin = '';
@@ -169,17 +156,63 @@ export function personalityPage(ctx: PageContext): PageView {
     since.textContent = P.livingSince(formatAge(cat.bornAt, now));
     spots.textContent = P.favoriteSpots(cat.favoriteSpotCount);
     traits.replaceChildren(...meters<Traits>(cat.traits, P.traits));
-    stats.replaceChildren(...meters<Stats>(cat.stats, P.stats));
-    prefs.replaceChildren(...learned(cat.preferences));
-    counters.replaceChildren(counterGrid(cat.counters));
-    recent.replaceChildren(memories(cat, now));
   };
   ctx.store.subscribe(render);
-  // Stats drift and relative times age without a broadcast from main, so the view is re-read while shown.
   const poll = pagePoll(ctx, element);
   return {
     id: 'personality',
     title: P.title,
+    element,
+    onShow() {
+      render();
+      poll.start();
+    },
+    onHide: () => poll.stop(),
+  };
+}
+
+/**
+ * Settings › Data & memory: what the companion remembers (needs, learned habits, counters, recent
+ * memories), taking the profile to another device (export and import) and starting over.
+ */
+export function memoryPage(ctx: PageContext): PageView {
+  const U = S.ui.data;
+  const stats = card([]);
+  const prefs = card([]);
+  const counters = card([]);
+  const recent = card([]);
+  const reset = dangerRow(ctx, P.resetTitle, P.resetDesc, P.resetButton, P.resetConfirmTitle, P.resetConfirmText, 'resetPersonality', P.resetDone);
+  const clear = dangerRow(ctx, P.clearTitle, P.clearDesc, P.clearButton, P.clearConfirmTitle, P.clearConfirmText, 'clearHistory', P.clearDone);
+  const transfer = transferRows(ctx);
+  const dataFolder = h('div', { class: 'path' });
+  const location = h('div', { class: 'row row-block' }, [h('div', { class: 'row-title', text: U.locationTitle }), h('p', { class: 'row-desc', text: U.locationDesc }), dataFolder]);
+
+  const element = page(U.title, [
+    h('p', { class: 'page-note' }, [icon('info'), h('span', { text: deviceWords(U.intro, platformWording(ctx.store.view.status.platform)) })]),
+    group(P.groupStats, [stats]),
+    group(P.groupLearned, [prefs]),
+    group(P.groupCounters, [counters]),
+    group(P.groupMemories, [recent]),
+    group(S.profile.groupTitle, [transfer.exportRow.row, transfer.importRow.row], S.profile.groupDesc),
+    group(U.groupLocation, [location]),
+    group(P.groupReset, [reset.row, clear.row]),
+  ]);
+
+  const render = (): void => {
+    const view = ctx.store.view;
+    const cat = view.cat;
+    const now = ctx.now();
+    stats.replaceChildren(...meters<Stats>(cat.stats, P.stats));
+    prefs.replaceChildren(...learned(cat.preferences));
+    counters.replaceChildren(counterGrid(cat.counters));
+    recent.replaceChildren(memories(cat, now));
+    dataFolder.textContent = view.paths.userData;
+  };
+  ctx.store.subscribe(render);
+  const poll = pagePoll(ctx, element);
+  return {
+    id: 'memory',
+    title: U.title,
     element,
     onShow() {
       render();

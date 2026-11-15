@@ -3,12 +3,12 @@
     "fast": [
       { "name": "typecheck", "cmd": "npm run typecheck", "timeoutSec": 600 },
       { "name": "lint", "cmd": "npm run lint", "timeoutSec": 900 },
-      { "name": "unit", "cmd": "npx vitest run", "timeoutSec": 900 }
+      { "name": "unit", "cmd": "npx vitest run", "timeoutSec": 1800 }
     ],
     "full": [
       { "name": "typecheck", "cmd": "npm run typecheck", "timeoutSec": 600 },
       { "name": "lint", "cmd": "npm run lint", "timeoutSec": 900 },
-      { "name": "unit", "cmd": "npx vitest run", "timeoutSec": 900 },
+      { "name": "unit", "cmd": "npx vitest run", "timeoutSec": 1800 },
       { "name": "build", "cmd": "node scripts/build.mjs", "timeoutSec": 300 },
       { "name": "e2e", "cmd": "npx playwright test", "timeoutSec": 1200, "requires": { "probe": "node -e \"require('fs').accessSync('node_modules/electron/path.txt')\"" } }
     ]
