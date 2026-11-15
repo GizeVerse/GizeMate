@@ -71,6 +71,14 @@ export async function quitApp(app: ElectronApplication, timeoutMs = 15_000): Pro
   return code;
 }
 
+/**
+ * The UI language follows the system under 'auto' (Turkish on a Turkish PC), so specs that read the
+ * settings window by its English labels pin it first. The settings window rebuilds itself on the change.
+ */
+export async function useEnglish(app: ElectronApplication): Promise<void> {
+  expect((await hook(app, 'patchSettings', { general: { language: 'en' } })).ok).toBe(true);
+}
+
 export async function settingsPage(app: ElectronApplication): Promise<Page> {
   const existing = app.windows().find((p) => p.url().includes('/renderer/settings/'));
   if (existing) return existing;

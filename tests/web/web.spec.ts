@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { BRAND } from '../../src/shared/brand';
 import type { WebTestState } from '../../src/web/testHook';
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -219,7 +220,7 @@ test('loads with no console errors and the CSP in force (header and meta)', asyn
   const { errors, response } = await openPage(page);
   expect(response?.headers()['content-security-policy']).toBe(CSP);
   expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')).toBe(CSP);
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('GizeCat');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(BRAND.product);
   await expect(page.locator('#cat')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('#cat-status')).toHaveAttribute('aria-live', 'polite');
   await page.waitForTimeout(2000);
@@ -513,7 +514,7 @@ test('the manifest is served and parses; its icons exist at the declared sizes; 
   expect(res.ok()).toBe(true);
   expect(res.headers()['content-type']).toBe('application/manifest+json');
   const m = (await res.json()) as { name: string; start_url: string; scope: string; display: string; id?: string; icons: Array<{ src: string; sizes: string; purpose: string }> };
-  expect(m.name).toBe('GizeCat');
+  expect(m.name).toBe(BRAND.product);
   expect([m.start_url, m.scope, m.display]).toEqual(['./', './', 'standalone']);
   expect(m.id).toBe('gizecat');
   expect(m.icons.map((i) => `${i.purpose} ${i.sizes}`).sort()).toEqual(['any 192x192', 'any 512x512', 'maskable 192x192', 'maskable 512x512']);
@@ -610,14 +611,14 @@ test('the sheet says the app is ready offline, and its About section opens the s
   await Promise.all([page.waitForEvent('load'), press(link, info)]);
   expect(new URL(page.url()).pathname).toBe('/licenses.html');
   await expect(page.getByRole('heading', { name: 'Third-party notices', level: 1 })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Back to GizeCat' }).first()).toHaveAttribute('href', 'index.html');
+  await expect(page.getByRole('link', { name: `Back to ${BRAND.product}` }).first()).toHaveAttribute('href', 'index.html');
   expect(await page.locator('script').count()).toBe(0);
   // SIMULATED offline: Chrome's network emulation (the worker serves the page and the way back).
   await page.context().setOffline(true);
   try {
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Third-party notices', level: 1 })).toBeVisible();
-    await Promise.all([page.waitForEvent('load'), press(page.getByRole('link', { name: 'Back to GizeCat' }).first(), info)]);
+    await Promise.all([page.waitForEvent('load'), press(page.getByRole('link', { name: `Back to ${BRAND.product}` }).first(), info)]);
     await waitReady(page);
   } finally {
     await page.context().setOffline(false);
@@ -635,14 +636,14 @@ test('the About section opens the static privacy page, and it opens offline too'
   await Promise.all([page.waitForEvent('load'), press(link, info)]);
   expect(new URL(page.url()).pathname).toBe('/privacy.html');
   await expect(page.getByRole('heading', { name: 'Privacy', level: 1 })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Back to GizeCat' }).first()).toHaveAttribute('href', 'index.html');
+  await expect(page.getByRole('link', { name: `Back to ${BRAND.product}` }).first()).toHaveAttribute('href', 'index.html');
   expect(await page.locator('script').count()).toBe(0);
   // SIMULATED offline: Chrome's network emulation (the worker serves the page and the way back).
   await page.context().setOffline(true);
   try {
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Privacy', level: 1 })).toBeVisible();
-    await Promise.all([page.waitForEvent('load'), press(page.getByRole('link', { name: 'Back to GizeCat' }).first(), info)]);
+    await Promise.all([page.waitForEvent('load'), press(page.getByRole('link', { name: `Back to ${BRAND.product}` }).first(), info)]);
     await waitReady(page);
   } finally {
     await page.context().setOffline(false);
@@ -656,8 +657,8 @@ test('Start over deletes the cat: after the reload a new cat arrives', async ({ 
   const sheet = await openSheet(page, info);
   await showTab(sheet, 'Settings');
   await openFold(sheet, 'Advanced', info);
-  await press(sheet.getByRole('button', { name: 'Start over with a new cat' }), info);
-  await Promise.all([page.waitForEvent('load'), press(sheet.getByRole('button', { name: 'Delete my cat and start over' }), info)]);
+  await press(sheet.getByRole('button', { name: 'Start over with a new companion' }), info);
+  await Promise.all([page.waitForEvent('load'), press(sheet.getByRole('button', { name: 'Delete my companion and start over' }), info)]);
   await waitReady(page);
   const after = await state(page);
   expect(after.storage.catSource).toBe('new');

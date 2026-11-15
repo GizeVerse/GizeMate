@@ -41,16 +41,18 @@ const CACHE = shellCacheName(sw.registration.scope, __SHELL_VERSION__);
  */
 async function precache(): Promise<void> {
   const cache = await caches.open(CACHE);
-  const fetched = await Promise.all(
+  // Each response is stored (its body read) as soon as it arrives. Holding all twelve unread until the
+  // last one is in stalls the browser's network stack once one body is large (the 1.4 MB bundle): the
+  // install then never finishes and the app is never kept offline.
+  await Promise.all(
     FILES.map(async (f) => {
       // cache: 'reload' skips the HTTP cache, so a new version never precaches an old file.
       const request = new Request(f, { cache: 'reload' });
       const response = await fetch(request);
       if (!response.ok) throw new Error(`precache: ${f} answered HTTP ${response.status}`);
-      return { request, response: withoutRedirect(response) };
+      await cache.put(request, withoutRedirect(response));
     }),
   );
-  await Promise.all(fetched.map(({ request, response }) => cache.put(request, response)));
 }
 
 sw.addEventListener('install', (e) => {
