@@ -2,6 +2,46 @@
 
 Labels: **REAL** = executed and observed on the machine below; **MOCKED** = executed against fakes/mock servers; **SIMULATED** = real code driven with synthetic geometry/events; **UNVERIFIED** = not executed.
 
+# v1.6.0 (GizeMate, release candidate, 2026-11-15): multi-character engine, localisation, new interface
+
+Code: branch `feature/gizemate`, cut from release v1.5.0 (`3d247af`). Machine: this Windows 11 PC (Turkish system language), shared with other projects (their jobs held the machine lock for minutes at a time, which is why heavy runs took longer than the figures in earlier entries). Nothing in this entry was run on macOS, Android devices or emulators.
+
+## Automated suites
+
+| Tier | Result |
+|---|---|
+| `node .claude/scripts/verify.mjs fast` on the final tree (typecheck, lint, unit) | **PASS**, not stale. Unit 5351 passed, 29 skipped, 1 todo (303 of 305 files); run with `VITEST_TEST_TIMEOUT_MS=240000` because the shared machine starves the long seeded simulations (see below) |
+| Playwright desktop suite (real Electron app, own temporary profile) | **32 passed, 0 failed, 14 skipped** (the opt-in lively, soak and real-browser scenarios, unchanged) |
+| Playwright web-host suite (Chromium, 5 emulated projects) | **76 passed, 1 failed, 18 skipped**; the failure is an intermittent touch-gesture test, see Known issues |
+| Baseline on the unmodified v1.5.0 tree | typecheck and lint clean; unit **4723 passed, 13 failed** of 4766 (the first time the Living Companion tests were ever run) |
+
+The 13 baseline failures were each root-caused: five code defects (Laser Mode could hunt the light and handed control back abruptly, the necklace chain collapsed or hung the wrong way at extreme poses, the secret-note helper needed a `document`), the rest stale test expectations (a v1.4 control list, a macOS Dock wording rule, a web allow-list entry, a touch-protocol timestamp, Storage Access Framework mime types, a macOS workflow pattern, mood-easing limits in the wrong unit, a drowsy-cat fixture).
+
+## What was verified how
+
+- **REAL (executed here):** the unit and E2E suites above; a golden hash of seeded cat simulation runs identical to v1.5.0; the cat renderer's bounds, hit rectangles, draw-call logs and frame pacing identical to v1.5.0 across every clip (a temporary parity test, removed afterwards); the preview contact sheets of all seven characters (viewed by the author: silhouettes, motion strips, hit regions, palettes on light and dark, the pendant).
+- **SIMULATED:** character renderers driven by recording canvas contexts (bounds contain every painted point, hit rectangles cover the body, finite poses for every clip, both facings, every palette, pixel mode, reduced motion); simulations of every character over long seeded runs (liveness, signature rarity, teleports stay on screen).
+- **UNVERIFIED:** how the characters feel at real frame rates in the live overlay over hours (soak not run for the new characters); sound by ear (recipes are checked structurally only); keyboard and screen-reader behaviour of the new settings window (no assistive technology was used); the Android panel and floating window (inspected, never run); Windows 10, multi-monitor and mixed DPI with the new characters.
+
+## Known issues and limitations
+
+- One character at a time (several at once would need a multi-host redesign; ADR 0005).
+- Web E2E "touch: a finger stroking the cat pets it" fails intermittently on the emulated mobile and tablet projects (2 of 24 repeated runs): the failing runs took 35 s and 59 s against 3.5 s for the passing ones, i.e. they were starved by machine load; treated as a timing-sensitive gesture test, not a regression, but not proven.
+- A web character swap or language change reloads the page.
+- Android native notification text follows the device language, not the in-app setting.
+- Installers are unsigned (Windows SmartScreen warns).
+
+## Packaging (built, not installed, not published)
+
+Built from a clean tree at `57f7e83` with `npm run package:win` (own run under the machine lock). **Nothing was installed or launched from the installers** (the owner's real installation lives on this PC; no install or upgrade test was run).
+
+| File | Size | SHA-256 | Signing |
+|---|---|---|---|
+| `release/Desktop-Cat-Setup-1.6.0-x64.exe` | 121,718,671 bytes | `438dd0c0a532b19de73e22d78a7f56df1d3072b5d38eec72764df341919352a1` | unsigned (`Get-AuthenticodeSignature`: NotSigned) |
+| `release/Desktop-Cat-Setup-1.6.0-arm64.exe` | 116,213,938 bytes | `ff88c5a64d87aac5801d6ef3b34f85e3af4e95071f09beebea92d97bada8b27e` | unsigned (NotSigned) |
+
+Static payload checks (`scripts/check-win-payload.mjs --strict`) pass for both architectures. The Windows on Arm installer has never been run on ARM hardware. Details: [1.6.0 artifact inventory](releases/1.6.0-artifact-inventory.md).
+
 # v1.3.0 (2026-11-07): first public release; clicks, drags and throws over long runs
 
 Code: branch `feat/gizeverse-foundation`, application code at `0ec2dd2` (later commits change tests and docs only; nothing that ships). Installer `release/1.3.0/Desktop-Cat-Setup-1.3.0.exe`, 121,530,241 bytes, SHA-256 `57BEC0A7DE46EE6A7178620EC43D74877120C120DC70F8EFF4CBA2B280B113C7`, unsigned. Same machine as v1.2.0 (Windows 11 Home 10.0.26200, one 1920×1200 display at 125 %, auto-hide bottom taskbar). Someone was using the desk during most runs. The owner's installed 1.2.0 kept running and was never touched. The report, root cause, fix and every run: [docs/gizeverse/13-interaction-reliability.md](gizeverse/13-interaction-reliability.md). Platform work since v1.2.0: [docs/gizeverse/](gizeverse/README.md).
