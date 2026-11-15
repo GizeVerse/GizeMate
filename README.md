@@ -8,6 +8,8 @@ GizeCat is one animated, persistent cat, the same on every device. It wanders al
 
 On a desktop, everything except the cat's own body stays clickable. On a tablet, the cat lives inside its own window.
 
+**GizeMate (UNRELEASED 1.6.0, work in progress; provisional name).** The product is becoming a small universe of companions: the cat, plus a monkey, a fox, a rabbit, a ghost, a slime and an alien. One character lives on the desktop at a time; each has its own look, way of moving, personality, memory and voice, and the interface comes in English and Turkish (Automatic follows the system language). An existing cat, with its name, coat and memory, is kept and stays the default. This is implemented in the repository and **has not been run in the real app**; the unit tests and the character preview sheets are the only evidence, and the installers stay unsigned. Android and macOS sources were only inspected for it. Meet them: [docs/characters/](docs/characters/README.md). Installers and release links below still describe the published versions.
+
 ![The cat's coats and poses, rendered by the app's own renderer](docs/images/skins.png)
 
 ## Get it on your device
@@ -130,7 +132,7 @@ Laser Mode (1.5.0 candidate) is started from the Companion page of Settings, the
 
 **Perception (optional, OFF by default).** Tier B: a ~0.3 s burst of three tiny masked in-memory frames → brightness/contrast/colourfulness/edge density/change/motion and the coarse labels dark/bright, busy/quiet, motion/still, video-like, new element (no semantic claims). Tier C: Ollama, OpenAI-compatible local servers, or Anthropic (`claude-haiku-5-5`), strict schema + 8-reaction allow-list, rate limits, circuit breaker; cloud requires a separate switch, and server-forwarded cloud models are detected and fail closed. Consent flow, exclusions (password managers, auth, banking, private browsing — including their dialogs), privacy pause, "preview what the cat sees". See [docs/PRIVACY.md](docs/PRIVACY.md) and [docs/AI_SETUP.md](docs/AI_SETUP.md).
 
-**Settings UI.** Welcome, General, Appearance, Behavior, Interaction, Privacy & Vision, AI, Personality, Diagnostics (live resource charts, log export), About. Light/dark, keyboard accessible.
+**Settings UI.** Unreleased 1.6.0 restructures it into four areas: Home, Characters, Customize (Appearance, Personality, Behavior, Animation, Interaction) and Settings (Language, Sound, Privacy, Data & memory, Performance, Accessibility, Desktop, Advanced, About), after a first-run Welcome page. The screenshots below show the earlier layout (v1.x pages: General, Appearance, Behavior, Interaction, Privacy & Vision, AI, Personality, Diagnostics, About). Light/dark, keyboard accessible.
 
 | Appearance | Privacy & Vision | Personality (dark) |
 |---|---|---|
@@ -155,7 +157,7 @@ Design and review: [ADR 0004](docs/adr/0004-gizeverse-platform.md). Reports: [do
 
 - Top, left and right taskbars as surfaces (they are tracked, but only bottom auto-hide taskbars are ledges); Firefox and vertical-tab layouts for tab strips.
 - Recorded sounds: not implemented. The optional meows, purrs and (1.5.0 candidate) world sound cues are synthesized on your device and off by default.
-- Multiple skins per cat at once, localisation beyond English.
+- Several characters on the desktop at the same time (one at a time only), localisation beyond English and Turkish, and carrying a non-cat companion in a saved profile.
 - Auto-update: not implemented.
 - Code signing: no build is signed with a publisher's key yet. For 1.4.0, the signing paths for Windows, macOS (Developer ID and notarization) and Android exist in manual workflows that have never been started, and they need the owner's credentials ([release automation](docs/platforms/release-automation.md)). Google Play and public web hosting also need the owner.
 - The cat over other apps on iPad: not possible (iPadOS has no cross-application overlay). On Android it floats since 1.4.1/1.4.2, with limits: a small area around it takes touches, no global cursor tracking, no ceiling pose ([why](docs/gizeverse/08-mobile-boundaries.md), [guide](docs/platforms/android-overlay.md)).
@@ -213,7 +215,7 @@ On shared machines wrap heavy commands: `node scripts/with-lock.mjs <label> -- <
 
 ## Documentation
 
-[Living Companion (1.5.0 release candidate)](docs/living-companion/README.md) · [1.5.0 draft release notes](docs/releases/1.5.0-release-candidate.md) · [Android floating cat](docs/platforms/android-overlay.md) · [Android Play Protect review](docs/platforms/android-play-protect.md) · [Platforms and install guides](docs/platforms/README.md) · [Troubleshooting by device](docs/platforms/troubleshooting.md) · [Take your cat to another device](docs/platforms/profile-transfer.md) · [Release automation](docs/platforms/release-automation.md) · [GizeVerse platform (ADR 0004)](docs/adr/0004-gizeverse-platform.md) · [Capability matrix](docs/gizeverse/capability-matrix.md) · [GizeVerse reports](docs/gizeverse/README.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Roadmap](ROADMAP.md) · [Architecture decision record](docs/adr/0001-architecture.md) · [User guide](docs/USER_GUIDE.md) · [Privacy](docs/PRIVACY.md) · [Threat model](docs/THREAT_MODEL.md) · [AI setup](docs/AI_SETUP.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Test report](docs/TEST_REPORT.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Third-party notices](THIRD_PARTY_NOTICES.md) · [Example settings](docs/settings.example.json) · [Research notes](docs/research/)
+[Characters (GizeMate, unreleased 1.6.0)](docs/characters/README.md) · [Living Companion (1.5.0 release candidate)](docs/living-companion/README.md) · [1.5.0 draft release notes](docs/releases/1.5.0-release-candidate.md) · [Android floating cat](docs/platforms/android-overlay.md) · [Android Play Protect review](docs/platforms/android-play-protect.md) · [Platforms and install guides](docs/platforms/README.md) · [Troubleshooting by device](docs/platforms/troubleshooting.md) · [Take your cat to another device](docs/platforms/profile-transfer.md) · [Release automation](docs/platforms/release-automation.md) · [GizeVerse platform (ADR 0004)](docs/adr/0004-gizeverse-platform.md) · [Capability matrix](docs/gizeverse/capability-matrix.md) · [GizeVerse reports](docs/gizeverse/README.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Roadmap](ROADMAP.md) · [Architecture decision record](docs/adr/0001-architecture.md) · [User guide](docs/USER_GUIDE.md) · [Privacy](docs/PRIVACY.md) · [Threat model](docs/THREAT_MODEL.md) · [AI setup](docs/AI_SETUP.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Test report](docs/TEST_REPORT.md) · [Release checklist](docs/RELEASE_CHECKLIST.md) · [Third-party notices](THIRD_PARTY_NOTICES.md) · [Example settings](docs/settings.example.json) · [Research notes](docs/research/)
 
 ## License
 

@@ -89,8 +89,10 @@ describe('scene character handling', () => {
       made.push(id);
       return createCharacterRenderer(id, random);
     });
-    expect(made).toEqual(['cat']);
+    // Lazy: nothing is built until the scene needs a renderer.
+    expect(made).toEqual([]);
     run(scene, 'walk', 300);
+    expect(made).toEqual(['cat']);
     const first = scene.renderer;
     // Absent and 'cat' are the same character: no swap.
     run(scene, 'walk', 300, { character: 'cat' }, false);
@@ -105,6 +107,18 @@ describe('scene character handling', () => {
     run(scene, 'stand', 100, {}, false);
     expect(made).toEqual(['cat', 'fox', 'cat']);
     expect(scene.character).toBe('cat');
+  });
+
+  it('builds no throwaway cat renderer when the first snapshot names another character', () => {
+    const made: CharacterId[] = [];
+    const scene = new CatScene(seededRandom(4), (id, random) => {
+      made.push(id);
+      return createCharacterRenderer(id, random);
+    });
+    run(scene, 'walk', 300, { character: 'fox' });
+    expect(made).toEqual(['fox']);
+    expect(scene.renderer.id).toBe('fox');
+    expect(made).toEqual(['fox']);
   });
 
   it('shows a fresh pose right after a swap (nothing carried over)', () => {

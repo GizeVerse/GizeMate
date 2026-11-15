@@ -7,20 +7,21 @@ import { GhostAnimator } from './animator';
 import { drawGhost, drawGhostShadow, sparkleAt, SPARKLE_COUNT, type SparkleSpot } from './draw';
 import type { GhostPose } from './pose';
 import { BODY_N, GhostRig } from './rig';
+import { invisibleBelow, SMOOTH_INVISIBLE_ALPHA } from '../visibility';
 
 /** Hit roles: upper sheet 0, lower sheet and hem 1, left arm 2, right arm 3. */
 const HIT_UPPER = 0;
 const HIT_LOWER = 1;
 const HIT_ARM_L = 2;
 const HIT_ARM_R = 3;
-/** Below this reveal the ghost is invisible: it keeps one tiny hit point so it never vanishes from the hit region. */
-const INVISIBLE = 0.08;
 
 export class GhostRenderer implements CharacterRenderer {
   readonly id = 'ghost' as const;
   private readonly animator: GhostAnimator;
   private readonly rig = new GhostRig();
   private pose: GhostPose;
+  /** Reveal below which the ghost is invisible (it keeps one tiny hit point); pixel mode hardens alpha, so it is higher there. */
+  private invisible = SMOOTH_INVISIBLE_ALPHA;
   private readonly spot: SparkleSpot = { x: 0, y: 0, s: 0, a: 0 };
 
   constructor(random: () => number) {
@@ -50,7 +51,7 @@ export class GhostRenderer implements CharacterRenderer {
     const rig = this.rig;
     const p = this.pose;
     const pts = rig.pts;
-    const visible = p.vis * p.alpha >= INVISIBLE;
+    const visible = p.vis * p.alpha >= this.invisible;
     const glowR = p.glow > 0.02 ? 4.5 : 0;
     for (let i = 0; i < BODY_N; i++) {
       const x = pts[i * 2]!;
@@ -97,6 +98,7 @@ export class GhostRenderer implements CharacterRenderer {
   }
 
   draw(ctx: Ctx2D, o: DrawParams): void {
+    this.invisible = invisibleBelow(Number.isFinite(o.pixelsPerUnit) && o.pixelsPerUnit > 0 ? o.pixelsPerUnit : 1);
     drawGhost(ctx, this.rig, this.pose, o, this.animator.sparklePhase);
   }
 

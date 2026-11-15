@@ -45,7 +45,8 @@ export function charactersPage(ctx: PageContext): PageView {
   });
 
   const grid = h('div', { class: 'character-grid', 'aria-label': C.listLabel }, items.map((i) => i.el));
-  const detail = h('section', { class: 'character-detail', 'aria-live': 'polite' });
+  // Not a live region as a whole (every arrow-key selection would read the full description out): only the status line is.
+  const detail = h('section', { class: 'character-detail' });
   const status = h('div', { class: 'row-note', role: 'status', hidden: true });
   const stillNote = h('p', { class: 'page-note', hidden: true }, [icon('info'), h('span', { text: C.stillNote })]);
 
@@ -74,9 +75,12 @@ export function charactersPage(ctx: PageContext): PageView {
       info.abilities.length > 0
         ? h('div', { class: 'badge-row' }, info.abilities.map((a) => badge(a, 'badge-ability')))
         : h('p', { class: 'muted', text: C.noAbilities });
+    // Keyboard focus inside the detail (the pick button, which becomes the disabled "active" one) must not fall to <body>.
+    const hadFocus = typeof document !== 'undefined' && detail.contains(document.activeElement);
+    const heading = h('h2', { class: 'detail-name', text: info.name, tabindex: '-1' });
     detail.replaceChildren(
       h('div', { class: 'detail-head' }, [
-        h('h2', { class: 'detail-name', text: info.name }),
+        heading,
         h('div', { class: 'badge-row' }, [badge(info.kindLabel), badge(info.locomotionLabel), active ? badge(C.active, 'badge-accent') : null]),
       ]),
       h('p', { class: 'detail-tagline', text: info.tagline }),
@@ -87,6 +91,7 @@ export function charactersPage(ctx: PageContext): PageView {
       h('div', { class: 'actions' }, [pick, customize]),
       status,
     );
+    if (hadFocus) (pick.disabled ? (customize.hidden ? heading : customize) : pick).focus();
   }
 
   const element = page(C.title, [h('p', { class: 'page-note' }, [icon('info'), h('span', { text: C.intro })]), stillNote, grid, detail]);

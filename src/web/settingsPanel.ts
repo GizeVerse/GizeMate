@@ -74,6 +74,24 @@ export interface SettingsPanel {
 
 /** The tab the person was on survives a restart of the page (language or character change). */
 const TAB_KEY = 'gizecat.sheet.tab';
+/**
+ * Set (sessionStorage, this tab only) while the sheet is open and cleared when the person closes it. A restart of the page
+ * (language or character change) never closes it, so the flag survives the reload and the sheet opens again on its
+ * remembered tab, instead of leaving the person on a bare page with focus on the body.
+ */
+const OPEN_KEY = 'gizecat.sheet.open';
+
+export function sheetOpenFlag(write?: boolean): boolean {
+  try {
+    const store = (globalThis as { sessionStorage?: Storage }).sessionStorage;
+    if (!store) return false;
+    if (write === true) store.setItem(OPEN_KEY, '1');
+    else if (write === false) store.removeItem(OPEN_KEY);
+    return store.getItem(OPEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   const { dialog } = deps;
@@ -200,7 +218,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   // ---- about
   // A plain link in the same window: it stays inside an installed app, opens offline, and the page's
   // own link comes back here. A new window would leave the Home Screen app for Safari.
-  const privacyLink = h('a', { href: 'privacy.html', text: WS.about.privacy });
+  const privacyLink = h('a', { href: WS.about.privacyHref, text: WS.about.privacy });
   const licensesLink = h('a', { href: 'licenses.html', text: WS.about.licenses });
   const aboutFold = fold(WS.about.title, [h('p', { text: WS.about.text }), h('p', { class: 'note', text: WS.about.version(deps.version) }), h('p', {}, [privacyLink]), h('p', {}, [licensesLink])]);
 
@@ -259,6 +277,7 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   function setOpen(open: boolean): void {
     if (isOpen === open) return;
     isOpen = open;
+    sheetOpenFlag(open);
     syncPreviews();
     try {
       deps.onOpenChange?.(open);
@@ -296,6 +315,14 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     const r = dialog.getBoundingClientRect();
     if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) close();
   });
+
+  // Back from a restart with the sheet open: open it again on the remembered tab (after boot has finished wiring the page).
+  if (sheetOpenFlag() && typeof setTimeout === 'function') {
+    setTimeout(() => {
+      open();
+      tabs.select(tabs.current, true);
+    }, 0);
+  }
 
   return {
     open,

@@ -1,6 +1,7 @@
 // IPC entry points. Every message is checked against the sender's window (kind,
 // main frame, our page URL), rate limited, and validated with the shared zod
 // schemas before anything acts on it. Secrets never travel back to renderers.
+import { ACTION_MESSAGES } from '../../shared/i18n/actionMessages';
 import type { IpcMain, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import type { z } from 'zod';
 import type { BehaviorProfileSnapshot } from '../../shared/behaviorProfile';
@@ -200,13 +201,13 @@ export function registerIpcHandlers(deps: IpcDeps): IpcRegistration {
 
   onSettings(IPC.settingsAction, async (payload): Promise<ActionResult> => {
     const parsed = SettingsActionSchema.safeParse(payload);
-    if (!parsed.success) return { ok: false, message: 'Unknown action.' };
+    if (!parsed.success) return { ok: false, message: ACTION_MESSAGES.unknownAction };
     return deps.actions.run(parsed.data);
   });
 
   onSettings(IPC.settingsSetApiKey, (payload): ActionResult => {
     const parsed = SetApiKeySchema.safeParse(payload);
-    if (!parsed.success) return { ok: false, message: 'That does not look like a valid API key.' };
+    if (!parsed.success) return { ok: false, message: ACTION_MESSAGES.invalidApiKey };
     const { provider, key } = parsed.data;
     if (key !== null && !deps.secrets.encryptionAvailable) return { ok: false, message: ENCRYPTION_UNAVAILABLE_MESSAGE };
     const ok = deps.secrets.set(provider, key);
@@ -214,9 +215,9 @@ export function registerIpcHandlers(deps: IpcDeps): IpcRegistration {
       log.info(key === null ? 'API key removed' : 'API key stored (encrypted)', { provider });
       deps.onSecretsChanged();
       // 1.4.0: each platform names its own store (Windows DPAPI as before; the Keychain on macOS).
-      return { ok: true, message: key === null ? 'API key removed.' : apiKeySavedMessage(process.platform) };
+      return { ok: true, message: key === null ? ACTION_MESSAGES.apiKeyRemoved : apiKeySavedMessage(process.platform) };
     }
-    return { ok: false, message: 'Could not save the API key; see the log for details.' };
+    return { ok: false, message: ACTION_MESSAGES.apiKeySaveFailed };
   });
 
   onSettings(IPC.settingsTestAi, async (): Promise<AiTestResult> => {

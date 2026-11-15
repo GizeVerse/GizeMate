@@ -2,7 +2,8 @@
 // while something moves fast; a calm cat is drawn at ~30 fps and a sleeping, still one
 // at ~20 fps. Every animation is time-based (clip phases from the sim clock, layers and
 // the tail from the frame's dt), so fewer frames never change a motion's speed.
-import type { AnimClip, BehaviorState } from '../../shared/cat';
+import { ANIM_CLIPS, type AnimClip, type BehaviorState } from '../../shared/cat';
+import { CLIP_META } from '../../shared/animationCatalog';
 
 /** Minimum time between drawn frames: 0 draws on every display frame. */
 export const FULL_RATE_MS = 0;
@@ -26,7 +27,7 @@ export const FAST_HOLD_MS = 300;
 export const FAST_POSE_DIP_S = 140;
 
 /** Locomotion, airborne, held and other quick clips are always drawn at full rate. */
-const FULL_RATE_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>([
+const CAT_FULL_RATE_CLIPS: readonly AnimClip[] = [
   'walk',
   'run',
   'crouch',
@@ -52,7 +53,38 @@ const FULL_RATE_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>([
   // Living Companion: the shake-off and the ~7.5 Hz scratch are too quick for the calm rate.
   'scratch',
   'shake',
+];
+
+/**
+ * GizeMate performance clips that are not calm. A loop with a pendulum swing or a dance moves its body
+ * faster than the calm rate shows, in place, so the pose-speed heuristic (tuned to the cat) can sit
+ * either side of its threshold and flip the rate. 'float', 'scan' and 'peek' are slow loops and stay
+ * calm (a ghost or alien that merely floats must not cost full rate forever).
+ */
+const LIVELY_LOOP_CLIPS: readonly AnimClip[] = ['swing', 'dance'];
+
+/**
+ * Derived from the catalogue so a character's clips need no hard-coded list: a looping clip that is
+ * both locomotion and play (hop, bounce, stalk) and a non-interruptible one-shot of priority >= 2
+ * (vanish, appear, squish, beam, plus the cat's startle/hiss/swat/shake/impact) change the pose faster
+ * than 30 fps shows well. For the cat's own clips this adds nothing to CAT_FULL_RATE_CLIPS.
+ */
+function derivedFullRate(clip: AnimClip): boolean {
+  const m = CLIP_META[clip];
+  if (m.loop) return m.tags.includes('locomotion') && m.tags.includes('play');
+  return !m.interruptible && m.priority >= 2;
+}
+
+const FULL_RATE_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>([
+  ...CAT_FULL_RATE_CLIPS,
+  ...LIVELY_LOOP_CLIPS,
+  ...ANIM_CLIPS.filter(derivedFullRate),
 ]);
+
+/** Does this clip always draw at the full display rate? (exported for the pacing tests) */
+export function isFullRateClip(clip: AnimClip): boolean {
+  return FULL_RATE_CLIPS.has(clip);
+}
 const FULL_RATE_STATES: ReadonlySet<BehaviorState> = new Set<BehaviorState>(['held', 'jumping', 'falling', 'landing']);
 
 export interface FrameMotion {

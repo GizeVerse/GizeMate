@@ -8,7 +8,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f6f1e7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#1b1814" media="(prefers-color-scheme: dark)" />
-    <meta name="description" content="GizeMate, a GizeVerse character: an animated cat to pet, pick up and keep you company." />
+    <meta name="description" content="GizeMate, a GizeVerse companion: a small animated friend to pet, pick up and keep you company." />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="GizeMate" />
@@ -23,18 +23,18 @@
   <body>
     <h1 class="visually-hidden">GizeMate</h1>
     <!-- The first screen, CSS only (web.css; the page allows no inline script): main.js removes it when
-         the cat starts. If that never happens (the script could not load, or the browser is too old to
+         the companion starts. If that never happens (the script could not load, or the browser is too old to
          run it) the stylesheet replaces the waiting message with the failure message by itself. -->
     <div id="boot" class="boot" role="status">
       <div class="boot-wait">
         <span class="boot-spinner" aria-hidden="true"></span>
-        <p>GizeMate is waking up.</p>
+        <p id="boot-wait-text">GizeMate is waking up.</p>
       </div>
-      <p class="boot-failed">GizeMate has not started. If it stays like this, check your connection and open it again. GizeMate needs an up-to-date browser.</p>
+      <p class="boot-failed">GizeMate has not started. If it stays like this, check your connection and open it again. GizeMate needs an up-to-date browser.<br /><span lang="tr">GizeMate başlamadı. Böyle kalırsa bağlantınızı kontrol edip yeniden açın. GizeMate için güncel bir tarayıcı gerekir.</span></p>
     </div>
     <header class="bar">
-      <div class="controls" role="group" aria-label="Cat controls">
-        <button type="button" id="btn-call">Call the cat</button>
+      <div class="controls" id="controls" role="group" aria-label="Companion controls">
+        <button type="button" id="btn-call">Call</button>
         <button type="button" id="btn-sleep">Sleep</button>
         <button type="button" id="btn-pause">Pause</button>
         <button type="button" id="btn-sound">Turn sound on</button>
@@ -44,7 +44,7 @@
       </div>
     </header>
     <p id="cat-status" class="visually-hidden" role="status" aria-live="polite"></p>
-    <noscript><p class="noscript">The cat needs JavaScript to live here.</p></noscript>
+    <noscript><p class="noscript">GizeMate needs JavaScript to run here.<br /><span lang="tr">GizeMate'in çalışması için JavaScript gerekir.</span></p></noscript>
     <!-- Filled by src/web/settingsPanel.ts (About, privacy, storage and install notes live there). -->
     <dialog id="settings" class="sheet" aria-labelledby="settings-title"></dialog>
     <!-- Measures env(safe-area-inset-*) for src/web/safeArea.ts; never visible. -->

@@ -10,6 +10,7 @@ import { homePage } from './pages/home';
 import { settingsPage } from './pages/settings';
 import { welcomePage } from './pages/welcome';
 import { browserPreviewEnv, PreviewLoop } from './previews';
+import { createAppListeners } from './appListeners';
 import { brandMark } from './skins';
 import { SettingsStore, type Timers } from './store';
 import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n/locale';
@@ -64,6 +65,8 @@ export function mountApp(root: HTMLElement, api: SettingsApi, initial: SettingsV
   let navButtons = new Map<PageId, HTMLButtonElement>();
   let content = h('main', { class: 'content', id: 'content', tabindex: -1 });
   let nav = h('nav', { class: 'rail' });
+  // App-level listeners live apart from the pages': a language rebuild clears the store's listeners.
+  const appListeners = createAppListeners(store, previews);
 
   const ctx: PageContext = {
     api,
@@ -138,13 +141,23 @@ export function mountApp(root: HTMLElement, api: SettingsApi, initial: SettingsV
     if (keep !== null) pages.get(keep)?.onHide?.();
     // The old pages are about to be discarded: their bindings and listeners go with them.
     store.unbindAll();
+    // Keyboard focus would fall to <body> when the old shell is replaced: remember where it was.
+    const active = document.activeElement;
+    const focusNav = active instanceof HTMLElement && nav.contains(active) ? (active.getAttribute('data-page') ?? null) : null;
+    const hadFocus = active instanceof HTMLElement && active !== document.body && root.contains(active);
     locale = next;
     setLocale(locale);
     applyDocumentLocale(locale);
     store.receive(view);
     build();
+    appListeners.attach();
     current = null;
     show(keep !== null ? { page: keep, ...(keepTab ? { tab: keepTab } : {}) } : (fromHash() ?? { page: 'home' }), false);
+    if (hadFocus) {
+      const navBtn = focusNav !== null && isPageId(focusNav) ? navButtons.get(focusNav) : undefined;
+      const target = navBtn ?? (current !== null ? pages.get(current)?.element.querySelector<HTMLElement>('.page-title') : null) ?? content;
+      target.focus();
+    }
   }
 
   build();
@@ -187,13 +200,7 @@ export function mountApp(root: HTMLElement, api: SettingsApi, initial: SettingsV
   };
   window.addEventListener('hashchange', onHash);
 
-  let wasReduced = previews.reduced;
-  store.subscribe(() => {
-    if (previews.reduced !== wasReduced) {
-      wasReduced = previews.reduced;
-      previews.refresh();
-    }
-  });
+  appListeners.attach();
   const unsubscribe = api.onStateChanged((view) => receive(view));
   const onVisibility = (): void => {
     if (document.visibilityState === 'hidden') void store.flush();
@@ -207,6 +214,7 @@ export function mountApp(root: HTMLElement, api: SettingsApi, initial: SettingsV
   return () => {
     if (current !== null) pages.get(current)?.onHide?.();
     previews.dispose();
+    appListeners.detach();
     store.unbindAll();
     unsubscribe();
     window.removeEventListener('hashchange', onHash);

@@ -121,12 +121,20 @@ export class GhostAnimator {
     const p = copyPose(this.pose, this.base);
     const sleeping = input.sleeping === true;
     this.motionLayer(p, clip, dt, finiteOr(motionX, 0), finiteOr(motionY, 0), amp);
+    // Held: the top of the sheet is pinned to the cursor's scruff point (offX/offY/lean of the clip), so the
+    // generic layers may scale and tilt about it but must not move the grip itself.
+    const pinY = p.offY;
+    const pinLean = p.lean;
     this.breathing(p, sleeping, dt, rk);
     this.idleLayer(p, clip, sleeping, dt, amp, fx);
     this.lookLayer(p, input, dt);
     this.blink(p, dt);
     this.moodLayer(p, input, dt);
     this.reactionLayer(p, input, simT, animSpeed, amp);
+    if (clip === 'held') {
+      p.offY = pinY;
+      p.lean = pinLean;
+    }
     const depth = sleeping && Number.isFinite(input.sleepDepth) ? clamp01(input.sleepDepth as number) : 0;
     this.depthK = damp(this.depthK, depth, 1.2, dt);
     const deep = this.depthK * this.sleepK;

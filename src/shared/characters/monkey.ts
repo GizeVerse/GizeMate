@@ -35,7 +35,7 @@ export const MONKEY_MODULE: CharacterModule = Object.freeze({
     slink: 'walk',
     sprint: 'run',
     pounce: 'jump',
-    slip: 'swing',
+    slip: 'startle',
     impact: 'land',
     landRecover: 'scan',
     swat: 'pawAt',

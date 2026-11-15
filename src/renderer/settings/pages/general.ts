@@ -5,7 +5,8 @@ import type { PageContext, PageView } from '../context';
 import { button, group, page, row, runAction, segmentedRow, setNote, textRow, toggleRow, toggleSwitch, type NoteTone } from '../controls';
 import { h, icon } from '../dom';
 import { displayAccelerator } from '../format';
-import { loginMessage, loginReason } from '../loginText';
+import { actionMessage } from '../actionText';
+import { loginReason } from '../loginText';
 import { errorText } from '../store';
 import { platformWording, S, type PlatformWording } from '../strings';
 import { validateShortcut } from '../validate';
@@ -139,7 +140,7 @@ export function generalPage(ctx: PageContext): PageView {
     void (async () => {
       try {
         const res = await ctx.api.action(on ? 'enableLaunchAtLogin' : 'disableLaunchAtLogin');
-        if (!res.ok) setNote(launch.error, S.errors.actionFailed(loginMessage(res) ?? S.errors.unexpected), 'error');
+        if (!res.ok) setNote(launch.error, S.errors.actionFailed(actionMessage(res) ?? S.errors.unexpected), 'error');
       } catch (e) {
         setNote(launch.error, S.errors.actionFailed(errorText(e)), 'error');
       }

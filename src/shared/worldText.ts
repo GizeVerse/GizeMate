@@ -1,5 +1,5 @@
 // The words of the world events: display names and one-line descriptions for the status and settings
-// UIs, and the journal sentence for every event + outcome. Plain English data (translation tables can
+// UIs, and the journal sentence for every event + outcome. Plain English data with a {name} subject token (translation tables can
 // mirror it), no logic beyond lookup, platform-agnostic. The journal tone is warm and quiet: no
 // exclamation marks, no guilt, no streaks. The outcome tokens per event are listed here too, so a UI or
 // a test can verify coverage; a core test checks that they equal the engine's catalogue.
@@ -24,10 +24,10 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A tiny mouse scurries across the floor, and always gets away.',
     fallback: 'A little mouse ran across the floor and slipped away.',
     outcomes: {
-      watched: 'A little mouse ran across the floor. The cat watched it go.',
-      sneaked: 'A little mouse came out. The cat crept after it, slow and low, and it slipped away.',
-      chased: 'A little mouse dashed across the floor. The cat gave a good chase, and the mouse made it to its hole.',
-      approached: 'A little mouse appeared. The cat wandered over to say hello, and the mouse scampered off.',
+      watched: 'A little mouse ran across the floor. {name} watched it go.',
+      sneaked: 'A little mouse came out. {name} crept after it, slow and low, and it slipped away.',
+      chased: 'A little mouse dashed across the floor. {name} gave a good chase, and the mouse made it to its hole.',
+      approached: 'A little mouse appeared. {name} wandered over to say hello, and the mouse scampered off.',
     },
   },
   miniTsunami: {
@@ -35,10 +35,10 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A small, harmless wave rolls along the floor.',
     fallback: 'A small wave rolled along the floor and was gone.',
     outcomes: {
-      hopped: 'A small wave rolled in. The cat hopped right over it.',
-      moved: 'A small wave rolled in. The cat stepped out of its way and watched it pass.',
-      climbed: 'A small wave rolled in. The cat climbed up to keep its paws dry.',
-      wet: 'A small wave rolled in and the cat got a little wet. It shook itself dry and carried on.',
+      hopped: 'A small wave rolled in. {name} hopped right over it.',
+      moved: 'A small wave rolled in. {name} stepped out of its way and watched it pass.',
+      climbed: 'A small wave rolled in. {name} climbed up to stay dry.',
+      wet: 'A small wave rolled in and {name} got a little wet, shook off the water and carried on.',
     },
   },
   butterflyEncounter: {
@@ -46,9 +46,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A butterfly flutters by and flits away when approached.',
     fallback: 'A butterfly fluttered through and flew away.',
     outcomes: {
-      watched: 'A butterfly fluttered by. The cat watched it for a while.',
-      followed: 'A butterfly fluttered by. The cat followed it, slowly, until it flew away.',
-      chased: 'A butterfly fluttered by. The cat chased it around, and it danced out of reach.',
+      watched: 'A butterfly fluttered by. {name} watched it for a while.',
+      followed: 'A butterfly fluttered by. {name} followed it, slowly, until it flew away.',
+      chased: 'A butterfly fluttered by. {name} chased it around, and it danced out of reach.',
     },
   },
   fallingLeaf: {
@@ -56,19 +56,19 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A leaf drifts down from above.',
     fallback: 'A leaf drifted down and settled on the floor.',
     outcomes: {
-      followed: 'A leaf drifted down. The cat followed it with its eyes all the way to the floor.',
-      tapped: 'A leaf drifted down. Once it landed, the cat gave it a tap.',
-      inspected: 'A leaf drifted down. The cat came over to sniff it.',
+      followed: 'A leaf drifted down. {name} watched it drift all the way to the floor.',
+      tapped: 'A leaf drifted down. Once it landed, {name} gave it a tap.',
+      inspected: 'A leaf drifted down. {name} came over to sniff it.',
     },
   },
   yarnTrouble: {
     name: 'Yarn Trouble',
     description: 'A ball of yarn rolls in and invites a little play.',
-    fallback: 'A ball of yarn rolled in and the cat played with it for a bit.',
+    fallback: 'A ball of yarn rolled in and {name} played with it for a bit.',
     outcomes: {
-      played: 'A ball of yarn rolled in. The cat played with it for a while.',
-      tangled: 'A ball of yarn rolled in. The cat got briefly tangled up, then wriggled free and tidied its fur.',
-      rolled: 'A ball of yarn rolled in. The cat batted it across the floor and ran after it.',
+      played: 'A ball of yarn rolled in. {name} played with it for a while.',
+      tangled: 'A ball of yarn rolled in. {name} got briefly tangled up, then wriggled free and straightened up.',
+      rolled: 'A ball of yarn rolled in. {name} batted it across the floor and ran after it.',
     },
   },
   littleGhost: {
@@ -76,10 +76,10 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A tiny, friendly ghost floats by and vanishes.',
     fallback: 'A tiny ghost floated by and vanished without a trace.',
     outcomes: {
-      startled: 'A tiny ghost floated by. The cat jumped, hid for a moment, then peeked out.',
-      hid: 'A tiny ghost floated by. The cat stayed hidden until it was gone.',
-      investigated: 'A tiny ghost floated by. The cat crept over to investigate, and it faded away.',
-      approached: 'A tiny ghost floated by. The cat walked up to it as if it were an old friend.',
+      startled: 'A tiny ghost floated by. {name} jumped, hid for a moment, then peeked out.',
+      hid: 'A tiny ghost floated by. {name} stayed hidden until it was gone.',
+      investigated: 'A tiny ghost floated by. {name} crept over to investigate, and it faded away.',
+      approached: 'A tiny ghost floated by. {name} walked up to it as if it were an old friend.',
     },
   },
   boxAppears: {
@@ -87,9 +87,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A cardboard box appears. Nothing is more interesting.',
     fallback: 'A cardboard box appeared for a while.',
     outcomes: {
-      investigated: 'A cardboard box appeared. The cat gave it a thorough sniff.',
-      entered: 'A cardboard box appeared. The cat climbed in and sat there, perfectly content.',
-      rested_beside: 'A cardboard box appeared. The cat settled down beside it for a rest.',
+      investigated: 'A cardboard box appeared. {name} gave it a thorough sniff.',
+      entered: 'A cardboard box appeared. {name} climbed in and sat there, perfectly content.',
+      rested_beside: 'A cardboard box appeared. {name} settled down beside it for a rest.',
     },
   },
   mysteriousBall: {
@@ -97,19 +97,19 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A ball rolls in from nowhere.',
     fallback: 'A ball rolled in from nowhere and stopped.',
     outcomes: {
-      watched: 'A ball rolled in from nowhere. The cat watched it settle.',
-      tapped: 'A ball rolled in from nowhere. The cat gave it a tap and sent it rolling.',
-      chased: 'A ball rolled in from nowhere. The cat ran after it across the floor.',
+      watched: 'A ball rolled in from nowhere. {name} watched it settle.',
+      tapped: 'A ball rolled in from nowhere. {name} gave it a tap and sent it rolling.',
+      chased: 'A ball rolled in from nowhere. {name} ran after it across the floor.',
     },
   },
   thunderstorm: {
     name: 'Little Thunderstorm',
-    description: 'A small cloud rains and rumbles near the cat.',
+    description: 'A small cloud rains and rumbles near {name}.',
     fallback: 'A small storm cloud passed over, rained a little and rumbled away.',
     outcomes: {
-      hid: 'A small storm cloud rumbled overhead. The cat hid until the rain passed.',
-      calm: 'A small storm cloud rumbled overhead. The cat sat through it calmly.',
-      startled: 'A small storm cloud rumbled overhead. The cat flinched at the thunder, then settled.',
+      hid: 'A small storm cloud rumbled overhead. {name} hid until the rain passed.',
+      calm: 'A small storm cloud rumbled overhead. {name} sat through it calmly.',
+      startled: 'A small storm cloud rumbled overhead. {name} flinched at the thunder, then settled.',
     },
   },
   flyingFish: {
@@ -117,9 +117,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A small fish leaps in a long arc and splashes down.',
     fallback: 'A small fish leapt across the screen and splashed down.',
     outcomes: {
-      startled: 'A small fish leapt right over the cat, which was quite startled.',
-      watched: 'A small fish leapt in a long arc. The cat watched it splash down.',
-      hopped: 'A small fish leapt over. The cat hopped up to meet it, but it was too quick.',
+      startled: 'A small fish leapt right over {name}, who was quite startled.',
+      watched: 'A small fish leapt in a long arc. {name} watched it splash down.',
+      hopped: 'A small fish leapt over. {name} hopped up to meet it, but it was too quick.',
     },
   },
   tinyUfo: {
@@ -127,9 +127,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A very small flying saucer crosses the sky.',
     fallback: 'A tiny flying saucer crossed the sky and zipped away.',
     outcomes: {
-      watched: 'A tiny flying saucer crossed the sky. The cat watched it go.',
-      followed: 'A tiny flying saucer crossed the sky. The cat followed it along the floor.',
-      startled: 'A tiny flying saucer appeared overhead. The cat startled, then calmed down.',
+      watched: 'A tiny flying saucer crossed the sky. {name} watched it go.',
+      followed: 'A tiny flying saucer crossed the sky. {name} followed it along the floor.',
+      startled: 'A tiny flying saucer appeared overhead. {name} startled, then calmed down.',
     },
   },
   windGust: {
@@ -137,9 +137,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A gust of wind blows leaves and paper past.',
     fallback: 'A gust of wind swept through and blew a few light things past.',
     outcomes: {
-      braced: 'A gust of wind swept through. The cat crouched low until it passed.',
-      reacted: 'A gust of wind swept through. The cat startled, then smoothed its ruffled fur.',
-      followed: 'A gust of wind swept through. The cat trotted after a leaf it carried along.',
+      braced: 'A gust of wind swept through. {name} crouched low until it passed.',
+      reacted: 'A gust of wind swept through. {name} startled, then shook it off.',
+      followed: 'A gust of wind swept through. {name} trotted after a leaf it carried along.',
     },
   },
   paperPlane: {
@@ -147,9 +147,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A paper plane glides across and lands softly.',
     fallback: 'A paper plane glided across and landed on the floor.',
     outcomes: {
-      watched: 'A paper plane glided across. The cat watched it land.',
-      chased: 'A paper plane glided across. The cat ran after it until it landed.',
-      inspected: 'A paper plane glided across. Once it landed, the cat came over to inspect it.',
+      watched: 'A paper plane glided across. {name} watched it land.',
+      chased: 'A paper plane glided across. {name} ran after it until it landed.',
+      inspected: 'A paper plane glided across. Once it landed, {name} came over to inspect it.',
     },
   },
   magicSparkles: {
@@ -157,9 +157,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A few sparkles twinkle near the floor.',
     fallback: 'A few sparkles twinkled near the floor and faded.',
     outcomes: {
-      reached: 'A few sparkles twinkled near the floor. The cat reached out to touch them.',
-      watched: 'A few sparkles twinkled near the floor. The cat watched them fade.',
-      sniffed: 'A few sparkles twinkled near the floor. The cat leaned in to sniff them.',
+      reached: 'A few sparkles twinkled near the floor. {name} reached out to touch them.',
+      watched: 'A few sparkles twinkled near the floor. {name} watched them fade.',
+      sniffed: 'A few sparkles twinkled near the floor. {name} leaned in to sniff them.',
     },
   },
   shadowVisitor: {
@@ -167,9 +167,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A harmless dark shape slides by and fades.',
     fallback: 'A harmless shadow slid by and faded away.',
     outcomes: {
-      investigated: 'A harmless shadow slid by. The cat crept closer to investigate, and it faded.',
-      cautious: 'A harmless shadow slid by. The cat kept a careful distance until it was gone.',
-      startled: 'A harmless shadow slid by. The cat startled and hid for a moment.',
+      investigated: 'A harmless shadow slid by. {name} crept closer to investigate, and it faded.',
+      cautious: 'A harmless shadow slid by. {name} kept a careful distance until it was gone.',
+      startled: 'A harmless shadow slid by. {name} startled and hid for a moment.',
     },
   },
   toySpring: {
@@ -177,9 +177,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A springy toy bounces around.',
     fallback: 'A springy toy bounced by for a while.',
     outcomes: {
-      played: 'A springy toy bounced in. The cat batted it around for a while.',
-      watched: 'A springy toy bounced in. The cat watched it boing.',
-      hopped: 'A springy toy bounced in. The cat hopped along with it.',
+      played: 'A springy toy bounced in. {name} batted it around for a while.',
+      watched: 'A springy toy bounced in. {name} watched it boing.',
+      hopped: 'A springy toy bounced in. {name} hopped along with it.',
     },
   },
   bubbleParty: {
@@ -187,9 +187,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'Small bubbles drift up and pop.',
     fallback: 'A few small bubbles drifted up and popped.',
     outcomes: {
-      watched: 'Small bubbles drifted up. The cat watched them float and pop.',
-      popped: 'Small bubbles drifted up. The cat popped a few of them.',
-      hopped: 'Small bubbles drifted up. The cat hopped and patted at them, one after another.',
+      watched: 'Small bubbles drifted up. {name} watched them float and pop.',
+      popped: 'Small bubbles drifted up. {name} popped a few of them.',
+      hopped: 'Small bubbles drifted up. {name} hopped and patted at them, one after another.',
     },
   },
   curiousBird: {
@@ -197,9 +197,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A small bird lands, hops about and flies off.',
     fallback: 'A small bird landed, hopped around and flew away.',
     outcomes: {
-      watched: 'A small bird landed nearby. The cat watched it hop around until it flew off.',
-      followed: 'A small bird landed nearby. The cat crept after it, and it flew off.',
-      chattered: 'A small bird landed nearby. The cat chattered at it, and it flew away.',
+      watched: 'A small bird landed nearby. {name} watched it hop around until it flew off.',
+      followed: 'A small bird landed nearby. {name} crept after it, and it flew off.',
+      chattered: 'A small bird landed nearby. {name} chattered at it, and it flew away.',
     },
   },
   fallingStar: {
@@ -207,20 +207,20 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A star crosses the upper sky.',
     fallback: 'A star streaked across the sky and was gone.',
     outcomes: {
-      watched: 'A star streaked across the sky. The cat watched it go.',
-      wished: 'A star streaked across the sky. The cat sat quietly, as if making a wish.',
-      amazed: 'A star streaked across the sky. The cat gave a little meow of wonder.',
+      watched: 'A star streaked across the sky. {name} watched it go.',
+      wished: 'A star streaked across the sky. {name} sat quietly, as if making a wish.',
+      amazed: 'A star streaked across the sky. {name} made a little sound of wonder.',
     },
   },
   tinyTreasure: {
     name: 'Tiny Treasure',
     description: 'A tiny treasure turns up on the floor.',
-    fallback: 'The cat found a tiny treasure on the floor.',
+    fallback: '{name} found a tiny treasure on the floor.',
     outcomes: {
-      coin: 'The cat found a shiny little coin on the floor and gave it a long look.',
-      gem: 'The cat found a small sparkling gem on the floor and sat with it for a while.',
-      shell: 'The cat found a tiny shell on the floor and sniffed it carefully.',
-      button: 'The cat found a round little button on the floor and inspected it closely.',
+      coin: '{name} found a shiny little coin on the floor and gave it a long look.',
+      gem: '{name} found a small sparkling gem on the floor and sat with it for a while.',
+      shell: '{name} found a tiny shell on the floor and sniffed it carefully.',
+      button: '{name} found a round little button on the floor and inspected it closely.',
     },
   },
   goldenButterfly: {
@@ -228,9 +228,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A rare golden butterfly lingers and leaves a trail of sparkles.',
     fallback: 'A golden butterfly drifted by, leaving a trail of sparkles.',
     outcomes: {
-      watched: 'A rare golden butterfly drifted by. The cat watched it, quite still, until it was gone.',
-      followed: 'A rare golden butterfly drifted by. The cat followed it gently, trail of sparkles and all.',
-      danced: 'A rare golden butterfly drifted by. The cat and the butterfly danced for a little while.',
+      watched: 'A rare golden butterfly drifted by. {name} watched it, quite still, until it was gone.',
+      followed: 'A rare golden butterfly drifted by. {name} followed it gently, trail of sparkles and all.',
+      danced: 'A rare golden butterfly drifted by. {name} and the butterfly danced for a little while.',
     },
   },
   treasureDiscovery: {
@@ -238,19 +238,19 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A rare little chest appears and bursts into sparkles.',
     fallback: 'A little chest appeared and burst into sparkles.',
     outcomes: {
-      opened: 'A little treasure chest appeared. The cat nosed it open and a burst of sparkles rose up.',
-      sniffed: 'A little treasure chest appeared. The cat sniffed it, and sparkles drifted out.',
-      pawed: 'A little treasure chest appeared. The cat tapped it with a paw and sparkles scattered.',
+      opened: 'A little treasure chest appeared. {name} opened it and a burst of sparkles rose up.',
+      sniffed: 'A little treasure chest appeared. {name} sniffed it, and sparkles drifted out.',
+      pawed: 'A little treasure chest appeared. {name} gently tapped it and sparkles scattered.',
     },
   },
   friendlyGhost: {
     name: 'Friendly Ghost',
-    description: 'A rare, softly glowing ghost keeps the cat company for a moment.',
-    fallback: 'A softly glowing ghost kept the cat company for a moment.',
+    description: 'A rare, softly glowing ghost keeps {name} company for a moment.',
+    fallback: 'A softly glowing ghost kept {name} company for a moment.',
     outcomes: {
-      befriended: 'A softly glowing ghost drifted over and kept the cat company. They sat together for a while.',
-      watched: 'A softly glowing ghost drifted by. The cat watched it follow along, then fade.',
-      played: 'A softly glowing ghost drifted over. The cat played with it until it faded away.',
+      befriended: 'A softly glowing ghost drifted over and kept {name} company. They sat together for a while.',
+      watched: 'A softly glowing ghost drifted by. {name} watched it follow along, then fade.',
+      played: 'A softly glowing ghost drifted over. {name} played with it until it faded away.',
     },
   },
   meteorShower: {
@@ -258,9 +258,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A rare shower of small meteors crosses the upper sky.',
     fallback: 'A small meteor shower streaked across the sky.',
     outcomes: {
-      watched: 'A small meteor shower streaked across the sky. The cat watched every one.',
-      wished: 'A small meteor shower streaked across the sky. The cat sat beneath it, quietly wishing.',
-      amazed: 'A small meteor shower streaked across the sky. The cat meowed softly at the lights.',
+      watched: 'A small meteor shower streaked across the sky. {name} watched every one.',
+      wished: 'A small meteor shower streaked across the sky. {name} sat beneath it, quietly wishing.',
+      amazed: 'A small meteor shower streaked across the sky. {name} made a soft sound at the lights.',
     },
   },
   tinyDragon: {
@@ -268,9 +268,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A rare tiny dragon hovers and puffs little sparkles.',
     fallback: 'A tiny dragon hovered nearby, puffing little sparkles.',
     outcomes: {
-      watched: 'A tiny friendly dragon hovered nearby, puffing sparkles. The cat watched, wide-eyed.',
-      played: 'A tiny friendly dragon hovered nearby, puffing sparkles. The cat played along.',
-      startled: 'A tiny friendly dragon swooped in. The cat startled at first, then relaxed.',
+      watched: 'A tiny friendly dragon hovered nearby, puffing sparkles. {name} watched, wide-eyed.',
+      played: 'A tiny friendly dragon hovered nearby, puffing sparkles. {name} played along.',
+      startled: 'A tiny friendly dragon swooped in. {name} startled at first, then relaxed.',
     },
   },
   midnightVisitor: {
@@ -278,9 +278,9 @@ export const EVENT_TEXT: Readonly<Record<AnyEventId, EventText>> = {
     description: 'A rare, quiet silhouette visits late at night.',
     fallback: 'A quiet silhouette visited in the middle of the night and left again.',
     outcomes: {
-      watched: 'A quiet silhouette visited in the dark. The cat watched it come and go.',
-      greeted: 'A quiet silhouette visited in the dark. The cat went to greet it with a soft meow.',
-      hid: 'A quiet silhouette visited in the dark. The cat kept out of sight until it left.',
+      watched: 'A quiet silhouette visited in the dark. {name} watched it come and go.',
+      greeted: 'A quiet silhouette visited in the dark. {name} went to greet it softly.',
+      hid: 'A quiet silhouette visited in the dark. {name} kept out of sight until it left.',
     },
   },
 };
@@ -302,21 +302,44 @@ export function setWorldTextLocale(locale: Locale): void {
 
 const textFor = (id: AnyEventId, locale: Locale): EventText | undefined => (locale === 'tr' ? (EVENT_TEXT_TR[id] ?? EVENT_TEXT[id]) : EVENT_TEXT[id]);
 
+const DEFAULT_WHO: Readonly<Record<Locale, string>> = { en: 'your companion', tr: 'arkadaşınız' };
+
+/**
+ * Fills the {name} subject token. `who` is the active companion's name; without one the sentence names
+ * "your companion" / "arkadaşınız" (never "the cat": the companion may be any character). The name is
+ * always used as written (Turkish takes no case suffix, the sentences are built so it stands alone).
+ * A default at the start of a sentence is capitalised.
+ */
+function fillWho(text: string, locale: Locale, who: string | undefined): string {
+  if (!text.includes('{name}')) return text;
+  const name = who !== undefined && who.trim() !== '' ? who.trim() : undefined;
+  const dflt = DEFAULT_WHO[locale] ?? DEFAULT_WHO.en;
+  return text.replace(/\{name\}/g, (_m, offset: number) => {
+    if (name !== undefined) return name;
+    const before = text.slice(0, offset);
+    const startOfSentence = before.trim() === '' || /[.!?]\s*$/.test(before);
+    return startOfSentence ? dflt.charAt(0).toLocaleUpperCase(locale) + dflt.slice(1) : dflt;
+  });
+}
+
 export function eventName(id: AnyEventId, locale: Locale = defaultLocale): string {
   return textFor(id, locale)?.name ?? String(id);
 }
 
-export function eventDescription(id: AnyEventId, locale: Locale = defaultLocale): string {
-  return textFor(id, locale)?.description ?? '';
+export function eventDescription(id: AnyEventId, locale: Locale = defaultLocale, who?: string): string {
+  return fillWho(textFor(id, locale)?.description ?? '', locale, who);
 }
 
-/** The journal sentence for an event and its outcome; the event's fallback for an unknown outcome, a generic line for an unknown event. */
-export function journalText(id: AnyEventId, outcome: OutcomeId, locale: Locale = defaultLocale): string {
+/**
+ * The journal sentence for an event and its outcome; the event's fallback for an unknown outcome, a generic
+ * line for an unknown event. `who` is the companion's name for the subject of the sentence.
+ */
+export function journalText(id: AnyEventId, outcome: OutcomeId, locale: Locale = defaultLocale, who?: string): string {
   const t = textFor(id, locale);
   if (!t) return locale === 'tr' ? GENERIC_TR : GENERIC;
   // Own properties only: an outcome token that happens to name an Object.prototype member (a hand-edited
   // file can carry 'constructor') must fall back to the event's sentence, never return a non-string.
-  return Object.prototype.hasOwnProperty.call(t.outcomes, outcome) ? (t.outcomes[outcome] ?? t.fallback) : t.fallback;
+  return fillWho(Object.prototype.hasOwnProperty.call(t.outcomes, outcome) ? (t.outcomes[outcome] ?? t.fallback) : t.fallback, locale, who);
 }
 
 /**

@@ -12,9 +12,9 @@ describe('web status line', () => {
     }
   });
 
-  it('says paused while paused and falls back to a generic name', () => {
+  it('says paused while paused and falls back to a neutral name', () => {
     expect(describeCat({ name: 'Miso', state: 'walking', paused: true })).toBe('Miso is paused.');
-    expect(describeCat({ name: '  ', state: 'beingPetted', paused: false })).toBe('The cat is being petted.');
+    expect(describeCat({ name: '  ', state: 'beingPetted', paused: false })).toBe('Your companion is being petted.');
   });
 
   it('offers Wake while the cat sleeps or is falling asleep', () => {

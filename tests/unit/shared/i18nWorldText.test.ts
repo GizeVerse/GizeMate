@@ -28,17 +28,32 @@ describe('world text: Turkish mirror', () => {
 });
 
 describe('world text lookups', () => {
-  it('is English without any setup, byte-identical to before', () => {
+  it('names the companion (never the cat) and keeps names free of case suffixes', () => {
+    expect(journalText('mouseEncounter', 'watched', 'en', 'Miso')).toBe('A little mouse ran across the floor. Miso watched it go.');
+    expect(journalText('mouseEncounter', 'watched', 'tr', 'Miso')).toBe('Küçük bir fare yerde koştu. Miso gidişini izledi.');
+    expect(eventDescription('stormCloud' as AnyEventId, 'tr', 'Miso')).not.toMatch(/Miso\w/);
+    expect(journalText('mouseEncounter', 'watched', 'en')).toBe('A little mouse ran across the floor. Your companion watched it go.');
+    expect(journalText('mouseEncounter', 'watched', 'tr')).toBe('Küçük bir fare yerde koştu. Arkadaşınız gidişini izledi.');
+    for (const id of ids) {
+      const t = EVENT_TEXT[id];
+      const tr = EVENT_TEXT_TR[id];
+      for (const text of [t.description, t.fallback, ...Object.values(t.outcomes)]) expect(text, id).not.toMatch(/\bcat\b/i);
+      for (const text of [tr.description, tr.fallback, ...Object.values(tr.outcomes)]) expect(text, id).not.toMatch(/kedi|miyav|pati|tüy/i);
+      for (const text of [tr.description, tr.fallback, ...Object.values(tr.outcomes)]) expect(text, id).not.toMatch(/\{name\}[a-zçğıöşü]/i);
+    }
+  });
+
+  it('is English without any setup', () => {
     expect(eventName('mouseEncounter')).toBe('Little Mouse');
     expect(eventDescription('miniTsunami')).toBe('A small, harmless wave rolls along the floor.');
-    expect(journalText('mouseEncounter', 'watched')).toBe('A little mouse ran across the floor. The cat watched it go.');
+    expect(journalText('mouseEncounter', 'watched')).toBe('A little mouse ran across the floor. Your companion watched it go.');
     expect(journalText('mouseEncounter', 'cut')).toBe(EVENT_TEXT.mouseEncounter.fallback);
     expect(journalText('nope' as AnyEventId, 'watched')).toBe('Something small and unexpected happened.');
   });
 
   it('follows an explicit locale or the default locale', () => {
     expect(eventName('mouseEncounter', 'tr')).toBe('Küçük Fare');
-    expect(journalText('mouseEncounter', 'watched', 'tr')).toBe(EVENT_TEXT_TR.mouseEncounter.outcomes.watched);
+    expect(journalText('mouseEncounter', 'watched', 'tr', '{name}')).toBe(EVENT_TEXT_TR.mouseEncounter.outcomes.watched);
     setWorldTextLocale('tr');
     expect(eventName('mouseEncounter')).toBe('Küçük Fare');
     expect(eventName('mouseEncounter', 'en')).toBe('Little Mouse');

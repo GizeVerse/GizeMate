@@ -6,6 +6,8 @@ import { h, uid } from '../../renderer/settings/dom';
 export interface SwitchRow {
   root: HTMLElement;
   input: HTMLInputElement;
+  /** The description element (null when the row has none), so a caller can update its text. */
+  desc: HTMLElement | null;
 }
 
 export function switchRow(label: string, desc: string | null, onToggle: (on: boolean) => void): SwitchRow {
@@ -14,8 +16,9 @@ export function switchRow(label: string, desc: string | null, onToggle: (on: boo
   input.addEventListener('change', () => onToggle(input.checked));
   const descId = desc ? `${id}-desc` : null;
   if (descId) input.setAttribute('aria-describedby', descId);
-  const text = h('div', { class: 'row-text' }, [h('label', { for: id, text: label }), desc ? h('span', { class: 'row-desc', id: descId }, [desc]) : null]);
-  return { root: h('div', { class: 'field-row panel-row' }, [text, input]), input };
+  const descEl = desc ? h('span', { class: 'row-desc', id: descId }, [desc]) : null;
+  const text = h('div', { class: 'row-text' }, [h('label', { for: id, text: label }), descEl]);
+  return { root: h('div', { class: 'field-row panel-row' }, [text, input]), input, desc: descEl };
 }
 
 export interface Slider {

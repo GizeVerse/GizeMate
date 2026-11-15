@@ -104,7 +104,7 @@ export function trayMenuModel(ctx: MenuContext): MenuItemModel[] {
   const name = ctx.catName;
   const items: MenuItemModel[] = [
     item(ctx.hidden ? 'show' : 'hide', tx(l, ctx.hidden ? 'menu.show' : 'menu.hide', { name })),
-    item(ctx.paused ? 'resume' : 'pause', tx(l, ctx.paused ? 'menu.resumeCat' : 'menu.pauseCat'), !ctx.hidden),
+    item(ctx.paused ? 'resume' : 'pause', tx(l, ctx.paused ? 'menu.resumeNamed' : 'menu.pauseNamed', { name }), !ctx.hidden),
     { kind: 'checkbox', action: 'toggleInteractions', label: tx(l, 'menu.interactions'), checked: ctx.interactionsEnabled, enabled: true },
   ];
   if (ctx.perceptionConfigured) {
@@ -113,7 +113,7 @@ export function trayMenuModel(ctx: MenuContext): MenuItemModel[] {
   }
   items.push(
     { kind: 'separator' },
-    item('callCat', tx(l, 'menu.callCat', { name }), !ctx.paused),
+    item('callCat', tx(l, 'menu.callNamed', { name }), !ctx.paused),
     laserItem(ctx, !ctx.hidden && !ctx.paused),
     eventsItem(ctx),
     item('settings', tx(l, 'menu.settings')),

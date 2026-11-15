@@ -158,7 +158,7 @@ export class FoxRenderer implements CharacterRenderer {
   }
 
   draw(ctx: DrawCtx, o: DrawParams): void {
-    drawFox(ctx, this.rig, this.animator.pose, this.tail, getFoxSkin(o.skin), { outline: o.outline, shadow: o.shadow, pixelsPerUnit: o.pixelsPerUnit, accessory: o.accessory });
+    drawFox(ctx, this.rig, this.animator.pose, this.tail, getFoxSkin(o.skin), o);
   }
 
   drawShadow(ctx: DrawCtx): void {

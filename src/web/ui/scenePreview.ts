@@ -15,6 +15,13 @@ const CYCLE: readonly AnimClip[] = ['stand', 'sit', 'stand', 'groom', 'sit', 'ya
 const STEP_MS = 4000;
 const T0 = 1000;
 
+/** Whether the canvas is laid out and shown (a hidden tab or a detached page has no client rects). Lenient where the DOM cannot say. */
+export function canvasShown(canvas: HTMLCanvasElement): boolean {
+  if (canvas.isConnected === false) return false;
+  if (typeof canvas.getClientRects !== 'function') return true;
+  return canvas.getClientRects().length > 0;
+}
+
 export interface ScenePreview extends PreviewItem {
   setSkin(skin: string): void;
   dispose(): void;
@@ -27,7 +34,10 @@ export function createScenePreview(canvas: HTMLCanvasElement, id: CharacterId, s
   const ctx = canvas.getContext('2d');
   const body = getCharacter(id).body;
   const scale = Math.max(0.3, Math.min((PREVIEW_W * 0.78) / body.widthDip, (PREVIEW_H * 0.78) / body.heightDip));
-  let scene: CatScene | null = ctx ? new CatScene(random) : null;
+  // Built lazily (the first still or frame), so a preview that is never shown never builds a renderer.
+  let scene: CatScene | null = null;
+  /** A renderer threw: this preview draws nothing more (never takes the page down). */
+  let failed = false;
   let currentSkin = skin;
   let seq = 0;
   let lastStep = -1;
@@ -62,7 +72,11 @@ export function createScenePreview(canvas: HTMLCanvasElement, id: CharacterId, s
   });
 
   const paint = (clip: AnimClip, t: number, started: number, dt: number): void => {
-    if (!scene || !ctx) return;
+    if (!ctx || failed) return;
+    if (!scene) {
+      scene = new CatScene(random);
+      snapNext = true;
+    }
     const s = stateFor(clip, t, started);
     scene.update({ x: s.x, y: s.y, state: s, simTime: T0 + t, dtMs: dt, snapped: snapNext });
     snapNext = false;
@@ -73,28 +87,38 @@ export function createScenePreview(canvas: HTMLCanvasElement, id: CharacterId, s
 
   const stillFrame = (): void => {
     // A calm standing pose after a short settle, for reduced motion and the first paint.
-    if (!ctx) return;
-    scene = new CatScene(random);
-    snapNext = true;
-    paint('stand', 0, 0, 0);
-    paint('stand', 500, 0, 500);
-    paint('stand', 1000, 0, 500);
-    // The animated run starts from a fresh scene: its clock never runs backwards from the settle above.
-    scene = new CatScene(random);
+    if (!ctx || failed) return;
+    try {
+      scene = new CatScene(random);
+      snapNext = true;
+      paint('stand', 0, 0, 0);
+      paint('stand', 500, 0, 500);
+      paint('stand', 1000, 0, 500);
+    } catch {
+      failed = true;
+    }
+    // The animated run starts from a fresh scene (built by its first frame): its clock never runs backwards from the settle above.
+    scene = null;
     snapNext = true;
     lastStep = -1;
   };
 
   return {
     frame(timeMs, dtMs) {
+      if (failed) return;
       const step = Math.floor(timeMs / STEP_MS);
       if (step !== lastStep) {
         lastStep = step;
         stepStart = timeMs;
       }
-      paint(CYCLE[step % CYCLE.length] ?? 'stand', timeMs, stepStart, dtMs);
+      try {
+        paint(CYCLE[step % CYCLE.length] ?? 'stand', timeMs, stepStart, dtMs);
+      } catch {
+        failed = true;
+      }
     },
     still: stillFrame,
+    visible: () => canvasShown(canvas),
     setSkin(next) {
       if (next === currentSkin) return;
       currentSkin = next;

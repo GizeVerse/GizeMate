@@ -79,10 +79,9 @@ export function paletteOf(settings: Pick<Settings, 'appearance'>, id: CharacterI
 /** The leaf to send to rename a character; an empty name removes a non-cat's own name (the cat's is required). */
 export function renameLeaf(settings: Pick<Settings, 'general'>, id: CharacterId, name: string): { key: 'catName' | 'characterNames'; value: string | Record<string, string> } {
   if (id === 'cat') return { key: 'catName', value: name };
-  const next: Record<string, string> = { ...settings.general.characterNames };
-  if (name === '') delete next[id];
-  else next[id] = name;
-  return { key: 'characterNames', value: next };
+  // The patch leaf merges into the stored record; an id patched to '' is the explicit removal (see applySettingsPatch).
+  if (name === '') return { key: 'characterNames', value: { [id]: '' } };
+  return { key: 'characterNames', value: { ...settings.general.characterNames, [id]: name } };
 }
 
 /** The leaf to send to pick a palette. */

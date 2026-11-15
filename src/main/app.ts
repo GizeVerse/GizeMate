@@ -701,6 +701,14 @@ export function startApp(boot: AppBootstrap): RunningApp {
       createHost: makeHost,
       getSettings: () => settings.get(),
       logger: logger.child('character'),
+      // A failed swap: the setting still names the target. Written back AFTER the current settings listener finishes
+      // (a nested patch would be overwritten by that listener's stale `next`), through the store so the UI follows.
+      onSwapFailed: (live) => {
+        queueMicrotask(() => {
+          if (runtime?.character !== live || settings.get().general.activeCharacter === live) return;
+          attempt(log, 'active character write-back', () => void settings.patch({ general: { activeCharacter: live } }));
+        });
+      },
       onSwapped: (id, previous) => {
         const r = runtime;
         if (!r) return;
@@ -767,7 +775,7 @@ export function startApp(boot: AppBootstrap): RunningApp {
   secretName = createSecretName({
     settings,
     // The tracker is fed the ACTIVE character's display name, so the feature works for any character.
-    nameOf: (st) => characterDisplayName(st, activeCharacterOf(st), locale(st)),
+    nameOf: (st) => characterDisplayName(st, runtime?.character ?? activeCharacterOf(st), locale(st)),
     onChange: () => attempt(log, 'accessory refresh', () => overlays.refresh()),
   });
 

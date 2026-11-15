@@ -63,6 +63,10 @@ What it does not do:
 - No new permission, no new network use, no keyboard hook. Window titles still never leave `src/main/win32`.
 - Windows on Arm: the ARM64 installer carries the same code and has never run on Arm hardware.
 
+## Characters and Turkish (unreleased 1.6.0, GizeMate)
+
+Not part of any published installer. The unreleased work adds six more characters (one active at a time), a Language setting (Automatic, English, Turkish) and a Home, Characters, Customize, Settings layout. Windows is the platform the work is developed against, but **it has not been run in the real app**. The installer, shortcuts, Apps entry and the data folder keep the name **Desktop Cat**; other characters' saved state goes in `characters\<id>.json` inside `%APPDATA%\Desktop Cat`, beside `cat-state.json`. See [docs/characters/](../characters/README.md) and the [changelog](../../CHANGELOG.md).
+
 ## Limitations
 
 - Windows 10 and multi-monitor or mixed-DPI setups have not been tested on hardware.

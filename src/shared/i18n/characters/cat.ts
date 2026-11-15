@@ -9,7 +9,7 @@ export const catEn = {
 
 export const catTr: typeof catEn = {
   name: 'Kedi',
-  tagline: 'İlk yol arkadaşı',
+  tagline: 'İlk arkadaşı',
   description: 'Güneşli köşelerde uyuklayan, ara sıra kelebek kovalayan ve masaüstünde size eşlik eden meraklı, bağımsız bir kedi.',
   personality: 'Yumuşak huylu ama kendi keyfinde: canı isteyince sokulgan, istemeyince mesafeli.',
   interactions: 'Sevin, çağırın, yumakla ve kelebeklerle oynayın, lazeri tutun.',

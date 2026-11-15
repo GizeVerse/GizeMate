@@ -157,6 +157,12 @@ export class MonkeyRenderer implements CharacterRenderer {
 
   resetMotion(): void {
     this.tail.reset();
+    // Motion-derived state: the pendulum (kicked by the anchor's motion), the climb velocity and the look lag.
+    this.swA = 0;
+    this.swV = 0;
+    this.climbVy = 0;
+    this.lx = 0;
+    this.ly = 0;
   }
 
   advance(input: AnimInput, simTimeMs: number, dtMs: number, motionX: number, motionY: number): void {
@@ -599,7 +605,7 @@ export class MonkeyRenderer implements CharacterRenderer {
   }
 
   draw(ctx: Ctx2D, o: DrawParams): void {
-    drawMonkey(ctx, this.rig, this.pose, this.tail, getMonkeySkin(o.skin), { outline: o.outline, shadow: o.shadow, pixelsPerUnit: o.pixelsPerUnit, accessory: o.accessory });
+    drawMonkey(ctx, this.rig, this.pose, this.tail, getMonkeySkin(o.skin), o);
   }
 
   drawShadow(ctx: Ctx2D): void {

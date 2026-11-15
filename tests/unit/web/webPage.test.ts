@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BRAND } from '../../../src/shared/brand';
+import { WEB_STRING_TABLES } from '../../../src/web/strings';
 // @ts-expect-error a plain .mjs script without declarations
 import * as cspModule from '../../../scripts/web-csp.mjs';
 // @ts-expect-error a plain .mjs script without declarations
@@ -156,19 +157,21 @@ describe('the privacy page', () => {
   });
 
   it('says what is kept, what is sent, what is asked for, what a file holds and how to delete it all', () => {
-    for (const heading of ['What is kept, and where', 'What is sent', 'Permissions', 'Saving your cat to a file', 'Deleting everything']) expect(PRIVACY, heading).toContain(`<h2>${heading}</h2>`);
-    for (const statement of ['local storage', 'offline cache', 'no telemetry', 'no internet permission', 'requests no permissions', 'only when you ask', 'never contains', 'Start over with a new cat', 'remove it from the Home Screen', 'uninstall it']) {
+    for (const heading of ['What is kept, and where', 'What is sent', 'Permissions', 'Saving your companion to a file', 'Deleting everything']) expect(PRIVACY, heading).toContain(`<h2>${heading}</h2>`);
+    for (const statement of ['local storage', 'offline cache', 'no telemetry', 'no internet permission', 'requests no permissions', 'only when you ask', 'never contains', 'Start over with a new companion', 'remove it from the Home Screen', 'uninstall it']) {
       expect(PRIVACY, statement).toContain(statement);
     }
   });
 
   it('names no contact details and links only back to the app', () => {
     expect(PRIVACY).not.toMatch(/https?:\/\/|[\w.-]+@[\w.-]+/);
-    expect([...PRIVACY.matchAll(/<a href="([^"]*)"/g)].map((m) => m[1])).toEqual(['index.html', 'index.html']);
+    expect([...PRIVACY.matchAll(/<a href="([^"]*)"/g)].map((m) => m[1])).toEqual(['index.html', '#tr', 'index.html']);
   });
 
   it('is linked from the sheet next to the notices', () => {
-    expect(SHEET).toContain("href: 'privacy.html'");
+    expect(SHEET).toContain('href: WS.about.privacyHref');
+    expect(SHEET).not.toContain("href: 'privacy.html'");
+    for (const locale of ['en', 'tr'] as const) expect(WEB_STRING_TABLES[locale].about.privacyHref).toBe(`privacy.html#${locale}`);
     expect(SHEET.indexOf('[privacyLink]')).toBeGreaterThan(-1);
     expect(SHEET.indexOf('[privacyLink]')).toBeLessThan(SHEET.indexOf('[licensesLink]'));
   });

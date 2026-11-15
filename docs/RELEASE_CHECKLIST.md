@@ -77,6 +77,21 @@ Run on a Windows 10/11 x64 machine. Heavy steps go through `node scripts/with-lo
 - [ ] Every status in the notes, README, CHANGELOG and platform pages matches what was actually run; "OWNER-VERIFIED" is used only for what the owner ran on real hardware.
 - [ ] `<hash>` and `<size>` in the release notes are filled from `npm run release:sums` output only.
 
+## 1.6.0 (GizeMate: characters, Turkish, new interface) additions
+
+Unreleased; nothing for it has been run, and the version is not bumped yet. Owner steps for the next release:
+
+- [ ] Decide the final product name. GizeMate is provisional (`src/shared/brand.ts`); frozen identifiers (`src/shared/identity.ts`, the `Desktop Cat` user-data folder, the storage keys `gizecat.web.*`, the Android application id) stay as they are.
+- [ ] Bump `package.json` and `android/version.properties`; move the CHANGELOG section from UNRELEASED to the release.
+- [ ] Run the "Before tagging" steps on the final commit (typecheck, lint, unit tests, build and E2E, web tests) and record the results in docs/TEST_REPORT.md, which has no section for this work yet.
+- [ ] Run `npm run preview:characters` for all seven characters and look at the sheets (clips, skins, pixel, motion, poses, focus): hit rectangles cover the whole body, nothing is clipped, the sleep pose is still, reduced motion calms them.
+- [ ] Windows, on a real PC: switch through all seven characters from Characters; each appears, can be petted, picked up and thrown, and the click-through region follows its body; switching back to the cat restores its name, coat and memory; a character not used before starts fresh; `characters\<id>.json` appears beside `cat-state.json`.
+- [ ] Upgrade test on a disposable machine: install over 1.5.0 with an existing cat; name, coat and memory preserved; a v1.5.0 `settings.json` loads and re-saves.
+- [ ] Language: Automatic with a Turkish and a non-Turkish system language; an explicit choice survives restarts; tray menu and dialogs follow it.
+- [ ] Android and web host on a real device: switching a character reloads the page and the floating window sizes correctly for a tall and a wide character; no new permission in the merged manifest.
+- [ ] Sound: still off by default; each voice sounds distinct.
+- [ ] Confirm the docs still say: one character at a time, profiles carry the cat only, installers unsigned, non-Windows not validated.
+
 ## Workflows (owner)
 
 The release workflows are manual and have never been started. `macos-packages.yml`, `pages.yml` and `android-release.yml` are not on `main`, so they cannot be started until the owner brings them there. Pushing to `main` also triggers `ci.yml`. Steps, inputs and secrets: [docs/platforms/release-automation.md](platforms/release-automation.md).

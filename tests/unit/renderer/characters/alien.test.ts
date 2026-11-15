@@ -145,7 +145,10 @@ describe('alien renderer: hit regions', () => {
         expect(h.x1 - h.x0, `${clip} role ${i} width`).toBeLessThanOrEqual(80);
         expect(h.y1 - h.y0, `${clip} role ${i} height`).toBeLessThanOrEqual(80);
       });
-      expect(Number.isFinite(geo.hits[0]!.x0) && Number.isFinite(geo.hits[1]!.x0), `${clip} head+torso`).toBe(true);
+      // While teleported away (alpha ~ 0) only a token rect on the head stays clickable; otherwise head and torso are both covered.
+      const away = r.pose.alpha < 0.08;
+      expect(Number.isFinite(geo.hits[0]!.x0), `${clip} head`).toBe(true);
+      expect(Number.isFinite(geo.hits[1]!.x0) || away, `${clip} torso`).toBe(true);
     }
     expect([...roles].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
   });

@@ -24,7 +24,7 @@ export const GHOST_MODULE: CharacterModule = Object.freeze({
   clipAlias: Object.freeze({
     walk: 'float', run: 'float', stalk: 'float', slink: 'float', sprint: 'float', climb: 'float', balance: 'float', hop: 'float', bounce: 'float',
     groom: 'sit', edgeSit: 'sit', scratch: 'confused', meow: 'yawn', pawAt: 'scan', rollOver: 'petted', tailChase: 'petted',
-    pounce: 'jump', slip: 'fall', impact: 'land', landRecover: 'wake', swat: 'startle', hiss: 'startle', grumpy: 'annoyed',
+    pounce: 'jump', slip: 'startle', impact: 'land', landRecover: 'wake', swat: 'startle', hiss: 'startle', grumpy: 'annoyed',
     stretch: 'wake', swing: 'held',
   } as const),
   personality: Object.freeze({

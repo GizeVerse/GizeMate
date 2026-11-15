@@ -53,7 +53,10 @@ describe('four areas in both panels', () => {
   });
 
   it('keeps the privacy and notices links in the sheet', () => {
-    expect(SHEET).toContain("href: 'privacy.html'");
+    expect(SHEET).toContain('href: WS.about.privacyHref');
+    expect(SHEET).not.toContain("href: 'privacy.html'");
+    expect(WEB_STRING_TABLES.en.about.privacyHref).toBe('privacy.html#en');
+    expect(WEB_STRING_TABLES.tr.about.privacyHref).toBe('privacy.html#tr');
     expect(SHEET).toContain("href: 'licenses.html'");
   });
 });

@@ -25,6 +25,7 @@ import { NUMERIC_FIELDS, intervalStops } from '../fields';
 import { formatPercent, formatRelativeTime } from '../format';
 import { bannerModel, consentModel, pauseModel } from '../privacyView';
 import { errorText } from '../store';
+import { actionMessage } from '../actionText';
 import { deviceWords, platformWording, S, type PlatformWording } from '../strings';
 import { validateProcessName, validateTitlePattern } from '../validate';
 
@@ -96,8 +97,8 @@ function modeChooser(ctx: PageContext, wording: PlatformWording): HTMLElement[] 
     container.setAttribute('aria-busy', 'true');
     try {
       const res = await ctx.api.action(action);
-      if (res.ok) setNote(status, res.message ?? success ?? null, 'ok');
-      else setNote(status, S.errors.actionFailed(res.message ?? S.errors.unexpected), 'error');
+      if (res.ok) setNote(status, actionMessage(res) ?? success ?? null, 'ok');
+      else setNote(status, S.errors.actionFailed(actionMessage(res) ?? S.errors.unexpected), 'error');
     } catch (e) {
       setNote(status, S.errors.actionFailed(errorText(e)), 'error');
     } finally {
@@ -157,7 +158,7 @@ function modeChooser(ctx: PageContext, wording: PlatformWording): HTMLElement[] 
     void (async () => {
       try {
         const res = await ctx.api.action(wanted ? 'privacyPause' : 'privacyResume');
-        setNote(pause.error, res.ok ? null : S.errors.actionFailed(res.message ?? S.errors.unexpected), 'error');
+        setNote(pause.error, res.ok ? null : S.errors.actionFailed(actionMessage(res) ?? S.errors.unexpected), 'error');
       } catch (e) {
         setNote(pause.error, S.errors.actionFailed(errorText(e)), 'error');
       }

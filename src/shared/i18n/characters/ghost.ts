@@ -10,7 +10,7 @@ export const ghostEn = {
 export const ghostTr: typeof ghostEn = {
   name: 'Hayalet',
   tagline: 'Zararsız küçük hayalet',
-  description: 'Yürümek yerine süzülen, yumuşak ve yarı saydam küçük bir hayalet. Silinip başka bir yerde beliriyor, eşyalarının içinden geçiyor ve seni şaşırtmayı çok seviyor, hem de hep zararsızca.',
-  personality: 'Oyuncu, meraklı ve biraz yaramaz, ama asla korkutucu değil. Biri oyuna katıldığında en mutlu hâlini yaşıyor.',
+  description: 'Yürümek yerine süzülen, yumuşak ve yarı saydam küçük bir hayalet. Silinip başka bir yerde beliriyor, eşyalarınızın içinden geçiyor ve sizi şaşırtmayı çok seviyor, hem de hep zararsızca.',
+  personality: 'Oyunbaz, meraklı ve biraz yaramaz, ama asla korkutucu değil. Biri oyuna katıldığında en mutlu hâlini yaşıyor.',
   interactions: 'Kaybolup başka yerde belirir, ce-ee oynar, bö der ve kıkırdar, eşyaların içinden süzülür, lazer noktasının peşine düşer.',
 };

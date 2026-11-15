@@ -8,7 +8,8 @@ import { button, group, nestedToggleRow, page, row, runAction, setNote } from '.
 import { confirmDanger } from '../dialog';
 import { h, icon } from '../dom';
 import { livePoll } from '../livePoll';
-import { deviceWords, platformWording, S } from '../strings';
+import { activeCharacterOf, displayName } from '../charactersView';
+import { deviceWords, getLocale, platformWording, S } from '../strings';
 
 const J = S.journal;
 
@@ -73,7 +74,8 @@ export function journalPage(ctx: PageContext): PageView {
     try {
       const entries = await ctx.api.getJournal();
       if (mine !== epoch) return;
-      rows = journalRows(entries);
+      const s = ctx.store.settings;
+      rows = journalRows(entries, displayName(s, activeCharacterOf(s), getLocale()));
       loaded = true;
       showProblem(null);
     } catch {

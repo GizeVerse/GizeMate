@@ -448,7 +448,7 @@ describe('Android Gradle build', () => {
     const props = read('android', 'version.properties')
       .split(/\r?\n/)
       .filter((l) => l.trim() && !l.trim().startsWith('#'));
-    expect(props).toEqual(['versionName=1.5.0', 'versionCode=10500']);
+    expect(props).toEqual(['versionName=1.6.0', 'versionCode=10600']);
     // Above the earlier trial APKs (10400 for 1.4.0, 10401 for 1.4.0-overlay.1, 10402 for 1.4.1, 10403 for 1.4.2), so it installs over them.
     expect(Number(props[1]?.split('=')[1])).toBeGreaterThan(10403);
     const buildWebApp = read('scripts', 'build-web-app.mjs');

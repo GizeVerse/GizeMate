@@ -43,7 +43,7 @@ const CLIPS: readonly AnimClip[] = [
 /** Everything else draws as one of the native clips (the shared fallbacks would pick similar ones). */
 const ALIAS: Readonly<Partial<Record<AnimClip, AnimClip>>> = {
   sprint: 'run',
-  slip: 'fall',
+  slip: 'startle',
   impact: 'land',
   landRecover: 'shake',
   hiss: 'startle',

@@ -70,7 +70,13 @@ describe('names', () => {
     expect(fox).toEqual({ key: 'characterNames', value: { fox: 'Rusty' } });
     expect(applySettingsPatch(s, { general: { [fox.key]: fox.value } }).ok).toBe(true);
     const withFox = { general: { ...s.general, characterNames: { fox: 'Rusty', ghost: 'Boo' } } };
-    expect(renameLeaf(withFox, 'fox', '')).toEqual({ key: 'characterNames', value: { ghost: 'Boo' } });
+    // Deliberate change (review fix): clearing sends the explicit removal ('' for the id); a plain one-level merge could never delete.
+    const clear = renameLeaf(withFox, 'fox', '');
+    expect(clear).toEqual({ key: 'characterNames', value: { fox: '' } });
+    const stored = applySettingsPatch(s, { general: { characterNames: { fox: 'Rusty', ghost: 'Boo' } } });
+    expect(stored.ok && stored.settings.general.characterNames).toEqual({ fox: 'Rusty', ghost: 'Boo' });
+    const cleared = stored.ok ? applySettingsPatch(stored.settings, { general: { [clear.key]: clear.value } }) : stored;
+    expect(cleared.ok && cleared.settings.general.characterNames).toEqual({ ghost: 'Boo' });
   });
 });
 

@@ -2,6 +2,7 @@
 // neutral pose and overrides what it needs, as a pure function of time (and, for gaits, the cycle).
 // Secondary motion (breath, blink, ear lag, idle fidgets) is layered on top by the animator.
 import type { AnimClip } from '../../../../shared/cat';
+import { HELD_SCRUFF_DIP } from '../../../../core/interaction/held';
 import { clamp, clamp01, lerp, pulse, smooth, sseg, TAU } from '../../character/kit';
 import { createPose, resetPose, type RPose } from './pose';
 
@@ -495,10 +496,13 @@ const pawAt: ClipFn = (p, c) => {
   p.tailLift = 0.8 * Math.abs(S(TAU * 0.4 * t));
 };
 
+/** The grip point of the held clip, shared with the core (the scene pins the grab to it). */
+const HELD_SCRUFF = HELD_SCRUFF_DIP;
+
 const held: ClipFn = (p) => {
   // Hanging from the scruff (HELD_SCRUFF), body below it, limbs dangling; the animator adds the swing.
-  p.pivX = -8;
-  p.pivY = -58;
+  p.pivX = HELD_SCRUFF.x;
+  p.pivY = HELD_SCRUFF.y;
   p.bodyX = -9;
   p.bodyY = -35;
   p.bodyRX = 17;

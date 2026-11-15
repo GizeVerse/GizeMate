@@ -48,9 +48,11 @@ import { NO_SESSION_FLAGS, readSessionFlags, writeSessionFlags, type SessionFlag
 import { applyWebPatch, patchFor, resetWebSettings, type WebPatchResult } from './settingsModel';
 import { createWebSecretName } from './secretName';
 import { createSettingsPanel, type SettingsPanel } from './settingsPanel';
+import { applyPageText } from './pageText';
+import { keepCompanionOnReset } from './resetKeep';
 import { describeCat, isAsleep } from './status';
 import { activeCharacterOf, applyWebLocale, companionName } from './characterHost';
-import { createWebCatStore, openWebStorage, requestPersistence, type PersistenceState } from './storage';
+import { createWebCatStore, openSessionBackup, openWebStorage, requestPersistence, type PersistenceState } from './storage';
 import { setLocale as setStringsLocale, WS } from './strings';
 import { registerServiceWorker, type OfflineState } from './swRegister';
 import { installTestHook, type WebTestRecorder } from './testHook';
@@ -96,10 +98,16 @@ function boot(): void {
   // ---- persistence (corrupt or blocked storage: a fresh cat, never a crash)
   const storage = openWebStorage(() => window.localStorage, log.child('storage'));
   let settings = storage.loadSettings();
+  // Without localStorage a swap or a language change restarts the page through sessionStorage (this tab only): the choice
+  // and the live companions come back from there instead of a fresh cat with the choice undone.
+  const sessionBackup = openSessionBackup(() => window.sessionStorage);
+  const restored = storage.available ? null : sessionBackup.load();
+  if (restored) settings = restored.settings;
   // GizeMate: the active companion for this page's life (a swap saves it, then reloads), its stored
   // state from its own slot (the cat's is the untouched v1 key), and the interface language.
   const character = activeCharacterOf(settings);
-  const catLoad = storage.loadCat(Math.random, Date.now(), character);
+  const restoredCat = restored?.cats[character];
+  const catLoad: { cat: PersistedCat; source: 'stored' | 'new' | 'recovered' } = restoredCat ? { cat: restoredCat, source: 'stored' } : storage.loadCat(Math.random, Date.now(), character);
   // Detected from the browser's language list each time; never stored.
   let locale: Locale = applyWebLocale(settings, navigator.languages, document, setStringsLocale);
   /**
@@ -278,13 +286,15 @@ function boot(): void {
   }
 
   function refreshUi(): void {
+    // The toolbar's static labels follow the language and the companion's name (also before the host exists).
+    applyPageText(document, WS, companionName(settings, locale));
     const h = host;
     if (!h) return;
     setText(btnSleep, isAsleep(h.state) ? WS.toolbar.wake : WS.toolbar.sleep);
     setText(btnPause, h.paused ? WS.toolbar.resume : WS.toolbar.pause);
     setText(btnSound, settings.sound.enabled ? WS.toolbar.soundOff : WS.toolbar.soundOn);
     if (!status) return;
-    const text = describeCat({ name: settings.general.catName, state: h.state, paused: h.paused });
+    const text = describeCat({ name: companionName(settings, locale), state: h.state, paused: h.paused });
     if (status.textContent === text) return;
     const wait = STATUS_MIN_INTERVAL_MS - (clock() - statusShownAt);
     if (wait <= 0) {
@@ -364,24 +374,34 @@ function boot(): void {
    * same freeze-then-reload the profile import uses, so no later save writes the old one into the new
    * slot). The floating cat's page does the same when it re-reads the settings.
    */
-  function swapCharacter(): void {
-    catStore.saveSync();
-    storage.saveSettings(settings);
+  function swapCharacter(): boolean {
+    if (storage.available) {
+      // Both writes must land: a refused one (quota) would reload into the old choice or lose the companion's last state.
+      const savedCat = catStore.saveSync();
+      const savedSettings = storage.saveSettings(settings);
+      if (!savedCat || !savedSettings) {
+        log.warn('the restart was refused: storage did not take the companion and the settings', { savedCat, savedSettings });
+        return false;
+      }
+    } else if (!sessionBackup.save({ settings, cats: { ...restored?.cats, [character]: sim.serialize() } })) {
+      // Not even sessionStorage: a reload would lose the choice and the session. Nothing is changed.
+      log.warn('the restart was refused: neither localStorage nor sessionStorage is available');
+      return false;
+    }
     catStore.freeze();
     if (floatingUi?.state.running) controlPort?.send('settingsChanged');
     window.location.reload();
+    return true;
   }
 
   /**
    * The interface language changed: the toolbar, the sheet and the panel were built in the old one, so
    * the page restarts in the new one (the choice is stored first, the cat saved and frozen, as in
-   * swapCharacter). Without storage nothing could survive a restart: false, and the page keeps its text
-   * until the next visit while the strings layer already speaks the new language.
+   * swapCharacter; without localStorage the choice and the live companions go through sessionStorage). False when
+   * neither can hold them: the page keeps its text until the next visit while the strings layer speaks the new language.
    */
   function restartForLanguage(): boolean {
-    if (!storage.available) return false;
-    swapCharacter();
-    return true;
+    return swapCharacter();
   }
 
   // ---- settings: every change through the web allow-list, then screen analysis and AI forced off
@@ -392,10 +412,13 @@ function boot(): void {
       return r;
     }
     const swapTo = activeCharacterOf(r.settings);
+    const before = settings;
     settings = r.settings;
     if (swapTo !== character) {
-      swapCharacter();
-      return r;
+      if (swapCharacter()) return r;
+      // The restart could not be made safely: the choice is not taken (nothing changed, the sheet shows the old one).
+      settings = before;
+      return { ok: false, error: 'the companion could not be switched: the browser did not allow saving it' };
     }
     catHost.updateSettings(settings);
     if (syncLocale() && restartForLanguage()) return r;
@@ -443,7 +466,7 @@ function boot(): void {
       onSoundGesture: () => audio.unlock(),
       onResetSettings: () => {
         const wasCharacter = character;
-        settings = resetWebSettings();
+        settings = keepCompanionOnReset(settings, resetWebSettings());
         if (activeCharacterOf(settings) !== wasCharacter) {
           swapCharacter();
           return;
@@ -790,7 +813,7 @@ function boot(): void {
     floatingUi = createFloatingUi({
       els: panelUi.floating,
       control,
-      catName: () => settings.general.catName,
+      catName: () => companionName(settings, locale),
       // The floating cat starts from the stored cat: write the live one first.
       beforeStart: () => {
         catStore.saveSync();

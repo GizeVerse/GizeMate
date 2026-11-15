@@ -14,8 +14,9 @@ import type { ReactionSpec, SignatureAction, StimulusKey } from '../../shared/ch
 import type { Mood } from '../../shared/companion';
 import type { Rect } from '../../shared/geometry';
 import { clamp } from '../../shared/geometry';
+import { clipFor } from './clips';
 import type { Activity } from './activity';
-import { buildSteps, isNeutral, locomotionClip, multipliersOf, resolveForCharacter, signatureWeight, teleportTarget, totalMs, type SigStep, type SignatureContext } from './character';
+import { buildSteps, isNeutral, locomotionClip, multipliersOf, resolveForCharacter, signatureAllowed, signatureWeight, teleportTarget, totalMs, type SigStep, type SignatureContext } from './character';
 import type { Candidate, CharacterTuning, DecisionView, SignatureOffer } from './decide';
 import type { RequestStatus } from './simCore';
 import type { TransitionCause } from './states';
@@ -71,6 +72,17 @@ export abstract class SimCharacter extends SimLaser {
 
   /** The clip the character draws for what the layers below chose: reaction clip, locomotion style, alias/fallback. */
   protected charClip(raw: AnimClip): AnimClip {
+    // While a signature travels the character shows its locomotion clip (walk/run, restyled to hop/float/bounce just below)
+    // instead of sliding in its sitting pose; the pose returns with the next step of the script.
+    if (this.sig !== null && this.sig.act === this.act && this.sig.steps[this.sig.idx]?.kind === 'travel' && !this.oneShot && (raw === 'sit' || raw === 'stand')) {
+      const m = this.mover;
+      raw = clipFor('walking', 'approach', {
+        groundSpeed: m.groundSpeed,
+        runThreshold: 140 * this.settings.behavior.movementSpeed * this.gaitMul() * m.scale,
+        moveThreshold: 6 * m.scale,
+        vy: m.vy,
+      });
+    }
     const spec = this.reactionFor(raw);
     const styled = locomotionClip(this.character, spec ? spec.clip : raw);
     return resolveForCharacter(this.character, styled);
@@ -126,11 +138,18 @@ export abstract class SimCharacter extends SimLaser {
     if (spec.emote) this.emotes.show(spec.emote, this.now, true);
     if (spec.sound) {
       // The default voice cue of this very tick (a purr on a pet) makes way for the character's own.
-      if (this.sound !== null && this.sound.at === this.now) {
+      // If the replacement is not accepted (switch off, cooldown, asleep), the default cue stays: the pet is never silent for it.
+      const prev = this.sound;
+      const prevAt = this.lastSoundAt;
+      if (prev !== null && prev.at === this.now) {
         this.sound = null;
         this.lastSoundAt = -Infinity;
       }
-      this.playSound(spec.sound);
+      this.playSound(spec.sound, true);
+      if (this.sound === null && prev !== null && prev.at === this.now) {
+        this.sound = prev;
+        this.lastSoundAt = prevAt;
+      }
     }
     if (spec.mood) this.moodNudge = { mood: spec.mood, until: this.now + (spec.durationMs ?? DEFAULT_REACTION_MS) };
   }
@@ -173,9 +192,12 @@ export abstract class SimCharacter extends SimLaser {
       canRelocate: m.grounded && !onLedge && !stay,
     };
     const out: SignatureOffer[] = [];
+    const reduced = this.reducedNow();
     for (const sig of sigs) {
       // On a window top or strip only the ledge-bound actions are offered (the stay plan owns the rest).
       if (stay && sig.requires?.needsLedge !== true) continue;
+      // The user's behaviour opt-outs and reduced motion apply to signatures like to every other action.
+      if (!signatureAllowed(sig, this.disabled, reduced)) continue;
       const first = sig.leadIn?.[0] ?? (sig.movement === 'teleport' ? 'vanish' : sig.clip);
       const ctx: SignatureContext = {
         ...base,
@@ -282,7 +304,7 @@ export abstract class SimCharacter extends SimLaser {
     switch (step.kind) {
       case 'travel':
         this.oneShot = null;
-        s.travelTo = this.travelGoal(def);
+        s.travelTo = this.holdingStill() ? null : this.travelGoal(def);
         if (s.travelTo === null) {
           step.ms = 0;
           return;
@@ -296,7 +318,7 @@ export abstract class SimCharacter extends SimLaser {
       case 'main':
         this.playOneShot(resolveForCharacter(this.character, step.clip), step.ms);
         if (def.emote) this.emotes.show(def.emote, this.now, true);
-        if (def.sound) this.playSound(def.sound);
+        if (def.sound) this.playSound(def.sound, true);
         return;
       default:
         this.playOneShot(resolveForCharacter(this.character, step.clip), step.ms);

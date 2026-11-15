@@ -1,6 +1,7 @@
 import type { AppStatus } from '../../../shared/ipc';
 import type { AiProviderId } from '../../../shared/settings';
 import { MAX_MODEL_LENGTH, MAX_URL_LENGTH, PROVIDER_IDS } from '../catalog';
+import { actionMessage } from '../actionText';
 import type { PageContext, PageView } from '../context';
 import {
   button,
@@ -223,7 +224,7 @@ function apiKeyRow(ctx: PageContext, provider: 'anthropic' | 'openai-compatible'
           setNote(parts.note, A.keySaved, 'ok');
           close();
         } else {
-          setNote(parts.error, S.errors.actionFailed(res.message ?? S.errors.unexpected), 'error');
+          setNote(parts.error, S.errors.actionFailed(actionMessage(res) ?? S.errors.unexpected), 'error');
         }
       } catch (e) {
         setNote(parts.error, S.errors.actionFailed(errorText(e)), 'error');
@@ -241,7 +242,7 @@ function apiKeyRow(ctx: PageContext, provider: 'anthropic' | 'openai-compatible'
         try {
           const res = await ctx.api.setApiKey(provider, null);
           if (res.ok) setNote(parts.note, A.keyCleared, 'ok');
-          else setNote(parts.error, S.errors.actionFailed(res.message ?? S.errors.unexpected), 'error');
+          else setNote(parts.error, S.errors.actionFailed(actionMessage(res) ?? S.errors.unexpected), 'error');
         } catch (e) {
           setNote(parts.error, S.errors.actionFailed(errorText(e)), 'error');
         }
@@ -313,7 +314,7 @@ export function aiPage(ctx: PageContext): PageView {
       try {
         await ctx.store.flush();
         const res = await ctx.api.testAi();
-        setNote(testResult, deviceWords([res.ok ? A.testOk : A.testFailed, res.message].filter((l) => l.length > 0).join(' '), wording), res.ok ? 'ok' : 'error');
+        setNote(testResult, deviceWords([res.ok ? A.testOk : A.testFailed, res.ok ? '' : (actionMessage(res) ?? '')].filter((l) => l.length > 0).join(' '), wording), res.ok ? 'ok' : 'error');
         const entries: Array<readonly [string, string]> = [];
         if (res.latencyMs !== undefined) entries.push([A.testLatencyLabel, formatLatency(res.latencyMs)]);
         if (res.report) {

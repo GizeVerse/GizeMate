@@ -44,8 +44,8 @@ It remembers its personality, mood, favourite spots and what you do together bet
 
 ## Tray menu
 
-Show/Hide · Pause/Resume cat · Interactions (on/off — off makes the cat fully click-through) · Vision privacy pause (only if screen analysis is set up; the label shows the mode) · Call · Settings… · Quit.
-Left-click the tray icon to show/hide the cat. The tooltip always shows the state and the vision mode (`Vision: off / local stats / AI (local) / AI (cloud)`); the icon gets an eye badge while screen analysis is active and a pause badge when paused.
+Show/Hide and Pause/Resume (each labelled with your companion's name) · Interactions (on/off — off makes the companion fully click-through) · Vision privacy pause (only if screen analysis is set up; the label shows the mode) · Call (also by name) · Settings… · Quit.
+Left-click the tray icon to show/hide your companion. The tooltip always shows the state and the vision mode (`Vision: off / local stats / AI (local) / AI (cloud)`); the icon gets an eye badge while screen analysis is active and a pause badge when paused.
 
 **Keyboard shortcut:** `Ctrl+Alt+Shift+C` shows/hides the cat (change or disable it in Settings → General).
 
@@ -118,6 +118,34 @@ Settings → **Audio**: sound is **off by default**. Turn on **Sound**, then cho
 ### What the cat shows
 
 Its **mood** (Happy, Curious, Sleepy, Startled, Scared, Excited, Relaxed or Confused) is derived from what it is doing and how it is, and shows in its expression. A cat that sleeps for a while sleeps deeper. There are new scratch, shake and confused animations. Settings → **Companion** shows the mood, activity, personality and the current or next world event ("Next in about ...").
+## Characters and language (UNRELEASED 1.6.0)
+
+**Status.** Part of the unreleased GizeMate work (provisional name). Everything here is implemented and has **not been run in the real app**. The rest of this guide still describes the cat. Character pages: [characters/README.md](characters/README.md).
+
+### Choosing a companion
+
+Settings opens on four areas: **Home** (the active character, its live status and everyday controls), **Characters**, **Customize** and **Settings**.
+
+- **Characters** shows the cat, Monkey, Fox, Rabbit, Ghost, Slime and Alien, each drawn small. Pick one to read about it and press its select button. **One character lives on the desktop at a time**; switching saves the current one and starts the other from its own saved state (a character you have never chosen starts fresh).
+- **Customize** (tabs Appearance, Personality, Behavior, Animation, Interaction) changes the **active** character: its palette, its name and the usual personality and behaviour choices.
+- **Settings** (tabs Language, Sound, Privacy, Data & memory, Performance, Accessibility, Desktop, Advanced, About) holds everything that belongs to the whole app. The older pages (General, Appearance, Journal and so on) are now tabs of these areas, and their old links still open the right tab.
+- Each character has its **own memory and journal**, so Fox does not remember what the cat did. Names: the cat keeps the name it had; for the other characters you may set a name, and clearing the field returns the default.
+- The seven named personalities, the world-event settings, Laser mode and the sound switches are shared settings that apply to whichever character is active.
+
+### Language
+
+Settings → **Language**: **Automatic** (default), **English** or **Turkish**. Automatic uses Turkish when your system's first language is Turkish and English for everything else. Your explicit choice is never replaced by detection, and the detected language is not stored. On the web and Android host, a language or character change restarts the page.
+
+### Where the data lives
+
+The cat stays in `cat-state.json`; every other character you have used has `characters\<id>.json` in the same data folder (`%APPDATA%\Desktop Cat`). Details: [PRIVACY.md](PRIVACY.md). Nothing about privacy changes.
+
+### What you can rely on, and what not
+
+- Implemented; unit tests exist; the app itself has not been run with these characters.
+- Only one character at a time; saved profiles carry the cat only.
+- Moves, voices and the look of each character: [characters/](characters/README.md).
+
 ## Uninstalling
 
 Windows Settings → Apps → Installed apps → **Desktop Cat** → Uninstall. Your cat (settings and memories in `%APPDATA%\Desktop Cat`) is kept so a reinstall brings it back; delete that folder to remove it completely. The uninstaller removes the launch-at-sign-in entry; if you reinstall later and the entry was on, startup is switched on again (a Task Manager disable is kept).

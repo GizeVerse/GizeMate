@@ -94,9 +94,14 @@ export function createCustomizeView(deps: CustomizeDeps): CustomizeView {
         if (id === DEFAULT_CHARACTER) return [coatArt(v as SkinId), h('span', { class: 'title', text: paletteName(id, v) })];
         // A swatch is the character itself, drawn once (still) in that palette by its real renderer.
         const canvas = h('canvas', { class: 'palette-canvas', 'aria-hidden': 'true' });
-        const preview = createScenePreview(canvas, id, v);
-        preview.still?.();
-        disposers.push(() => preview.dispose());
+        // Isolated: a renderer that throws leaves an empty swatch, never an aborted view.
+        try {
+          const preview = createScenePreview(canvas, id, v);
+          preview.still?.();
+          disposers.push(() => preview.dispose());
+        } catch {
+          // empty swatch
+        }
         return [canvas, h('span', { class: 'title', text: paletteName(id, v) })];
       },
       (v) => change(id === DEFAULT_CHARACTER ? { field: 'skin', value: v as SkinId } : { field: 'characterSkin', id, value: v }),
@@ -156,9 +161,11 @@ export function createCustomizeView(deps: CustomizeDeps): CustomizeView {
       })
     : null;
   const eventSwitches = new Map<AnyEventId, HTMLInputElement>();
+  const eventDescs = new Map<AnyEventId, HTMLElement | null>();
   const eventRows = ALL_EVENT_IDS.map((id) => {
-    const row = switchRow(eventName(id), eventDescription(id), (on) => change({ field: 'eventToggle', id, enabled: on, current: deps.getSettings() }));
+    const row = switchRow(eventName(id), eventDescription(id, undefined, displayName(deps.getSettings(), activeId(deps.getSettings()))), (on) => change({ field: 'eventToggle', id, enabled: on, current: deps.getSettings() }));
     eventSwitches.set(id, row.input);
+    eventDescs.set(id, row.desc);
     return row.root;
   });
   const eventsList = h('details', { class: 'events-list' }, [h('summary', { text: WS.panel.behavior.eventsList }), h('p', { class: 'note', text: WS.panel.behavior.eventsListNote }), ...eventRows]);
@@ -216,7 +223,9 @@ export function createCustomizeView(deps: CustomizeDeps): CustomizeView {
     const id = activeId(s);
     const off = disabledBehaviorSet(s.behavior);
     if (paletteFor !== id) buildPalette(id);
-    who.textContent = WS.customize.forCharacter(displayName(s, id));
+    // Written only when it changed: the polite live region would otherwise re-announce the heading after every control change.
+    const whoText = WS.customize.forCharacter(displayName(s, id));
+    if (who.textContent !== whoText) who.textContent = whoText;
     if (document.activeElement !== nameInput) nameInput.value = displayName(s, id);
     deps.secret?.setName(displayName(s, id));
     palette?.set(skinFor(s, id));
@@ -244,6 +253,11 @@ export function createCustomizeView(deps: CustomizeDeps): CustomizeView {
     }
     for (const [eid, input] of eventSwitches) {
       input.checked = !disabled.has(eid);
+      const descEl = eventDescs.get(eid);
+      if (descEl) {
+        const text = eventDescription(eid, undefined, displayName(s, id));
+        if (descEl.textContent !== text) descEl.textContent = text;
+      }
       input.disabled = !events.enabled;
     }
 

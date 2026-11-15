@@ -11,6 +11,16 @@ import type { AnimInput } from '../../character/types';
 import { NATIVE_CLIPS, sampleClip, type RClipCtx } from './clips';
 import { blendPose, copyPose, createPose, sanitizePose, type RPose } from './pose';
 
+/** Mood slots, resolved once (the animator reads moodW[slot] on every frame). */
+const MOOD_CONFUSED = MOODS.indexOf('confused');
+const MOOD_CURIOUS = MOODS.indexOf('curious');
+const MOOD_EXCITED = MOODS.indexOf('excited');
+const MOOD_HAPPY = MOODS.indexOf('happy');
+const MOOD_RELAXED = MOODS.indexOf('relaxed');
+const MOOD_SCARED = MOODS.indexOf('scared');
+const MOOD_SLEEPY = MOODS.indexOf('sleepy');
+const MOOD_STARTLED = MOODS.indexOf('startled');
+
 const NATIVE: ReadonlySet<AnimClip> = new Set(NATIVE_CLIPS);
 
 /** Every canonical clip -> the native clip the rabbit draws for it (alias, then shared fallbacks, then stand). */
@@ -211,17 +221,17 @@ export class RabbitAnimator {
       this.moodW[i] = damp(this.moodW[i]!, target, rate, dt);
       if (this.moodW[i]! < 1e-3) this.moodW[i] = 0;
     }
-    const w = (name: string): number => this.moodW[MOODS.indexOf(name as (typeof MOODS)[number])] ?? 0;
+    const mw = this.moodW;
     const m = ambient ? 1 : 0.35;
     if (!sleeping) {
-      const happy = w('happy') * m;
-      const startled = w('startled') * m;
-      const scared = w('scared') * m;
-      const excited = w('excited') * m;
-      const sleepy = w('sleepy') * m;
-      const relaxed = w('relaxed') * m;
-      const curious = w('curious') * m;
-      const confused = w('confused') * m;
+      const happy = mw[MOOD_HAPPY]! * m;
+      const startled = mw[MOOD_STARTLED]! * m;
+      const scared = mw[MOOD_SCARED]! * m;
+      const excited = mw[MOOD_EXCITED]! * m;
+      const sleepy = mw[MOOD_SLEEPY]! * m;
+      const relaxed = mw[MOOD_RELAXED]! * m;
+      const curious = mw[MOOD_CURIOUS]! * m;
+      const confused = mw[MOOD_CONFUSED]! * m;
       p.blush = clamp01(p.blush + 0.3 * happy + 0.15 * excited);
       p.eNA += -0.16 * startled - 0.1 * curious - 0.06 * excited + 0.38 * scared + 0.16 * sleepy + 0.1 * relaxed - 0.04 * happy;
       p.eFA += -0.16 * startled - 0.1 * curious - 0.06 * excited + 0.38 * scared + 0.16 * sleepy + 0.1 * relaxed - 0.04 * happy + 0.3 * confused;
@@ -263,7 +273,7 @@ export class RabbitAnimator {
     }
 
     // Breathing: slower and shallower in deep sleep, quicker when scared or after a startle.
-    const scared = Math.max(w('scared'), w('startled'));
+    const scared = Math.max(mw[MOOD_SCARED]!, mw[MOOD_STARTLED]!);
     const rate = sleeping ? lerp(0.32, 0.18, this.depthK) : 0.62 + 0.9 * scared + (clip === 'hide' ? 0.6 : 0);
     this.breathPhase = (this.breathPhase + lt * rate * TAU) % (TAU * 1000);
     const b = Math.sin(this.breathPhase) * p.breath * (sleeping ? lerp(1, 0.65, this.depthK) : 1) * calm;
@@ -290,7 +300,7 @@ export class RabbitAnimator {
         this.blinkDouble = this.random() < 0.18;
       }
       if (this.blinkAge >= 0) {
-        const dur = 0.16 + 0.1 * w('sleepy');
+        const dur = 0.16 + 0.1 * mw[MOOD_SLEEPY]!;
         this.blinkAge += lt;
         const a = this.blinkAge / dur;
         lid = 1 - Math.sin(clamp01(a) * Math.PI);

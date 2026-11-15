@@ -7,6 +7,7 @@ import { mulberry32, newPersistedCat } from '../../../src/core/behavior';
 import { buildProfile, IMPORT_NEVER_ENABLES, previewImport } from '../../../src/shared/profileTransfer';
 import { defaultSettings } from '../../../src/shared/settings';
 import type { HostMode } from '../../../src/web/hostMode';
+import { setLocale } from '../../../src/web/strings';
 import { changeLine, memoryAllowed, profileHostId, saveText, WEB_PROFILE_PARTS, webPreviewModel } from '../../../src/web/profileUi';
 import { WS } from '../../../src/web/strings';
 
@@ -80,8 +81,21 @@ describe('web profile UI helpers', () => {
   it('change lines: booleans On/Off, traits as percent, lists counted, the name as written', () => {
     expect(changeLine({ field: 'appearance.shadow' }, true, false)).toBe('Shadow: On → Off');
     expect(changeLine({ field: 'traits.curiosity' }, 0.5, 0.75)).toBe('Curiosity: 50% → 75%');
-    expect(changeLine({ field: 'behavior.disabledBehaviors' }, [], ['tabStrips'])).toBe('Disabled behaviors: 0 entries → 1 entry');
+    expect(changeLine({ field: 'behavior.disabledBehaviors' }, [], ['tabStrips'])).toBe('Turned-off behaviours: 0 entries → 1 entry');
     expect(changeLine({ field: 'general.catName' }, 'Pamuk', 'Miso')).toBe(`${WS.cat.nameLabel}: Pamuk → Miso`);
+  });
+
+  it('change lines follow the interface language (Turkish sheet has no English field names or On/Off)', () => {
+    setLocale('tr');
+    try {
+      expect(changeLine({ field: 'appearance.shadow' }, true, false)).toBe('Gölge: Açık → Kapalı');
+      expect(changeLine({ field: 'behavior.disabledBehaviors' }, [], ['tabStrips'])).toBe('Kapatılan davranışlar: 0 girdi → 1 girdi');
+      expect(changeLine({ field: 'memory.counters.pets' }, 3, 4)).toBe('Sevilme: 3 → 4');
+      expect(changeLine({ field: 'stats.bond' }, 0.5, 0.75)).toBe('Sizinle bağı: 50% → 75%');
+      expect(changeLine({ field: 'general.someFutureField' }, null, 'x')).toBe('Some future field: — → X');
+    } finally {
+      setLocale('en');
+    }
   });
 
   it('never names the app "Desktop Cat"', () => {

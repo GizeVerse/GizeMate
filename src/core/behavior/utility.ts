@@ -43,6 +43,10 @@ const TYPING_TRIP_RECENT_MUL = 0.35;
 const PATROL_MIN_RHYTHM = 0.8;
 /** GizeMate: base utility of a signature action per unit of its weight (1 is about as likely as a common idle pick). */
 export const SIGNATURE_BASE = 0.04;
+/** Signature utility multipliers while the user types / switches windows fast / a video plays (all below the 'active' 0.35 / 0.25 / 0.4 they would otherwise dodge). */
+export const SIGNATURE_TYPING_MUL = 0.25;
+export const SIGNATURE_BUSY_MUL = 0.25;
+export const SIGNATURE_VIDEO_MUL = 0.4;
 
 /** Variants that should not repeat back to back share a family (ADR 0003 §1.5). */
 export type Family = 'observe' | 'rest' | 'groom' | 'explore' | 'tripUp' | 'hunt' | 'play' | 'social' | 'wary' | 'leave' | 'other';
@@ -320,7 +324,15 @@ export function scoreAll(v: DecisionView): Scored<Candidate>[] {
       if (video) C *= 0.4;
       if (night) C *= 0.75;
     }
-    if (family === 'observe' && typingReact) C *= 1.2;
+    if (family === 'observe' && typingReact && !c.signatureId) C *= 1.2;
+    // A signature action is a show (a dance, a beam, a scan): it stays rarer, never more likely, while the user types,
+    // switches windows fast or watches a video. (It sits in the calm 'observe' family, which would otherwise be BOOSTED
+    // while typing and escape the 'active' damping.)
+    if (c.signatureId) {
+      if (typingRaw) C *= SIGNATURE_TYPING_MUL;
+      if (v.busySwitching) C *= SIGNATURE_BUSY_MUL;
+      if (video) C *= SIGNATURE_VIDEO_MUL;
+    }
     // Typing: trips up are rarer on top of that (B6: 0.2-0.6 x the rate of a user who is not typing).
     if (family === 'tripUp' && typingRaw) C *= typingReact ? TYPING_TRIP_MUL : TYPING_TRIP_RAW_MUL;
     // ... and for a while after: a pause between sentences is no invitation to climb the window being written in.

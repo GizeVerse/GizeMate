@@ -17,6 +17,11 @@ export interface PreviewItem {
   frame(timeMs: number, dtMs: number): void;
   /** Draws one calm still frame (reduced motion, or before the loop starts). Defaults to frame(0, 0). */
   still?(): void;
+  /**
+   * Whether the preview is on screen right now (its tab or page is shown). The loop draws only visible previews while
+   * animating; a hidden one costs nothing. Absent = always visible. A throw counts as visible.
+   */
+  visible?(): boolean;
 }
 
 export interface LoopEnv {
@@ -58,6 +63,15 @@ export function createPreviewLoop(env: LoopEnv, fps: number = PREVIEW_FPS): Prev
   };
   const still = (item: PreviewItem): void => safe(() => (item.still ? item.still() : item.frame(0, 0)));
 
+  const isVisible = (item: PreviewItem): boolean => {
+    if (!item.visible) return true;
+    try {
+      return item.visible();
+    } catch {
+      return true;
+    }
+  };
+
   const stop = (): void => {
     if (handle === null) return;
     env.caf(handle);
@@ -73,7 +87,7 @@ export function createPreviewLoop(env: LoopEnv, fps: number = PREVIEW_FPS): Prev
       last = now;
       const step = Math.min(dt, MAX_STEP_MS);
       clock += step;
-      for (const item of items) safe(() => item.frame(clock, step));
+      for (const item of items) if (isVisible(item)) safe(() => item.frame(clock, step));
     }
     handle = env.raf(tick);
   };

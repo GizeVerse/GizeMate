@@ -4,7 +4,7 @@ import type { Settings } from '../../shared/settings';
 import type { PageContext } from './context';
 import { h, icon, uid, type Child, type GlyphName } from './dom';
 import { formatValue, nearestStopIndex, snapToStep, type BoolKey, type FieldKey, type NumericField, type RangeSpec, type SectionKey, type StrKey } from './fields';
-import { loginMessage } from './loginText';
+import { actionMessage, successMessage } from './actionText';
 import { fieldId, type Leaf } from './patch';
 import { errorText, type FieldBinding } from './store';
 import { S } from './strings';
@@ -131,8 +131,8 @@ export async function runAction(ctx: PageContext, action: SettingsAction, btn: H
       const res = await ctx.api.action(action);
       okResult = res.ok;
       if (status) {
-        if (res.ok) setNote(status, loginMessage(res) ?? successText ?? null, 'ok');
-        else setNote(status, S.errors.actionFailed(loginMessage(res) ?? S.errors.unexpected), 'error');
+        if (res.ok) setNote(status, successMessage(res, successText), 'ok');
+        else setNote(status, S.errors.actionFailed(actionMessage(res) ?? S.errors.unexpected), 'error');
       }
     } catch (e) {
       if (status) setNote(status, S.errors.actionFailed(errorText(e)), 'error');

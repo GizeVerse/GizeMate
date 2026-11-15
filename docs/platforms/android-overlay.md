@@ -84,6 +84,7 @@ Do not assume Google Play accepts the overlay. Policy and forms change; read the
 - It uses no network, and the app has no internet permission.
 - Raw touch coordinates are read only for touches that land **inside the cat's own window**; they go to the cat's gesture recognizer and are not stored or sent anywhere.
 - Notifications are private (hidden on the lock screen) and silent.
+- Known limitation: the native notification text (title, body and the Pause, Hide and Stop buttons) follows the device language, not the in-app language setting.
 - Ordinary cat data (the cat, settings) stays in the app's private storage, as before.
 - 1.5.0: the cat's world memory (a bounded event history, counters and the Cat Journal of at most 60 entries) is part of that same stored cat, local, clearable from the panel and never in a profile file. Mood is not stored. The laser dot and the stage use no new data and no permission. Details: [PRIVACY.md](../PRIVACY.md#living-companion-150-release-candidate).
 
@@ -205,6 +206,10 @@ With a computer and USB debugging: `adb install -r GizeCat-1.4.1-android-trial-d
 ## The foreground service notification
 
 While the cat floats, Android requires a notification (it is the foreground service's, low-importance, silent and hidden on the lock screen). It has **Pause** or **Resume**, **Hide** or **Show**, and **Stop**; tapping it opens GizeCat's settings. With notifications turned off for the app, the service still runs and the controls are in the app, and Android's list of running apps can stop it.
+
+## Characters (unreleased 1.6.0, GizeMate)
+
+The unreleased work lets the floating window show any of seven characters (one at a time; the cat stays the default). Its window size follows the active character's nominal body size, clamped on the page side so an unusually tall or wide character cannot produce a window message the native side would drop (ADR 0005). Changing character or language in the app restarts the page. The other characters are saved in the page's `gizecat.web.characters.v1` slot; the cat stays in `gizecat.web.cat.v1`. **The Android sources were inspected, not run, for this work**: the new characters have not been drawn in the floating window on any device or emulator, and no Android permission was added. See [docs/characters/](../characters/README.md).
 
 ## Limits and unverified behaviour
 

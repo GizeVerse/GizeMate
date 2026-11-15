@@ -1025,15 +1025,17 @@ export abstract class SimCore {
    * cat's own cues need sound.cat, the world's need sound.world; at most one per SOUND_MIN_GAP_MS). A
    * sleeping cat makes no sound, but the world's thunder still rumbles.
    */
-  protected playSound(kind: SoundCue): void {
+  protected playSound(kind: SoundCue, voice = false): void {
     const s = this.settings.sound;
-    const world = WORLD_SOUND_CUES.has(kind);
+    // `voice`: the cue is the active character's own voice (a reaction or signature sound, already the final cue). 'chime' and
+    // 'squeak' are world cues only when the WORLD makes them; as a character's voice they follow the companion switch.
+    const world = !voice && WORLD_SOUND_CUES.has(kind);
     if (!s.enabled || (world ? !s.world : !s.cat) || this.mode !== 'normal' || this.now - this.lastSoundAt < Math.max(SOUND_MIN_GAP_MS, this.character.sound.cooldownMs)) return;
     if (!world && kind !== 'purr' && ASLEEP_STATES.has(this.act.state)) return;
     this.lastSoundAt = this.now;
     // GizeMate: the cat's three voice cues are the character's own (identity for the cat).
     const cues = this.character.sound.cues;
-    const out: SoundCue = world ? kind : kind === 'meow' ? cues.voice : kind === 'purr' ? cues.happy : kind === 'hiss' ? cues.startled : kind;
+    const out: SoundCue = world || voice ? kind : kind === 'meow' ? cues.voice : kind === 'purr' ? cues.happy : kind === 'hiss' ? cues.startled : kind;
     this.sound = { kind: out, at: this.now, volume: Number.isFinite(s.volume) ? clamp(s.volume, 0, 1) : 0.4 };
   }
 

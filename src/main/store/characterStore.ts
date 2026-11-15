@@ -94,7 +94,8 @@ export function createCharacterStores(opts: CharacterStoresOptions): CharacterSt
       if (!s) {
         s = createCatStore({
           store: envelopeStore(makeStore(characterStatePath(opts.userData, id)), id, opts.wallClock),
-          migrate: migrateCatState,
+          // Bound to the character: a fresh or recovered companion is born with ITS traits and id, never as a cat.
+          migrate: (raw, random, now) => migrateCatState(raw, random, now, id),
           random: opts.random,
           wallClock: opts.wallClock,
           autosaveMs: opts.autosaveMs,

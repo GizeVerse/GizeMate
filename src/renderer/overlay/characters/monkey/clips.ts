@@ -699,6 +699,16 @@ function clipPeek(p: Pose, c: ClipContext): void {
 // ---------------------------------------------------------------------------------------------
 // Wall, ledge, held
 
+const CLIMB_DUTY = 0.5;
+
+/** One climbing limb's vertical position at a cycle phase (module level: no closure per frame). */
+function climbHand(phase: number, st: number, top: number): number {
+  const f = wrap01(phase);
+  if (f < CLIMB_DUTY) return top + st * (f / CLIMB_DUTY - 0.5);
+  const s = (f - CLIMB_DUTY) / (1 - CLIMB_DUTY);
+  return top + st * (0.5 - easeInOut(s));
+}
+
 function clipClimb(p: Pose, c: ClipContext): void {
   // Wall on the right at x = 0; grip point at hind-foot height; the body extends upwards.
   standPose(p);
@@ -710,31 +720,20 @@ function clipClimb(p: Pose, c: ClipContext): void {
   p.turn = 0.9;
   p.smile = 0.2;
   p.mouth = 0.05;
-  const duty = 0.5;
   const st = c.stride * c.engage;
-  const ph = c.dir >= 0 ? c.cyc : c.cyc;
-  const hand = (phase: number, x: number, top: number): number => {
-    const f = wrap01(phase);
-    if (f < duty) return top + st * (f / duty - 0.5);
-    const s = (f - duty) / (1 - duty);
-    return top + st * (0.5 - easeInOut(s));
-  };
-  const off = (phase: number): number => {
-    const f = wrap01(phase);
-    return f < duty ? 0 : Math.sin(Math.PI * ((f - duty) / (1 - duty))) * 3;
-  };
+  const ph = c.cyc;
   p.handNx = -1;
-  p.handNy = hand(ph, 0, -62) - off(ph) * 0;
+  p.handNy = climbHand(ph, st, -62);
   p.handFx = -3;
-  p.handFy = hand(ph + 0.5, 0, -52);
+  p.handFy = climbHand(ph + 0.5, st, -52);
   p.gripN = 1;
   p.gripF = 1;
   p.bendN = 1;
   p.bendF = 1;
   p.footNx = -1;
-  p.footNy = hand(ph + 0.25, 0, -4) - off(ph + 0.25) * 0;
+  p.footNy = climbHand(ph + 0.25, st, -4);
   p.footFx = -4;
-  p.footFy = hand(ph + 0.75, 0, -11);
+  p.footFy = climbHand(ph + 0.75, st, -11);
   p.legBend = -1;
   p.tailBase = -1.5;
   p.tailCurl = 1.2;

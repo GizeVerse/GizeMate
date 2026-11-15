@@ -18,6 +18,10 @@ Laser Mode is a game you start on purpose. A small red dot follows a pointer, an
 | Off by default | Yes, at every start. | Yes. The app screen discards any record left by an earlier session. |
 | Needs | The cat visible and not paused. The Windows pages state no other requirement; whether turning off "Hunt and pounce" also stops the cat following the dot on Windows was not checked in the code (UNVERIFIED). Reaching with a paw needs "paw at the pointer" on; hopping needs jumps on. | The panel disables the switch while "Hunt and pounce" is off, because following the light is a chase. |
 
+## Per character (unreleased 1.6.0)
+
+Laser mode is shared. What the active character does about the dot comes from its module's `laser` reaction: the rabbit hops after it, the monkey crouches and chatters, the fox crouches and yips, the slime bounces, the ghost crouches with a note, and the alien tracks and scans it for up to six seconds. The cat keeps the behaviour described below. See [the characters](../characters/README.md). Not run in the real app.
+
 ## What you see
 
 - A red dot, 5 DIP in radius with a soft 15 DIP glow, drawn over the cat. It pulses gently, and does not pulse under reduced motion (`drawLaser` in `props.ts`).

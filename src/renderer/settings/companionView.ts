@@ -112,7 +112,7 @@ export interface JournalRow {
  * Journal entries as rows, newest first. main returns them oldest first and already bounded; this
  * re-checks the shape and the bound so a malformed entry is skipped instead of breaking the page.
  */
-export function journalRows(entries: unknown): JournalRow[] {
+export function journalRows(entries: unknown, who?: string): JournalRow[] {
   if (!Array.isArray(entries)) return [];
   const rows: Array<JournalRow & { at: number }> = [];
   for (const raw of entries as unknown[]) {
@@ -122,7 +122,7 @@ export function journalRows(entries: unknown): JournalRow[] {
     const date = formatJournalDate(e.at);
     if (date === '') continue;
     const id = e.id;
-    rows.push({ at: e.at, date, iso: new Date(e.at).toISOString(), event: eventName(id), text: journalText(id, e.outcome) });
+    rows.push({ at: e.at, date, iso: new Date(e.at).toISOString(), event: eventName(id), text: journalText(id, e.outcome, undefined, who) });
   }
   // Stable: entries from the same instant keep main's order, reversed with the rest.
   return rows

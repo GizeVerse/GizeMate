@@ -4,6 +4,10 @@ Status: IMPLEMENTED and statically verified (type-check, lint, read-only review)
 
 Back to the [overview](README.md).
 
+## More than one character (unreleased 1.6.0)
+
+The seven named profiles, Auto and the knobs below are **global choices** (`settings.companion.personality`) that apply to whichever character is active. Each character also has its own **born** personality: its module (`src/shared/characters/<id>.ts`) gives means for seven dimensions (curiosity, energy, playfulness, sociability, mischief, affection, independence) and a spread, used only when a **new** companion of that character is created (through the inverse mapping `storedFromSeven` in `src/shared/characters/seven.ts`, on a dedicated random stream). The stored format did not change: `sevenTraitsOf` is a read-only view derived from the stored traits and the mischief drive, with the formulas written in that file. The cat's existing traits are never rewritten. On top of that, a character's module tunes the shared engine (speed, rest, exploring, play, cursor interest, jumpiness, shyness) and adds signature behaviours. Per-character numbers: [the character pages](../characters/README.md). Implemented; not run in the real app.
+
 ## The rule
 
 You choose the personality. The cat never changes your choice.

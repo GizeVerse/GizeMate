@@ -56,7 +56,7 @@ const ALIASES: Readonly<Partial<Record<AnimClip, AnimClip>>> = {
   grumpy: 'annoyed',
   impact: 'land',
   landRecover: 'shake',
-  slip: 'fall',
+  slip: 'startle',
   balance: 'stand',
   edgeSit: 'sit',
   stretch: 'yawn',

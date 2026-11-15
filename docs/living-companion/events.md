@@ -50,6 +50,10 @@ None of these draws exist for the Auto personality or the other profiles, apart 
 
 The cat's reactions are invitations from the catalogue's beats: watch, approach, sneak, chase, flee, play, hide, inspect, brace, climb, hop, shake, settle and react. The stand-off distance for prey-like props is never less than the event's minimum (0.6 body widths for the mouse and the bird, 0.5 for butterflies).
 
+## Per character (unreleased 1.6.0)
+
+The scheduler, the 26 events and their outcomes are shared. Each character's module can multiply an event's selection weight (`eventAffinity`: missing means 1, 0 disables) and decides how that character reacts to each prop (`reactions`, keyed by prop kind). For example the alien weights the tiny UFO 3 times and the ghost weights the little ghost 3 times, and the monkey is cooler about the thunderstorm (0.45). The tables are on the [character pages](../characters/README.md). Implemented; not run in the real app.
+
 ## The 26 events
 
 Weight is the relative weight inside the pool. "Floor" is the free floor width needed in px at size 1 (it is multiplied by the cat's size); "height" is the free stage height above the floor in body widths (the stage is the floor of the cat's display, about five body widths high). Duration is the typical main part in seconds. An asterisk marks an outcome that is worth a journal line. "Awake" means the event starts only while the cat is awake. "Can miss" means a drowsy cat may not notice it at all.

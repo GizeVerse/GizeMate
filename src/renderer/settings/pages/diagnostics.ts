@@ -11,6 +11,7 @@ import { livePoll, pagePoll, type LivePoll } from '../livePoll';
 import { pauseModel } from '../privacyView';
 import { niceCeil, sparkline } from '../sparkline';
 import { errorText, type Timers } from '../store';
+import { actionMessage } from '../actionText';
 import { deviceWords, platformWording, S } from '../strings';
 import { catEntries, coordinateEntries, countRows, errorItems, seenEntries, tabStripEntries } from '../surfacesView';
 
@@ -291,7 +292,7 @@ function surfacesSection(ctx: PageContext): SurfacesSection {
     void ctx.api
       .action(outlineAction(on))
       .then((res) => {
-        if (!res.ok) fail(res.message ?? S.errors.unexpected);
+        if (!res.ok) fail(actionMessage(res) ?? S.errors.unexpected);
       })
       .catch((e: unknown) => fail(errorText(e)))
       .finally(() => {

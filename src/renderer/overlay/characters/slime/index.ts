@@ -25,8 +25,13 @@ import {
 } from '../../character/kit';
 import { createTgt, H0, resetTgt, sampleClip, W0, type ClipCtx, type Tgt } from './clips';
 import { getSlimePalette } from './skins';
+import { invisibleBelow, SMOOTH_INVISIBLE_ALPHA } from '../visibility';
 
 /** Points on the body spline. */
+/** Longest frame step the animation integrates (the pacing policy draws up to ~100 ms frames). */
+const MAX_DT = 0.1;
+/** Spring substep: with w <= 60 a step of 12.5 ms keeps w*h at 0.75. */
+const SPRING_STEP_S = 0.0125;
 const N = 22;
 /** Radius added around every drawn point for the outline and the spline's overshoot. */
 const PAD = 3.2;
@@ -50,6 +55,15 @@ export const resolveSlimeClip = (clip: AnimClip): AnimClip => RESOLVED.get(clip)
 const LOOK_WEIGHT: Partial<Record<AnimClip, number>> = { sleep: 0, wake: 0.2, petted: 0, held: 0, vanish: 0.3, appear: 0.5, stretch: 0.6, dance: 0.3, shake: 0, squish: 0.2, startle: 0.5 };
 
 const sgnPow = (v: number, p: number): number => (v < 0 ? -Math.pow(-v, p) : Math.pow(v, p));
+
+/**
+ * Height (above the body bottom) of the pendant collar: 0.4 of the body, but kept under the mouth of the face
+ * frame (the heart hangs below the collar and must not cover the face in loaf, held or fall), never below 0.15.
+ */
+export function pendantCollarHeight(bodyH: number, faceFromBottom: number, fit: number): number {
+  const underMouth = faceFromBottom - 6.4 * fit - 5;
+  return Math.max(0.15 * bodyH, Math.min(0.4 * bodyH, underMouth));
+}
 
 export class SlimeRenderer implements CharacterRenderer {
   readonly id = 'slime' as const;
@@ -100,6 +114,8 @@ export class SlimeRenderer implements CharacterRenderer {
   private fct = 1;
   private fst = 0;
   private fit = 1;
+  /** Pixel mode of the last draw: hardenAlpha erases what is fainter than PIXEL_KEEP_ALPHA, so the token-hit threshold follows the mode of the last draw. */
+  private invisible = SMOOTH_INVISIBLE_ALPHA;
   private eyeGap = 8;
 
   constructor(random: () => number) {
@@ -128,7 +144,7 @@ export class SlimeRenderer implements CharacterRenderer {
   // ---- animation -------------------------------------------------------------------------------------------
 
   advance(input: AnimInput, simTime: number, dtMs: number, motionX: number, motionY: number): void {
-    const dt = clamp(finiteOr(dtMs, 0) / 1000, 0, 0.05);
+    const dt = clamp(finiteOr(dtMs, 0) / 1000, 0, MAX_DT);
     const now = finiteOr(simTime, 0);
     const T = this.T;
     const cur = this.cur;
@@ -214,8 +230,10 @@ export class SlimeRenderer implements CharacterRenderer {
     void motionY;
     if (dt > 0) {
       const zeta = 0.42 + 0.4 * rm;
-      const h = dt / 2;
-      for (let i = 0; i < 2; i++) {
+      // Substep so a long frame (previews at 12 fps, a deep-sleep 90 ms frame) stays stable: w * h <= ~0.75.
+      const steps = Math.max(2, Math.ceil(dt / SPRING_STEP_S));
+      const h = dt / steps;
+      for (let i = 0; i < steps; i++) {
         const w = clamp(T.omega, 10, 60);
         this.sv += (w * w * (T.s - cur.s) - 2 * zeta * w * this.sv) * h;
         cur.s += this.sv * h;
@@ -463,7 +481,7 @@ export class SlimeRenderer implements CharacterRenderer {
     const P = this.pts;
     const span = Math.max(1e-3, this.maxY - this.minY);
     // Faded out (the vanish clip): the space stays reported for the dirty rect, but only a token spot is clickable.
-    if (this.cur.alpha < 0.08) {
+    if (this.cur.alpha < this.invisible) {
       for (let i = 0; i < N; i++) g.add(P[i * 2]!, P[i * 2 + 1]!, PAD, -1);
       this.put(0, this.lift);
       g.add(this.px, this.py - 3, 3, 0);
@@ -555,6 +573,7 @@ export class SlimeRenderer implements CharacterRenderer {
     const ol = Math.max(0.1, finiteOr(o.outline, 1.6));
     const ppu = finiteOr(o.pixelsPerUnit, 1);
     const pix = isPixelMode(ppu);
+    this.invisible = invisibleBelow(ppu);
     const fine = isFineDetail(ppu);
     const up = unitPx(ppu);
     const P = this.pts;
@@ -795,8 +814,7 @@ export class SlimeRenderer implements CharacterRenderer {
 
   /** The shared heart pendant on a collar across the chest, below the face: follows the body in every pose. */
   private drawPendant(ctx: Ctx2D, outline: string, ol: number, ppu: number): void {
-    const f = 0.4;
-    const yb = f * this.Hh;
+    const yb = pendantCollarHeight(this.Hh, this.fy - this.lift, this.fit);
     const hw = this.halfWidthAt(yb);
     const half = clamp(hw * 0.4, 3, 9);
     const y = this.lift + yb;

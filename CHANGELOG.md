@@ -2,9 +2,38 @@
 
 GizeCat (formerly Desktop Cat). Versions follow semantic versioning. 1.3.0 is the first public release; earlier versions were built and tested locally but not published.
 
-## 1.5.0 (Living Companion; RELEASE CANDIDATE, unpublished)
+## 1.6.0 (GizeMate; UNRELEASED, work in progress on branch `feature/gizemate`)
 
-**Not published and not tagged.** The current published releases are Windows v1.3.0 and Android v1.4.2; the owner reviews and publishes 1.5.0. It covers **Windows and Android only** (macOS and iPad are not part of this release; the 1.4.0 Preview notes about them stay as they were). Desktop and web version 1.5.0 (`package.json`), Android 1.5.0, versionCode 10500 (`android/version.properties`). **Nothing in 1.5.0 has been run: no test, emulator, simulator or application launch was performed for any 1.5.0 code.** Every item below is IMPLEMENTED and statically verified (type-check, lint, read-only review) only. Overview: [docs/living-companion/README.md](docs/living-companion/README.md); draft notes: [docs/releases/1.5.0-release-candidate.md](docs/releases/1.5.0-release-candidate.md).
+**Not released, not tagged, not versioned yet:** `package.json` and the Android version files are still 1.5.0; the owner bumps them when this ships. **No test, build, installer or application launch has been run for this work by the documentation pass; nothing here has been run in the real app.** Every item is IMPLEMENTED and, where a unit test or a character preview sheet exists, that is the only evidence (see [docs/characters/README.md](docs/characters/README.md)). GizeMate is the provisional display name of the product; the Windows installer, shortcuts, folders and other identifiers keep their existing names.
+
+### Added
+- **Six new characters** besides the cat: Monkey, Fox, Rabbit (animals), Ghost, Slime and Alien (fantasy creatures). Each has its own drawing, way of moving (walk, hop, float, bounce or glide), palettes, personality, signature behaviours, reactions to the world events and the laser, and voice. One character lives on the desktop at a time. Pages: [docs/characters/](docs/characters/README.md).
+- **Languages: English and Turkish.** The interface, the character texts, the menus and the world-event text. Settings, Language offers Automatic (the default), English and Turkish; Automatic shows Turkish when the system language is Turkish and English otherwise, without ever overwriting a language you chose.
+- **A new settings interface** with four areas: Home, Characters, Customize and Settings. Characters shows every companion drawn small by its own renderer and selects it; Customize holds the active character's appearance, personality, behaviour, animation and interaction; Settings holds Language, Sound, Privacy, Data & memory, Performance, Accessibility, Desktop, Advanced and About. Older page links still open the right place.
+- **Each character has its own companion**: its own personality numbers, memory and journal, stored beside the cat's. You can give each non-cat character its own name and choose its palette.
+- **Voices.** Each character has its own pitch and kind of voice and its own cues. Sound is still off by default.
+- **Preview tool** for contributors: `npm run preview:characters`.
+
+### Changed
+- The product display name is GizeMate (provisional). Persistent identifiers, the data folder name and the installer names are unchanged.
+- The Android and web home panel gains the same Home, Characters, Customize and Settings structure and language choice. Switching characters there restarts the page.
+
+### Upgrade compatibility
+- **An existing cat is kept**: its name, coat, personality, memory and journal are read exactly as before, from the same file (`cat-state.json`, or the browser slot `gizecat.web.cat.v1`). A v1.5.0 settings file loads unchanged and you start as the cat. The other characters are born fresh, the first time you choose them.
+- Downgrading to 1.5.0 has not been tried.
+
+### Privacy and permission changes
+- **None.** Screen analysis and cloud egress are still off by default; no telemetry, no keyboard hook, no clipboard capture; no new Android permission. New files on disk: `characters/<id>.json` (same kind of content as the cat's file); see [docs/PRIVACY.md](docs/PRIVACY.md).
+
+### Limitations
+- Only one character at a time.
+- A saved profile (move your companion to another device) still carries the cat only.
+- Android and macOS sources were only inspected, not run, for this work; non-Windows platforms were not validated. The Windows installers remain unsigned. The web and Android host reloads the page when you switch characters.
+- Turkish text has had no native-speaker review.
+
+## 1.5.0 (Living Companion; Windows released 2026-11-14, Android on hold)
+
+**Published as release v1.5.0 (2026-11-14): Windows x64 and ARM64 installers, unsigned.** The Android 1.5.0 build is on hold until a production-signed package exists; the current Android download remains 1.4.2. Windows and Android only (macOS and iPad are not part of this release; the 1.4.0 Preview notes about them stay as they were). Desktop and web version 1.5.0 (`package.json`), Android 1.5.0, versionCode 10500 (`android/version.properties`). **How it was verified:** the project owner installed and used the x64 installer and the Android build by hand. The unit suite was first run against this code in the 1.6.0 cycle: 13 of 4,766 tests failed at first; each was root-caused (five code defects, the rest stale expectations) and fixed in that cycle (see 1.6.0). The ARM64 installer has not been run on ARM hardware. Overview: [docs/living-companion/README.md](docs/living-companion/README.md); draft notes: [docs/releases/1.5.0-release-candidate.md](docs/releases/1.5.0-release-candidate.md).
 
 ### Added
 - **Seven selectable personalities plus Auto** (Curious, Playful, Energetic, Lazy, Shy, Mischievous, Calm; `src/core/behavior/personalityProfiles.ts`). Auto keeps the traits the cat was born with; the cat never changes the choice.
@@ -44,8 +73,8 @@ GizeCat (formerly Desktop Cat). Versions follow semantic versioning. 1.3.0 is th
 - Tablets and phones other than the one the owner used for 1.4.2 are not individually verified; vendor battery and overlay rules may differ.
 
 ### Not done
-- No test, emulator, simulator or application launch for 1.5.0; no install of the Windows installers; no run of the Android APK. Windows on Arm has never run.
-- Not published, not tagged, no hashes recorded in the repository documents (the maintainer fills them in later).
+- At the time of the 1.5.0 build no test, emulator or application launch had been run; the owner then tested it by hand and the unit suite was run in the 1.6.0 cycle (see above). Windows on Arm has never run.
+- Published as release v1.5.0 (Windows); the release page lists the installers and their SHA-256 hashes. Android 1.5.0 is not published.
 - No macOS or iPad work in this release.
 
 ## 1.4.2 (Android Floating Desktop Pet; stable Android release, 2026-11-10)

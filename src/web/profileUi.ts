@@ -68,21 +68,21 @@ function humanize(id: string): string {
   return spaced.length === 0 ? id : spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-/** A short "Field: from → to" line (the web keeps it simple: the desktop words every field). */
+/** A short "Field: from → to" line in the interface language; only an unknown field falls back to its humanised name. */
 export function changeLine(c: Pick<ProfileChange, 'field'>, from: ProfileValue, to: ProfileValue): string {
   const key = c.field.slice(c.field.lastIndexOf('.') + 1);
-  const label = c.field === 'general.catName' ? WS.cat.nameLabel : c.field === 'appearance.skin' ? WS.cat.coatLabel : c.field === 'appearance.style' ? WS.cat.styleLabel : humanize(key);
+  const label = c.field === 'general.catName' ? WS.cat.nameLabel : c.field === 'appearance.skin' ? WS.cat.coatLabel : c.field === 'appearance.style' ? WS.cat.styleLabel : (own<string>(WS.transfer.fields, c.field) ?? humanize(key));
   const value = (v: ProfileValue): string => {
-    if (v === null) return '—';
-    if (typeof v === 'boolean') return v ? 'On' : 'Off';
-    if (Array.isArray(v)) return `${v.length} ${v.length === 1 ? 'entry' : 'entries'}`;
+    if (v === null) return WS.transfer.empty;
+    if (typeof v === 'boolean') return v ? WS.transfer.on : WS.transfer.off;
+    if (Array.isArray(v)) return WS.transfer.entries(v.length);
     if (typeof v === 'string') {
       if (c.field === 'appearance.skin') return own<string>(WS.skins, v) ?? humanize(v);
       if (c.field === 'appearance.style') return own<string>(WS.styles, v) ?? humanize(v);
       return c.field === 'general.catName' ? v : humanize(v);
     }
-    if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
-    if (c.field === 'bornAt') return Math.abs(v) <= 8.64e15 ? new Date(v).toISOString().slice(0, 10) : '—';
+    if (typeof v !== 'number' || !Number.isFinite(v)) return WS.transfer.empty;
+    if (c.field === 'bornAt') return Math.abs(v) <= 8.64e15 ? new Date(v).toISOString().slice(0, 10) : WS.transfer.empty;
     if (c.field.startsWith('traits.') || c.field === 'stats.bond' || c.field.endsWith('Acceptance')) return `${Math.round(v * 100)}%`;
     return Number.isInteger(v) ? String(v) : String(Math.round(v * 100) / 100);
   };

@@ -67,8 +67,8 @@ interface LayerGeometry {
 export type RendererFactory = (id: CharacterId, random: () => number) => CharacterRenderer;
 
 export class CatScene {
-  /** The active character's renderer (replaced when a snapshot's character changes). */
-  renderer: CharacterRenderer;
+  /** The active character's renderer, built on first use (a scene whose first snapshot names another character never builds a stand-in). */
+  private current: CharacterRenderer | null = null;
   /** The character the scene was last told to show (the renderer may be a stand-in until its own exists). */
   character: CharacterId = DEFAULT_CHARACTER;
   /** Overlay-local DIP bounds of everything drawn this frame. */
@@ -132,8 +132,13 @@ export class CatScene {
     private readonly random: () => number,
     private readonly factory: RendererFactory = createCharacterRenderer,
   ) {
-    this.renderer = this.factory(DEFAULT_CHARACTER, random);
     for (let i = 0; i < HIT_RECTS; i++) this.hitRects.push({ x: 0, y: 0, width: 0, height: 0 });
+  }
+
+  /** The active character's renderer (replaced when a snapshot's character changes); created on demand. */
+  get renderer(): CharacterRenderer {
+    if (this.current === null) this.current = this.factory(this.character, this.random);
+    return this.current;
   }
 
   /** The cat's puppet (tests and tools that look at the cat's pose); throws for any other renderer. */
@@ -145,7 +150,7 @@ export class CatScene {
   /** Shows `id`: a different character replaces the renderer (fresh pose, nothing carried over). */
   private setCharacter(id: CharacterId): void {
     this.character = id;
-    this.renderer = this.factory(id, this.random);
+    this.current = this.factory(id, this.random);
     this.hasPosePoints = false;
     this.poseSpeed = 0;
     this.moved = false;

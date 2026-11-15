@@ -97,7 +97,7 @@ describe('shortcuts on macOS', () => {
 
 describe('General and Welcome', () => {
   it('keeps "starts with Windows" for Windows only', () => {
-    expect(startupStateDesc('windows')).toBe('How the cat appears each time the app starts, also when it starts with Windows.');
+    expect(startupStateDesc('windows')).toBe('How your companion appears each time the app starts, also when it starts with Windows.');
     for (const wording of ['mac', 'elsewhere'] as const) expect(startupStateDesc(wording)).not.toMatch(/Windows/);
   });
 
@@ -161,7 +161,7 @@ describe('Privacy on macOS', () => {
 
   it('says what "Off" knows on each platform', () => {
     expect(visualModeDesc('off', 'windows')).toBe(S.privacy.modes.off.desc);
-    expect(S.privacy.modes.off.desc).toBe('The cat only knows where windows are. It never looks at their contents.');
+    expect(S.privacy.modes.off.desc).toBe('Your companion only knows where windows are. It never looks at their contents.');
     for (const wording of ['mac', 'elsewhere'] as const) {
       expect(visualModeDesc('off', wording)).toBe(S.privacy.modeOffDescFloorOnly);
       expect(visualModeDesc('off', wording)).not.toMatch(/only knows where windows/);

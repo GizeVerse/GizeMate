@@ -6,6 +6,10 @@ Back to the [overview](README.md).
 
 The Cat Journal is a quiet diary of small moments in your cat's life. It is local, bounded and clearable. It has no streaks, no scores and no reminders, and it never notifies you.
 
+## One memory per character (unreleased 1.6.0)
+
+Each character has its own persisted companion, so its own world memory, counters and journal. The cat stays in `cat-state.json` (Windows) or `gizecat.web.cat.v1` (web and Android) exactly as below. Every other character is stored in `characters/<id>.json` in the same user-data folder (a small envelope `{ schemaVersion, character, savedAt, companion }`, written through the same atomic store with a backup) or, on the web and Android host, in one entry of `gizecat.web.characters.v1`. A missing or corrupt entry gives a fresh companion for that character only. A module can limit which memory kinds its character records (the fox, rabbit and ghost use an allow-list; the others record all kinds); memory still holds content-free tokens only. Implemented; unit tests exist (for example `tests/unit/main/characterStore.test.ts`); not run in the real app. Which character the journal page and the clear action act on was not traced for this page. Privacy: unchanged, see [PRIVACY.md](../PRIVACY.md).
+
 ## What is stored
 
 The persisted cat gets one new section, `world` (the "world memory"). It is additive: no schema version bump. A cat saved before 1.5.0 has no `world` and loads an empty one. A build that does not know the section drops it on its next save, which only forgets the diary.

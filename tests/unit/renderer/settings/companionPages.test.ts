@@ -8,7 +8,7 @@ import type { CompanionStatus, SettingsViewState } from '../../../../src/shared/
 import { SETTINGS_ACTIONS } from '../../../../src/shared/ipc';
 import { PERSONALITY_TEXT } from '../../../../src/shared/personalityText';
 import { applySettingsPatch, defaultSettings, type PatchResult, type SettingsPatch } from '../../../../src/shared/settings';
-import { eventDescription, eventName } from '../../../../src/shared/worldText';
+import { eventDescription, eventName, setWorldTextLocale } from '../../../../src/shared/worldText';
 import { CUSTOMIZE_TABS, isPageId, isTabOf, LEGACY_PAGE_IDS, LEGACY_ROUTES, NAV_PAGE_IDS, PAGE_IDS, parseRoute, routeHash, SETTINGS_TABS } from '../../../../src/renderer/settings/catalog';
 import {
   COMPANION_FIELD_IDS,
@@ -294,10 +294,24 @@ describe('journal rows', () => {
       { id: 'miniTsunami', at: at(6), outcome: 'wet' },
     ]);
     expect(rows.map((r) => r.date)).toEqual(['2026-11-09', '2026-11-06', '2026-11-03']);
-    expect(rows[0]?.text).toBe('A tiny flying saucer crossed the sky. The cat watched it go.');
+    expect(rows[0]?.text).toBe('A tiny flying saucer crossed the sky. Your companion watched it go.');
     expect(rows[0]?.event).toBe('Tiny UFO');
     expect(rows[1]?.text).toContain('got a little wet');
     expect(rows[2]?.iso).toBe(new Date(at(3)).toISOString());
+  });
+
+  it('names the active companion in the sentence, in English and in Turkish, with no glued suffix', () => {
+    const entries = [{ id: 'mouseEncounter', at: at(3), outcome: 'watched' }];
+    expect(journalRows(entries, 'Miso')[0]?.text).toBe('A little mouse ran across the floor. Miso watched it go.');
+    setWorldTextLocale('tr');
+    try {
+      const text = journalRows(entries, 'Miso')[0]?.text ?? '';
+      expect(text).toContain('Miso');
+      expect(text).not.toMatch(/Miso[\p{L}]/u);
+      expect(text).toBe('Küçük bir fare yerde koştu. Miso gidişini izledi.');
+    } finally {
+      setWorldTextLocale('en');
+    }
   });
 
   it('keeps main’s order reversed for entries from the same moment, and uses the fallback for an unknown outcome', () => {
@@ -344,8 +358,8 @@ describe('personality cards', () => {
       expect(t.behaves.length, id).toBeGreaterThanOrEqual(2);
       expect(t.behaves.length, id).toBeLessThanOrEqual(4);
     }
-    expect(S.personality.autoTitle).toBe('Auto (keeps the cat’s born traits)');
-    expect(S.personality.groupChoiceDesc).toMatch(/the cat never changes it/);
+    expect(S.personality.autoTitle).toBe('Auto (keeps the companion’s born traits)');
+    expect(S.personality.groupChoiceDesc).toMatch(/your companion never changes it/);
   });
 
   it('every claim in the words still agrees with the profile numbers', () => {
@@ -393,7 +407,7 @@ describe('accessibility and audio wording', () => {
   });
 
   it('keeps the sound master switch separate from the two kinds, and never mentions the microphone as used', () => {
-    expect([S.audio.masterTitle, S.audio.catTitle, S.audio.worldTitle]).toEqual(['Sound', 'Cat sounds', 'World sounds']);
+    expect([S.audio.masterTitle, S.audio.catTitle, S.audio.worldTitle]).toEqual(['Sound', 'Companion sounds', 'World sounds']);
     expect(S.audio.intro).toMatch(/microphone is never used/);
     expect(defaultSettings().sound.enabled).toBe(false);
   });
@@ -404,7 +418,7 @@ describe('accessibility and audio wording', () => {
     expect(text).toMatch(/never catches it/);
     expect(text).toMatch(/clicks go straight through/);
     expect(text).toMatch(/does not change your system cursor/);
-    expect(text).toMatch(/right-click the cat or use the tray menu/);
-    expect(S.companion.laserOn).toMatch(/Right-click the cat or use the tray menu/);
+    expect(text).toMatch(/right-click your companion or use the tray menu/);
+    expect(S.companion.laserOn).toMatch(/Right-click your companion or use the tray menu/);
   });
 });

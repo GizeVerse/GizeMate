@@ -155,6 +155,30 @@ export function isMoving(sig: SignatureAction): boolean {
   return sig.movement !== undefined && sig.movement !== 'none';
 }
 
+/** The behaviour opt-out a clip belongs to (signature clips that ARE one of the user-switchable behaviours). */
+const CLIP_OPT_OUT: Readonly<Partial<Record<AnimClip, string>>> = { pounce: 'pounce', tailChase: 'tailChase', groom: 'grooming', pawAt: 'pawAtCursor' };
+/** Clips that are large or fast (a jump, a flip, a spin, a dash, a swing): dropped under reduced motion. */
+const BIG_MOTION_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>(['hop', 'bounce', 'dance', 'pounce', 'tailChase', 'rollOver', 'swing', 'jump', 'run']);
+
+/**
+ * May this signature run with the user's opt-outs and the reduced-motion preference? A signature whose clip (main or
+ * lead-in), or whose id ('zoomies'), maps to a switched-off behaviour is skipped. Under reduced motion every signature
+ * that travels (a teleport is kept: it has a calm swap) or plays a large-amplitude clip is skipped.
+ */
+export function signatureAllowed(sig: SignatureAction, disabled: ReadonlySet<string>, reducedMotion: boolean): boolean {
+  const clips: AnimClip[] = [sig.clip, ...(sig.leadIn ?? [])];
+  if (sig.id === 'zoomies' && disabled.has('zoomies')) return false;
+  for (const c of clips) {
+    const gate = CLIP_OPT_OUT[c];
+    if (gate !== undefined && disabled.has(gate)) return false;
+  }
+  if (reducedMotion) {
+    if (isMoving(sig) && sig.movement !== 'teleport') return false;
+    for (const c of clips) if (BIG_MOTION_CLIPS.has(c)) return false;
+  }
+  return true;
+}
+
 /**
  * The final selection weight of a signature right now, 0 when it is not eligible: its cooldown (and the
  * global gap) must have passed, its requires must hold, and the clip it starts with must be allowed to

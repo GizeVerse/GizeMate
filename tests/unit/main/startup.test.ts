@@ -17,6 +17,8 @@ const h = vi.hoisted(() => {
     /** Calls into the fake Electron app, in order. */
     order: [] as string[],
     failAt: null as string | null,
+    /** The system language the fake app reports before and after ready (pinned: the dialog language must not depend on the machine running the test). */
+    systemLanguage: 'en-US',
     resolveReady: (): void => undefined,
     ready: Promise.resolve(),
     processHandlers: new Map<string, (err: unknown) => void>(),
@@ -49,6 +51,8 @@ const h = vi.hoisted(() => {
     on: (event: string) => {
       state.order.push(`on:${event}`);
     },
+    isReady: () => false,
+    getPreferredSystemLanguages: () => [state.systemLanguage],
     enableSandbox: step('enableSandbox'),
     disableHardwareAcceleration: step('disableHardwareAcceleration'),
     whenReady: () => {
@@ -87,6 +91,7 @@ describe('startup (index.ts)', () => {
     h.state.lockData = [];
     h.state.order = [];
     h.state.failAt = null;
+    h.state.systemLanguage = 'en-US';
     h.state.processHandlers.clear();
     h.state.switches.clear();
     h.app.isPackaged = false;
@@ -147,6 +152,14 @@ describe('startup (index.ts)', () => {
     // The product name (ADR 0004 §9).
     expect(h.dialog.showErrorBox.mock.calls[0]![0]).toBe('GizeMate could not start');
     expect(String(h.dialog.showErrorBox.mock.calls[0]![1])).toMatch(/^GizeMate ran into a problem while starting and has closed\./);
+  });
+
+  it('a failure before ready is worded in Turkish when the system language is Turkish, and in English otherwise', async () => {
+    h.state.systemLanguage = 'tr-TR';
+    h.state.failAt = 'enableSandbox';
+    await boot(false);
+    expect(h.dialog.showErrorBox).toHaveBeenCalledTimes(1);
+    expect(h.dialog.showErrorBox.mock.calls[0]![0]).toBe('GizeMate başlatılamadı');
   });
 
   it('under test, the failure exits without a blocking dialog', async () => {

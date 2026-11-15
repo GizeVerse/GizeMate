@@ -158,6 +158,33 @@ function field<T extends z.ZodType>(schema: T, def: z.output<T>) {
   return schema.default(def as never).catch(def as never);
 }
 
+/** Most entries of a per-character record (names, skins): one per character id. */
+export const MAX_CHARACTER_RECORD_ENTRIES = 16;
+const CHARACTER_ID_SET: ReadonlySet<string> = new Set(CHARACTER_IDS);
+
+/**
+ * A per-character record (characterNames, characterSkins): at most MAX_CHARACTER_RECORD_ENTRIES entries, keys limited
+ * to known character ids, values 1..maxLen characters (names are trimmed). Invalid entries are dropped one by one
+ * (a bad entry never wipes the others); a patch still has to survive unchanged, so it is rejected instead. The result
+ * is a fresh plain object built from own, known keys only (no prototype pollution through '__proto__' or the like).
+ */
+function characterRecord(maxLen: number, trim: boolean) {
+  return z.unknown().transform((value): Record<string, string> => {
+    const out: Record<string, string> = {};
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return out;
+    let n = 0;
+    for (const [k, raw] of Object.entries(value as Record<string, unknown>)) {
+      if (!CHARACTER_ID_SET.has(k) || typeof raw !== 'string') continue;
+      const v = trim ? raw.trim() : raw;
+      if (v.length < 1 || v.length > maxLen) continue;
+      if (n >= MAX_CHARACTER_RECORD_ENTRIES) break;
+      Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
+      n++;
+    }
+    return out;
+  });
+}
+
 /**
  * A global shortcut must not swallow ordinary typing in other apps (see shortcut.ts).
  * Stored values are normalised; patches must already be in canonical form.
@@ -200,7 +227,7 @@ const GeneralSchema = z.object({
    */
   language: field(z.enum(['auto', 'en', 'tr']), 'auto'),
   /** The names of the non-cat companions, by character id (1..24 characters; an empty or missing entry means the character's default name). */
-  characterNames: field(z.record(z.string(), z.string().trim().min(1).max(24)), {}),
+  characterNames: field(characterRecord(24, true), {}),
 });
 
 /**
@@ -227,7 +254,7 @@ const LoginItemSchema = z.object({
 const AppearanceSchema = z.object({
   skin: field(z.enum(SKINS), 'ginger'),
   /** GizeMate: the chosen palette of each non-cat character, by character id (validated against the character's module where used). */
-  characterSkins: field(z.record(z.string(), z.string().min(1).max(24)), {}),
+  characterSkins: field(characterRecord(24, false), {}),
   style: field(z.enum(RENDER_STYLES), 'smooth'),
   size: field(z.number().min(0.5).max(2.5), 1),
   opacity: field(z.number().min(0.3).max(1), 1),
@@ -452,6 +479,13 @@ function withReconciledPreset(s: Settings): Settings {
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+/**
+ * Per-character record leaves. A patch merges one level deep like the other small objects, with an explicit
+ * removal: an id patched to the empty string is DELETED from the record (the character is back to its default
+ * name or palette). A one-level merge alone could never remove an entry.
+ */
+const REMOVABLE_RECORD_LEAVES: ReadonlySet<string> = new Set(['general.characterNames', 'appearance.characterSkins']);
+
 export type PatchResult = { ok: true; settings: Settings } | { ok: false; error: string };
 
 /**
@@ -482,6 +516,17 @@ export function rejectConsentBypass(patch: unknown): string | null {
   return null;
 }
 
+/** `base` plus `patch`, one level deep, as a fresh object; an id patched to '' is removed. Own keys only (never writes '__proto__'). */
+function mergeRemovingEmpty(base: unknown, patch: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (isPlainObject(base)) for (const [k, v] of Object.entries(base)) Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === '') delete out[k];
+    else Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
+  }
+  return out;
+}
+
 /**
  * Applies a patch from an untrusted source (the settings renderer). Unlike loading
  * from disk, invalid values are rejected rather than silently defaulted: every
@@ -506,14 +551,23 @@ export function applySettingsPatch(current: Settings, patch: unknown): PatchResu
       touched.push([section, k, v]);
       // A leaf that is itself a small object (companion.events, companion.journal) merges one level
       // deep, so a patch may name one of its leaves; every other leaf is replaced whole.
-      merged[k] = isPlainObject(v) && isPlainObject(merged[k]) ? { ...merged[k], ...v } : v;
+      if (REMOVABLE_RECORD_LEAVES.has(`${section}.${k}`) && isPlainObject(v)) merged[k] = mergeRemovingEmpty(merged[k], v);
+      else merged[k] = isPlainObject(v) && isPlainObject(merged[k]) ? { ...merged[k], ...v } : v;
     }
     next[section] = merged;
   }
   const parsed = SettingsSchema.parse(next);
   for (const [section, key, value] of touched) {
     const got = (parsed as unknown as Record<string, Record<string, unknown> | undefined>)[section]?.[key];
-    if (isPlainObject(value) && isPlainObject(got)) {
+    if (REMOVABLE_RECORD_LEAVES.has(`${section}.${key}`)) {
+      // What was asked must be what was parsed: a set entry is kept as sent, a removed ('') entry is gone; unknown ids,
+      // oversize values or a full record are rejected, not silently dropped.
+      if (!isPlainObject(value) || !isPlainObject(got)) return { ok: false, error: `invalid value for ${section}.${key}` };
+      for (const [k, v] of Object.entries(value)) {
+        const ok = v === '' ? !Object.hasOwn(got, k) : Object.hasOwn(got, k) && got[k] === v;
+        if (!ok) return { ok: false, error: `invalid value for ${section}.${key}.${k}` };
+      }
+    } else if (isPlainObject(value) && isPlainObject(got)) {
       for (const [k, v] of Object.entries(value)) if (JSON.stringify(got[k]) !== JSON.stringify(v)) return { ok: false, error: `invalid value for ${section}.${key}.${k}` };
     } else if (JSON.stringify(got) !== JSON.stringify(value)) return { ok: false, error: `invalid value for ${section}.${key}` };
   }

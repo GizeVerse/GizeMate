@@ -1,6 +1,6 @@
 # Living Companion (GizeCat 1.5.0)
 
-The Living Companion is the 1.5.0 layer that gives the one GizeCat cat a small world to live in. It adds seven selectable personalities, a derived mood, deeper sleep, small harmless world events, an opt-in Laser Mode, calmer motion, soft sounds and a quiet diary called the Cat Journal. It runs on Windows and on Android (the floating cat and the in-app cat).
+The Living Companion is the 1.5.0 layer that gives the GizeCat cat a small world to live in. **Unreleased 1.6.0 (GizeMate, provisional name) makes it multi-character:** the same engine, events, Laser mode, mood, sleep depth and journal now serve whichever of seven characters is active (one at a time), each with its own companion state; see [the characters](../characters/README.md). This folder was written for the cat; unless a page says otherwise, "the cat" below is the cat's behaviour, and the other characters differ only through their data module (tuning, signature behaviours, event affinities, reactions, voice). None of the multi-character behaviour has been run in the real app. It adds seven selectable personalities, a derived mood, deeper sleep, small harmless world events, an opt-in Laser Mode, calmer motion, soft sounds and a quiet diary called the Cat Journal. It runs on Windows and on Android (the floating cat and the in-app cat).
 
 This page is the overview. The details are in the other pages of this folder:
 
@@ -10,6 +10,7 @@ This page is the overview. The details are in the other pages of this folder:
 - [Journal and memory](journal-and-memory.md): what is stored, how it is bounded, how to clear it.
 - [Animation system](animation-system.md): the clip metadata contract, the posture model and the behaviour catalogue.
 - [Architecture](architecture.md): the developer view, and how to add an event, a personality, a prop or a clip.
+- [The characters](../characters/README.md): the seven companions and the contract each one follows (unreleased 1.6.0).
 - [Living Companion in the sim](../gizeverse/living-companion-sim.md): the sim layers in more detail.
 
 ## Status of 1.5.0 (read this first)

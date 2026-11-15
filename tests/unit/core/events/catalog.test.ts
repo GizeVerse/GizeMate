@@ -141,7 +141,7 @@ describe('world text', () => {
       const tokens = EVENT_CATALOG[id].outcomes.map((o) => o.id).sort();
       expect([...EVENT_OUTCOME_TOKENS[id]].sort(), id).toEqual(tokens);
       for (const tok of tokens) {
-        expect(journalText(id, tok), `${id}:${tok}`).toBe(t.outcomes[tok]);
+        expect(journalText(id, tok, 'en', '{name}'), `${id}:${tok}`).toBe(t.outcomes[tok]);
         expect(t.outcomes[tok]!.length).toBeGreaterThan(15);
       }
     }

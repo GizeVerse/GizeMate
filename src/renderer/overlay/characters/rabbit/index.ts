@@ -157,7 +157,7 @@ export class RabbitRenderer implements CharacterRenderer {
   }
 
   draw(ctx: Parameters<CharacterRenderer['draw']>[0], o: DrawParams): void {
-    drawRabbit(ctx, this.anim, this.rig, getPalette(o.skin), { outline: o.outline, shadow: o.shadow, pixelsPerUnit: o.pixelsPerUnit, accessory: o.accessory });
+    drawRabbit(ctx, this.anim, this.rig, getPalette(o.skin), o);
   }
 
   drawShadow(ctx: Parameters<CharacterRenderer['draw']>[0]): void {

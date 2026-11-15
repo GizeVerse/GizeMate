@@ -242,9 +242,13 @@ export class AlienRig {
       this.velY = vy;
       this.stepAntennae(p, dt, vx, ax, ay);
     } else {
-      this.velX = 0;
-      this.velY = 0;
-      this.stepAntennae(p, 0, 0, 0, 0);
+      // First solve or after reset(): start at rest. A dt = 0 call mid-motion (a paused or repeated frame)
+      // only re-poses the stalks from their held angles, so the lag survives it.
+      if (!this.hasPrev) {
+        this.velX = 0;
+        this.velY = 0;
+      }
+      this.stepAntennae(p, 0, 0, 0, 0, !this.hasPrev);
     }
     this.prevHx = this.hcx;
     this.prevHy = this.hcy;
@@ -255,7 +259,7 @@ export class AlienRig {
     this.antenna[1]!.glow = antGlowR;
   }
 
-  private stepAntennae(p: Pose, dt: number, vx: number, ax: number, ay: number): void {
+  private stepAntennae(p: Pose, dt: number, vx: number, ax: number, ay: number, snap = false): void {
     const drop = p.antDroop;
     const len = ANT_LEN - 3 * drop;
     for (let s = 0; s < 2; s++) {
@@ -275,7 +279,7 @@ export class AlienRig {
         st.vel = clamp(st.vel, -25, 25);
         st.ang += st.vel * dt;
         st.ang = clamp(st.ang, target - 1.4, target + 1.4);
-      } else {
+      } else if (snap) {
         st.ang = target;
         st.vel = 0;
       }

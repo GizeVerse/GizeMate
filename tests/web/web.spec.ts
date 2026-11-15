@@ -231,10 +231,10 @@ test('requests nothing but its own shell files, from the page or its service wor
   const { requests, errors } = await openPage(page);
   // Live with it for a while: the sim at speed, a pointer over the page and a button press.
   await page.evaluate(() => (globalThis as unknown as PageGlobals).__gizecatWebTest.setTimeScale(5));
-  if (isMobile(info)) await page.getByRole('button', { name: 'Call the cat' }).tap();
+  if (isMobile(info)) await page.getByRole('button', { name: /^Call / }).tap();
   else {
     await page.mouse.move(200, 200);
-    await page.getByRole('button', { name: 'Call the cat' }).click();
+    await page.getByRole('button', { name: /^Call / }).click();
   }
   await page.waitForTimeout(4000);
   const origin = new URL(page.url()).origin;
@@ -631,7 +631,7 @@ test('the About section opens the static privacy page, and it opens offline too'
   await showTab(sheet, 'Settings');
   await openFold(sheet, 'About', info);
   const link = sheet.getByRole('link', { name: 'Privacy statement' });
-  await expect(link).toHaveAttribute('href', 'privacy.html');
+  await expect(link).toHaveAttribute('href', 'privacy.html#en');
   await Promise.all([page.waitForEvent('load'), press(link, info)]);
   expect(new URL(page.url()).pathname).toBe('/privacy.html');
   await expect(page.getByRole('heading', { name: 'Privacy', level: 1 })).toBeVisible();

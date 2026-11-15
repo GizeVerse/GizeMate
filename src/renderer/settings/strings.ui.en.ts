@@ -74,7 +74,7 @@ export const UI_EN = {
       groupIdentity: 'Identity',
       groupLook: 'Look',
       nameTitle: 'Name',
-      nameDesc: 'What your companion is called. Up to 24 characters. Clear it to go back to the default name.',
+      nameDesc: 'What your companion is called. Up to 24 characters.',
       paletteTitle: 'Colours',
       paletteDesc: 'Each character has its own colour schemes.',
       animationTitle: 'Animation',

@@ -36,7 +36,8 @@ import type { SessionFlags } from './sessionFlags';
 import { patchFor, type WebField, type WebPatchResult } from './settingsModel';
 import { activityLabel } from './status';
 import type { WebSecretName } from './secretName';
-import { WS } from './strings';
+import { companionName } from './characterHost';
+import { getLocale, WS } from './strings';
 import { createActiveCard, createCharactersView } from './ui/charactersView';
 import { fold, note, subhead, switchRow } from './ui/controls';
 import { createCustomizeView } from './ui/customizeView';
@@ -340,7 +341,7 @@ export function createAndroidPanel(deps: AndroidPanelDeps): AndroidPanel {
       journalSignature = signature;
       const shown = entries.slice(-JOURNAL_MAX).reverse();
       journalList.replaceChildren(
-        ...shown.map((e) => h('li', { class: 'journal-entry' }, [h('time', { class: 'journal-date', text: formatJournalDate(e.at) }), h('span', { class: 'journal-text', text: journalText(e.id, e.outcome) })])),
+        ...shown.map((e) => h('li', { class: 'journal-entry' }, [h('time', { class: 'journal-date', text: formatJournalDate(e.at) }), h('span', { class: 'journal-text', text: journalText(e.id, e.outcome, undefined, companionName(s, getLocale())) })])),
       );
       journalCount.textContent = shown.length > 0 ? WS.panel.journal.count(shown.length) : '';
       journalEmpty.hidden = shown.length > 0;

@@ -28,6 +28,10 @@ The seams, from the inside out:
 4. **The sim and the host meet at `SimEnv` (in) and `SimOutput` (out)** (`src/shared/sim.ts`). The Living Companion fields are all optional, so an ordinary tick is unchanged: `laserMode`, `reducedMotion`, `eventStage` in; `props`, `mood`, `sleepDepth`, `worldEvent`, `journalEntry` out.
 5. **The host maps the output to each overlay** (`src/main/overlay/renderMapping.ts`, `overlayManager.ts`), then the renderer draws (`src/renderer/overlay`).
 
+## Characters (unreleased 1.6.0)
+
+The engine is character-agnostic: `createCatSim` takes an optional character whose `CharacterModule` (`src/shared/characters/`) supplies locomotion clips, decision multipliers, event affinities, signature actions, reactions, a sound profile and a memory allow-list; the engine never switches on a character name. Renderers implement `CharacterRenderer` (`src/renderer/overlay/character/types.ts`) and register in `src/renderer/overlay/characters/registry.ts` (the cat's is `CatRenderer`, wrapping the original code). On the desktop, `src/main/characterRuntime.ts` owns the active sim and host and the swap (save, stop the old host, build the next from its own store, redraw); stores are in `src/main/store/characterStore.ts`; the web host is in `src/web/storage.ts` and `src/web/main.ts` (a swap reloads the page). One character is alive at a time. How to add a character: [docs/characters/README.md](../characters/README.md); decision record: [ADR 0005](../adr/0005-gizemate-multi-character.md).
+
 ## Data flow
 
 ```

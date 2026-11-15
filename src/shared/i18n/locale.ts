@@ -30,3 +30,20 @@ export function resolveLocale(preference: LanguagePreference | undefined, system
   const first = list.find((t) => typeof t === 'string' && t.trim().length > 0);
   return isTurkishTag(first) ? 'tr' : 'en';
 }
+
+/**
+ * The system language from a chain of readers, most trustworthy first. A reader may throw or return an
+ * empty value (an API that is only valid after a host is ready); it is skipped, never fatal. Empty when no
+ * reader yields a tag, which resolveLocale reads as English.
+ */
+export function firstSystemLocale(readers: ReadonlyArray<() => string | undefined | null>): string {
+  for (const read of readers) {
+    try {
+      const tag = read();
+      if (typeof tag === 'string' && tag.trim().length > 0) return tag.trim();
+    } catch {
+      // try the next reader
+    }
+  }
+  return '';
+}

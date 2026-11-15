@@ -3,12 +3,13 @@
 // sent whole (the disabled list included), exactly as the settings merge expects.
 import { EVENT_PACE_RANGE, RARE_EVENT_IDS, WORLD_EVENT_IDS, type AnyEventId } from '../../shared/companion';
 import { eventDescription, eventName } from '../../shared/worldText';
+import { activeCharacterOf, displayName } from './charactersView';
 import { eventsWith, readEvents, setEventEnabled } from './companionView';
 import type { PageContext } from './context';
 import { nestedSliderRow, nestedToggleRow, setNote, type ToggleHandle } from './controls';
 import { h } from './dom';
 import { formatMultiplier } from './format';
-import { S } from './strings';
+import { getLocale, S } from './strings';
 
 const B = S.behavior;
 
@@ -50,8 +51,13 @@ export function worldEventRows(ctx: PageContext): WorldEventRows {
     { title: B.worldPaceTitle, desc: B.worldPaceDesc, icon: 'clock' },
   );
 
-  const eventSwitch = (id: AnyEventId): ToggleHandle =>
-    nestedToggleRow(
+  const companionNow = (): string => {
+    const s = ctx.store.settings;
+    return displayName(s, activeCharacterOf(s), getLocale());
+  };
+  const described = new Map<ToggleHandle, AnyEventId>();
+  const eventSwitch = (id: AnyEventId): ToggleHandle => {
+    const handle = nestedToggleRow(
       ctx,
       'companion',
       'events',
@@ -59,14 +65,22 @@ export function worldEventRows(ctx: PageContext): WorldEventRows {
         read: (v) => !readEvents(v).disabled.includes(id),
         write: (cur, on) => eventsWith(cur, { disabled: setEventEnabled(readEvents(cur).disabled, id, on) }),
       },
-      { title: eventName(id), desc: eventDescription(id) },
+      { title: eventName(id), desc: eventDescription(id, undefined, companionNow()) },
     );
+    described.set(handle, id);
+    return handle;
+  };
   const normal = WORLD_EVENT_IDS.map(eventSwitch);
   const rareList = RARE_EVENT_IDS.map(eventSwitch);
 
   const sessionNote = h('p', { class: 'group-desc', text: B.worldSessionNote });
 
   ctx.store.subscribe(() => {
+    const who = companionNow();
+    for (const [handle, id] of described) {
+      const el = handle.parts.row.querySelector('.row-desc');
+      if (el) el.textContent = eventDescription(id, undefined, who);
+    }
     const e = readEvents(ctx.store.intended('companion', 'events'));
     rare.setDisabled(!e.enabled);
     pace.setDisabled(!e.enabled);

@@ -56,7 +56,7 @@ describe('reason codes in words', () => {
 
   it('never names the app "Desktop Cat"', () => {
     expect(JSON.stringify(R)).not.toContain('Desktop Cat');
-    expect(R.groupTitle).toBe('Take your cat to another device');
+    expect(R.groupTitle).toBe('Take your companion to another device');
   });
 });
 
@@ -174,7 +174,7 @@ describe('macOS wording (1.4.0)', () => {
 
   it('sound and volume name the Windows volume only on Windows', () => {
     expect(soundDescriptions(undefined)).toEqual({ sound: S.appearance.soundDesc, volume: S.appearance.volumeDesc });
-    expect(soundDescriptions(report('win32').platform).volume).toBe('How loud the cat is, on top of the Windows volume. 0: silent.');
+    expect(soundDescriptions(report('win32').platform).volume).toBe('How loud your companion is, on top of the Windows volume. 0: silent.');
     for (const id of ['darwin', 'linux-x11'] as const) {
       const t = soundDescriptions(report(id).platform);
       for (const text of [t.sound, t.volume]) expect(text).not.toMatch(/Windows|this PC/);

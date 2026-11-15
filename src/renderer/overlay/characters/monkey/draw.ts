@@ -119,7 +119,16 @@ function paintPendant(rig: Rig, ppu: number): void {
     const uy = rig.uy;
     const nx = rig.neckX - ux * 1.5;
     const ny = rig.neckY - uy * 1.5;
-    drawPendantBetween(ctx, nx - rig.fx * 6.5, ny - rig.fy * 6.5, nx + rig.fx * 6.5, ny + rig.fy * 6.5, -ux + rig.fx * 0.3, -uy + rig.fy * 0.3, 1.1, sk.outline, ol, ppu);
+    // The heart hangs toward world down (the pose matrix maps it back into the body frame), also mid-backflip or swing.
+    const m = rig.m;
+    const det = m[0]! * m[3]! - m[1]! * m[2]!;
+    let hx = -ux + rig.fx * 0.3;
+    let hy = -uy + rig.fy * 0.3;
+    if (Math.abs(det) > 1e-4) {
+      hx = -m[2]! / det;
+      hy = m[0]! / det;
+    }
+    drawPendantBetween(ctx, nx - rig.fx * 6.5, ny - rig.fy * 6.5, nx + rig.fx * 6.5, ny + rig.fy * 6.5, hx, hy, 1.1, sk.outline, ol, ppu);
   }
 
 function paintTail(tail: TailChain): void {

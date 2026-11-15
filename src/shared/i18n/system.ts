@@ -1,5 +1,5 @@
 // Catalogue groups for text the Windows main process shows outside the settings window: the tray menu,
-// the cat's right-click menu, the tray tooltip and the launch notice. Merged into en.ts / tr.ts. English
+// the companion's right-click menu, the tray tooltip and the launch notice. Merged into en.ts / tr.ts. English
 // is identical to the literals that used to live in src/main/lifecycle (tests pin them).
 // {product} is the display name from the brand layer (BRAND.product); the Windows-installed name rule is
 // unaffected because these strings never name the installed entry.
@@ -8,12 +8,12 @@ export const systemEn = {
   menu: {
     show: 'Show {name}',
     hide: 'Hide {name}',
-    resumeCat: 'Resume cat',
-    pauseCat: 'Pause cat',
+    resumeNamed: 'Resume {name}',
+    pauseNamed: 'Pause {name}',
     interactions: 'Interactions',
     visionResume: 'Vision ({mode}): resume',
     visionPause: 'Vision ({mode}): privacy pause',
-    callCat: 'Call {name}',
+    callNamed: 'Call {name}',
     laser: 'Laser mode',
     laserStop: 'Stop laser mode',
     eventsPause: 'Pause world events',
@@ -87,27 +87,27 @@ export const systemEn = {
   },
   notice: {
     launchTitle: '{product} now starts with Windows',
-    launchBody: 'Your cat appears when you sign in. To change this, click here for Settings › General, or use Task Manager › Startup apps.',
+    launchBody: 'Your companion appears when you sign in. To change this, click here for Settings › General, or use Task Manager › Startup apps.',
   },
 };
 
 export const systemTr: typeof systemEn = {
   menu: {
-    show: '{name} adlı kediyi göster',
-    hide: '{name} adlı kediyi gizle',
-    resumeCat: 'Kediye devam ettir',
-    pauseCat: 'Kediyi duraklat',
+    show: 'Göster: {name}',
+    hide: 'Gizle: {name}',
+    resumeNamed: 'Devam ettir: {name}',
+    pauseNamed: 'Duraklat: {name}',
     interactions: 'Etkileşim',
     visionResume: 'Görüntü ({mode}): devam et',
     visionPause: 'Görüntü ({mode}): gizlilik duraklatması',
-    callCat: '{name} adlı kediyi çağır',
+    callNamed: 'Çağır: {name}',
     laser: 'Lazer modu',
     laserStop: 'Lazer modunu durdur',
     eventsPause: 'Dünya olaylarını duraklat',
     eventsResume: 'Dünya olaylarına devam et',
     settings: 'Ayarlar…',
     quit: '{product} uygulamasından çık',
-    pet: '{name} adlı kediyi sev',
+    pet: 'Sev: {name}',
     callToCursor: 'İmlecin yanına çağır',
     play: 'Oyna',
     wake: 'Uyandır',
@@ -172,6 +172,6 @@ export const systemTr: typeof systemEn = {
   },
   notice: {
     launchTitle: '{product} artık Windows ile başlıyor',
-    launchBody: 'Kediniz oturum açtığınızda görünür. Bunu değiştirmek için Ayarlar › Genel için buraya tıklayın ya da Görev Yöneticisi › Başlangıç uygulamaları bölümünü kullanın.',
+    launchBody: 'Arkadaşınız oturum açtığınızda görünür. Bunu değiştirmek için Ayarlar › Genel için buraya tıklayın ya da Görev Yöneticisi › Başlangıç uygulamaları bölümünü kullanın.',
   },
 };

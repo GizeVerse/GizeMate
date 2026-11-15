@@ -15,7 +15,7 @@ import { createJsonStore } from './store/jsonStore';
 import { createSettingsStore } from './store/settingsStore';
 import { BRAND } from '../shared/brand';
 import { t } from '../shared/i18n';
-import { DEFAULT_LOCALE, resolveLocale, type Locale } from '../shared/i18n/locale';
+import { firstSystemLocale, resolveLocale, type Locale } from '../shared/i18n/locale';
 import { IDENTITY } from '../shared/identity';
 import type { Settings } from '../shared/settings';
 
@@ -26,11 +26,15 @@ export const APP_USER_MODEL_ID = IDENTITY.appUserModelId;
  */
 let languageChoice: Settings['general']['language'] = 'auto';
 function dialogLocale(): Locale {
-  try {
-    return resolveLocale(languageChoice, app.getLocale());
-  } catch {
-    return DEFAULT_LOCALE;
-  }
+  // app.getLocale() is only valid after 'ready' (before it, it may throw or answer empty): ask it only then,
+  // and otherwise read the system language from the runtime and the environment.
+  const system = firstSystemLocale([
+    () => (app.isReady() ? app.getLocale() : undefined),
+    () => app.getPreferredSystemLanguages()[0],
+    () => Intl.DateTimeFormat().resolvedOptions().locale,
+    () => process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG,
+  ]);
+  return resolveLocale(languageChoice, system);
 }
 
 /** macOS: 'activate' events this soon after start belong to the launch itself. */

@@ -191,6 +191,15 @@ function registryEntries(value: unknown): Record<string, unknown> | null {
   return out;
 }
 
+/** Every raw entry of a registry this build may rewrite (current or legacy-unversioned schema), unknown ids included; null when it must not be rewritten. */
+function rawRegistryCharacters(value: unknown): Record<string, unknown> | null {
+  if (registryEntries(value) === null) return null;
+  const chars = (value as { characters: Record<string, unknown> }).characters;
+  const out: Record<string, unknown> = {};
+  for (const [id, entry] of Object.entries(chars)) if (id !== '__proto__') out[id] = entry;
+  return out;
+}
+
 type Read = { status: 'ok'; value: unknown } | { status: 'missing' } | { status: 'corrupt' } | { status: 'error'; reason: string };
 
 /** Opens the store. `access` may throw (reading window.localStorage can raise SecurityError). */
@@ -227,6 +236,13 @@ export function openWebStorage(access: () => StorageLike | null | undefined, log
     }
   }
 
+  let registryWarned = false;
+  function warnRegistryKept(why: string): void {
+    if (registryWarned) return;
+    registryWarned = true;
+    log.warn('the stored companions registry cannot be rewritten safely: not saving this companion (the stored data is left as it is)', { why });
+  }
+
   function write(key: string, value: unknown, what: string): boolean {
     if (!store) return false;
     try {
@@ -253,7 +269,7 @@ export function openWebStorage(access: () => StorageLike | null | undefined, log
       return unavailableReason;
     },
     loadCat(random, nowEpochMs, character = DEFAULT_CHARACTER) {
-      const fresh = (): PersistedCat => migrateCatState(null, random, nowEpochMs).cat;
+      const fresh = (): PersistedCat => migrateCatState(null, random, nowEpochMs, character).cat;
       const what = character === DEFAULT_CHARACTER ? 'cat' : `${character} companion`;
       try {
         let r: Read;
@@ -276,7 +292,7 @@ export function openWebStorage(access: () => StorageLike | null | undefined, log
           log.warn(`stored ${what} unreadable: starting a new one`);
           return { cat: fresh(), source: 'recovered' };
         }
-        const m = migrateCatState(r.value, random, nowEpochMs);
+        const m = migrateCatState(r.value, random, nowEpochMs, character);
         if (m.recovered) log.warn(`stored ${what} failed validation: starting a new one`);
         return { cat: m.cat, source: m.recovered ? 'recovered' : 'stored' };
       } catch (err) {
@@ -286,10 +302,26 @@ export function openWebStorage(access: () => StorageLike | null | undefined, log
     },
     saveCat(cat, character = DEFAULT_CHARACTER) {
       if (character === DEFAULT_CHARACTER) return write(CAT_STORAGE_KEY, cat, 'cat');
-      // Read-modify-write: the other companions' entries are kept exactly as they are (even unreadable ones).
+      // Read-modify-write on the RAW registry: every other companion's entry (known id or not, readable or not)
+      // is kept exactly as it is. A registry this build cannot safely rewrite (unreadable, oversized, corrupt,
+      // newer schema, not an object) is never replaced: the save is refused and the stored value stays as found.
       const reg = read(CHARACTERS_STORAGE_KEY);
-      const entries = reg.status === 'ok' ? (registryEntries(reg.value) ?? {}) : {};
-      return write(CHARACTERS_STORAGE_KEY, { schemaVersion: CHARACTERS_SCHEMA_VERSION, characters: { ...entries, [character]: cat } }, `${character} companion`);
+      let kept: Record<string, unknown> = {};
+      if (reg.status === 'ok') {
+        const raw = rawRegistryCharacters(reg.value);
+        if (raw === null) {
+          warnRegistryKept('unsupported');
+          return false;
+        }
+        kept = raw;
+      } else if (reg.status !== 'missing') {
+        warnRegistryKept(reg.status);
+        return false;
+      }
+      const characters = Object.create(null) as Record<string, unknown>;
+      for (const [id, entry] of Object.entries(kept)) if (id !== character && id !== '__proto__') characters[id] = entry;
+      characters[character] = cat;
+      return write(CHARACTERS_STORAGE_KEY, { schemaVersion: CHARACTERS_SCHEMA_VERSION, characters }, `${character} companion`);
     },
     loadSettings() {
       const r = read(SETTINGS_STORAGE_KEY);
@@ -315,6 +347,71 @@ export function openWebStorage(access: () => StorageLike | null | undefined, log
     },
     get stats() {
       return { ...stats };
+    },
+  };
+}
+
+/** sessionStorage key of the restart fallback (this tab only; only used when localStorage is unavailable). */
+export const SESSION_BACKUP_KEY = 'gizecat.web.session.v1';
+
+/** What survives a restart of the page (a character or language change) when localStorage is unavailable. */
+export interface SessionBackup {
+  settings: Settings;
+  /** The companions seen in this tab's session, by character id. */
+  cats: Partial<Record<CharacterId, PersistedCat>>;
+}
+
+export interface SessionBackupStore {
+  /** The backup, validated like stored data (settings by webSettings, every cat by migrateCatState); null when absent or unusable. */
+  load(): SessionBackup | null;
+  /** False when sessionStorage refused (unavailable or full): nothing could survive the restart. */
+  save(backup: SessionBackup): boolean;
+}
+
+/**
+ * Without localStorage (a private window, blocked site data) a swap used to reload into a fresh cat with the choice
+ * undone. sessionStorage (same tab, gone with it) carries the choice and the live companions across the restart instead.
+ * `access` may throw.
+ */
+export function openSessionBackup(access: () => StorageLike | null | undefined): SessionBackupStore {
+  const get = (): StorageLike | null => {
+    try {
+      return access() ?? null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    load() {
+      const store = get();
+      if (!store) return null;
+      try {
+        const text = store.getItem(SESSION_BACKUP_KEY);
+        if (typeof text !== 'string' || text.length > MAX_STORED_CHARS) return null;
+        const v = JSON.parse(text) as { settings?: unknown; cats?: unknown } | null;
+        if (v === null || typeof v !== 'object') return null;
+        const cats: SessionBackup['cats'] = {};
+        if (v.cats !== null && typeof v.cats === 'object' && !Array.isArray(v.cats)) {
+          for (const [id, raw] of Object.entries(v.cats as Record<string, unknown>)) {
+            if (!isCharacterId(id)) continue;
+            const m = migrateCatState(raw, () => 0.5, Date.now(), id);
+            if (!m.recovered) cats[id] = m.cat;
+          }
+        }
+        return { settings: webSettings(v.settings ?? null), cats };
+      } catch {
+        return null;
+      }
+    },
+    save(backup) {
+      const store = get();
+      if (!store) return false;
+      try {
+        store.setItem(SESSION_BACKUP_KEY, JSON.stringify({ settings: storedSettings(backup.settings), cats: backup.cats }));
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 }

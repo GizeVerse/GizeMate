@@ -4,6 +4,10 @@ Status: IMPLEMENTED and statically verified (type-check, lint, read-only review)
 
 Back to the [overview](README.md). The drawing itself is in `src/renderer/overlay/cat/clips.ts`, `animator.ts` and `rig.ts`; the pure metadata and the transition model are in `src/shared/animationCatalog.ts`.
 
+## Characters and clips (unreleased 1.6.0)
+
+The clip vocabulary (`ANIM_CLIPS` in `src/shared/cat.ts`) gained eleven shared performance clips for the new characters: `hop`, `bounce`, `float`, `vanish`, `appear`, `swing`, `squish`, `scan`, `beam`, `peek` and `dance`. The cat draws none of them. Every character's module lists the clips its renderer draws itself (`clips`) and an alias table (`clipAlias`) that says which of its own clips stands in for the rest; whatever remains falls through the shared fallbacks, so a snapshot never names a pose that cannot be drawn. The drawing of each non-cat character is in `src/renderer/overlay/characters/<id>/`; the cat's is the code described below. The counts and tables on this page were written for the cat and have not been re-derived for the new clips; `src/shared/animationCatalog.ts` and the character modules are the source of truth. See [the characters](../characters/README.md).
+
 ## The clip metadata contract
 
 `CLIP_META` is one declarative table, a `Record<AnimClip, ClipMeta>`. Because it is typed as a record over every clip name, adding a clip to `ANIM_CLIPS` without an entry fails to compile. For each clip it says:
