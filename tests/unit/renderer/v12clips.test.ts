@@ -29,6 +29,7 @@ import { frameIntervalMs, FULL_RATE_MS, type FrameMotion } from '../../../src/re
 import { createPose, LEG_POSE_KEYS, POSE_KEYS, type Pose } from '../../../src/renderer/overlay/cat/pose';
 import { applyMatX, applyMatY, Rig } from '../../../src/renderer/overlay/cat/rig';
 import { CatScene } from '../../../src/renderer/overlay/scene';
+import { slow } from '../../helpers/slowTimeout';
 
 // The 14 clips of v1.2: those between 'climb' and the Living Companion clips (scratch, shake, confused),
 // which livingCompanion.test.ts covers.
@@ -524,7 +525,7 @@ describe('strike poses: hit region vs HIT_FRONT_EXTENT_DIP (ADR 0003 §4.2, §6.
     expect(failures.slice(0, 5)).toEqual([]);
     // The bounds are not vacuous: each pose reaches most of the way to its bound.
     for (const key of Object.keys(HIT_FRONT_EXTENT_DIP) as StrikePose[]) expect(worst[key], key).toBeGreaterThan(25);
-  }, 120_000);
+  }, slow(120_000));
 });
 
 describe('emote clamp and head hit region (ADR 0003 §8.2)', () => {

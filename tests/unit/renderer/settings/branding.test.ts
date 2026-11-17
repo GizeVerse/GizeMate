@@ -56,7 +56,10 @@ describe('settings window: product names', () => {
     // loginText.*: main's startup codes, worded where Windows or macOS shows the installed name (Task Manager, Applications, Login Items).
     const expected = ['about.identity', 'about.uninstall', 'about.uninstallMac', 'general.dockDesc', 'general.launchStatus.windowsDisabled'];
     const login = ['macApproval', 'macNotFound', 'macNotInApplications', 'macRequiresApproval', 'stillStarts', 'windowsDisabled', 'windowsDisabledRestored', 'windowsDisabledSaved', 'wrongLocation'].map((k) => `loginText.${k}`);
-    expect(old.sort()).toEqual([...expected, ...login].sort());
+    // Since 1.6.0 the installed name IS the product name, so "strings naming it" is every string naming the product and the
+    // exact-list check only applies if the two are ever staged apart again (ADR 0004 §9).
+    if (BRAND.installedName !== BRAND.product) expect(old.sort()).toEqual([...expected, ...login].sort());
+    else for (const k of [...expected, ...login]) expect(old, k).toContain(k);
   });
 
   it('the walk reaches the strings it checks', () => {

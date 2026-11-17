@@ -15,7 +15,7 @@ const read = (...parts: string[]): string => fs.readFileSync(path.join(ROOT, ...
 
 describe('BRAND', () => {
   it('names the product, its platform, the installed name and the former name', () => {
-    expect(BRAND).toEqual({ platform: 'GizeVerse', product: 'GizeMate', installedName: 'Desktop Cat', formerName: 'Desktop Cat', previousName: 'GizeCat' });
+    expect(BRAND).toEqual({ platform: 'GizeVerse', product: 'GizeMate', installedName: 'GizeMate', formerName: 'Desktop Cat', previousName: 'GizeCat' });
     expect(Object.isFrozen(BRAND)).toBe(true);
     expect(CAT_CHARACTER.displayName).toBe(BRAND.product);
   });
@@ -29,10 +29,16 @@ describe('BRAND', () => {
   it('installedName is what the installer really shows in Windows (shortcut, Apps list, exe description)', () => {
     const yml = read('electron-builder.yml');
     const value = (key: string): string | undefined => new RegExp(`^[ \\t]*${key}:[ \\t]*(.+?)[ \\t]*$`, 'm').exec(yml)?.[1];
-    // productName is the exe's FileDescription, which Task Manager › Startup apps lists.
-    expect(value('productName')).toBe(BRAND.installedName);
+    // productName is frozen (app.getName(), userData folder, install folder): it is NOT the installed name.
+    expect(value('productName')).toBe('Desktop Cat');
     expect(value('shortcutName')).toBe(BRAND.installedName);
     expect(value('uninstallDisplayName')).toBe(BRAND.installedName);
+    // The exe's FileDescription / ProductName (Task Manager › Startup apps) are set by the afterPack hook.
+    expect(value('afterPack')).toBe('build/afterPack.cjs');
+    expect(read('build/afterPack.cjs')).toContain(`const DISPLAY_NAME = '${BRAND.installedName}';`);
+    // The installer file name carries the product name too.
+    expect(value('artifactName')).toBeDefined();
+    expect(yml).toContain('artifactName: GizeMate-Setup-${version}-${arch}.${ext}');
   });
 });
 

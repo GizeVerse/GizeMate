@@ -149,9 +149,9 @@ describe('Windows Startup apps always wins', () => {
     const svc = r.boot();
     const res = svc.setLaunchAtLogin(true);
     expect(res).toMatchObject({ ok: true, message: expect.stringMatching(/Task Manager › Startup apps/) });
-    // The app is GizeMate; the entry Task Manager lists keeps the installed name (ADR 0004 §9).
+    // The app is GizeMate; the entry Task Manager lists carries the installed name (GizeMate since 1.6.0, ADR 0004 §9).
     expect(res.message).toBe(
-      'Saved. Windows Startup apps keeps the Desktop Cat entry disabled, and GizeMate does not override that. To turn it on, open Task Manager › Startup apps and enable the Desktop Cat entry.',
+      'Saved. Windows Startup apps keeps the GizeMate entry disabled, and GizeMate does not override that. To turn it on, open Task Manager › Startup apps and enable the GizeMate entry.',
     );
     expect(r.win.writes).toHaveLength(1);
     expect(r.win.approved.get(LOGIN_ITEM_NAME)?.data).toEqual(Buffer.from(TASK_MANAGER_DISABLED));

@@ -1,6 +1,7 @@
 appId: io.github.enesiltas.desktopcat
 productName: Desktop Cat
 copyright: Copyright © 2026 enesiltas
+afterPack: build/afterPack.cjs
 electronVersion: 44.9.3
 npmRebuild: false
 directories:
@@ -158,15 +159,15 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Desktop Cat
+  shortcutName: GizeMate
   runAfterFinish: true
   deleteAppDataOnUninstall: false
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
-  uninstallDisplayName: Desktop Cat
+  uninstallDisplayName: GizeMate
   # 1.4.0: per-architecture names (the NSIS GUID derives from appId, so upgrades are unaffected);
   # no combined installer (it would carry both payloads, ~240 MB).
-  artifactName: Desktop-Cat-Setup-${version}-${arch}.${ext}
+  artifactName: GizeMate-Setup-${version}-${arch}.${ext}
   buildUniversalInstaller: false
   license: LICENSE
   include: build/installer.nsh

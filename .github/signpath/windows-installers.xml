@@ -17,8 +17,8 @@
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <zip-file>
     <pe-file-set>
-      <include path="Desktop-Cat-Setup-*-x64.exe" />
-      <include path="Desktop-Cat-Setup-*-arm64.exe" />
+      <include path="GizeMate-Setup-*-x64.exe" />
+      <include path="GizeMate-Setup-*-arm64.exe" />
       <for-each>
         <authenticode-sign />
       </for-each>

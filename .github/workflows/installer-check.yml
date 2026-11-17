@@ -50,17 +50,17 @@ jobs:
           npm ci --ignore-scripts
           node node_modules/electron/install.js
           npm run package
-          Get-ChildItem release -Filter 'Desktop-Cat-Setup-*.exe' | Format-Table Name, Length
+          Get-ChildItem release -Filter 'GizeMate-Setup-*.exe' | Format-Table Name, Length
           Pop-Location
       # package:win stages the ARM64 koffi binary (scripts/stage-koffi-arch.mjs, integrity-checked
-      # against package-lock.json) and builds Desktop-Cat-Setup-<version>-x64.exe and -arm64.exe.
+      # against package-lock.json) and builds GizeMate-Setup-<version>-x64.exe and -arm64.exe.
       - name: Build the NEW installers (this commit, x64 and ARM64)
         shell: pwsh
         run: |
           npm ci --ignore-scripts
           node node_modules/electron/install.js
           npm run package:win
-          Get-ChildItem release -Filter 'Desktop-Cat-Setup-*.exe' | ForEach-Object { $_.Name; (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
+          Get-ChildItem release -Filter 'GizeMate-Setup-*.exe' | ForEach-Object { $_.Name; (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
       # One step per check: a pwsh step only fails on the exit code of its last command.
       - name: Static payload check, x64 (no binary is executed)
         run: node scripts/check-win-payload.mjs --arch x64 --dir release/win-unpacked
@@ -74,7 +74,7 @@ jobs:
       - name: Upgrade old -> new keeps settings and the startup entry (x64 installer)
         shell: pwsh
         run: |
-          $old = Get-ChildItem ../old/release -Filter 'Desktop-Cat-Setup-*.exe' | Select-Object -First 1
+          $old = Get-ChildItem ../old/release -Filter 'GizeMate-Setup-*.exe' | Select-Object -First 1
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/upgrade-test.ps1 -OldInstaller $old.FullName -Arch x64
       # build/installer.nsh customInit: the ARM64 installer stops in .onInit on a PC that is not
       # Windows on Arm (silent: no message, non-zero exit code) and writes nothing. Runs after the
@@ -83,7 +83,7 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $setup = Get-Item "release/Desktop-Cat-Setup-$version-arm64.exe"
+          $setup = Get-Item "release/GizeMate-Setup-$version-arm64.exe"
           $target = Join-Path $env:RUNNER_TEMP 'dcat arm64 guard'
           $p = Start-Process -FilePath $setup.FullName -ArgumentList @('/S', "/D=$target") -Wait -PassThru
           $entry = @(Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue | Where-Object { (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).DisplayName -eq 'Desktop Cat' })
@@ -98,8 +98,8 @@ jobs:
       #   shell: pwsh
       #   run: |
       #     New-Item -ItemType Directory -Force out/installers/old, out/installers/new | Out-Null
-      #     Copy-Item (Get-ChildItem ../old/release -Filter 'Desktop-Cat-Setup-*.exe' | Select-Object -First 1).FullName out/installers/old/
-      #     Copy-Item release/Desktop-Cat-Setup-*.exe out/installers/new/
+      #     Copy-Item (Get-ChildItem ../old/release -Filter 'GizeMate-Setup-*.exe' | Select-Object -First 1).FullName out/installers/old/
+      #     Copy-Item release/GizeMate-Setup-*.exe out/installers/new/
       # - uses: actions/upload-artifact@v4
       #   with:
       #     name: installers
@@ -142,16 +142,16 @@ jobs:
   #     - name: Fresh install, startup registration, uninstall (ARM64 installer)
   #       shell: pwsh
   #       run: |
-  #         $setup = Get-ChildItem out/installers/new -Filter 'Desktop-Cat-Setup-*-arm64.exe' | Select-Object -First 1
+  #         $setup = Get-ChildItem out/installers/new -Filter 'GizeMate-Setup-*-arm64.exe' | Select-Object -First 1
   #         powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-test.ps1 -Arch arm64 -Installer $setup.FullName
   #     - name: Fresh install of the x64 installer under x64 emulation
   #       shell: pwsh
   #       run: |
-  #         $setup = Get-ChildItem out/installers/new -Filter 'Desktop-Cat-Setup-*-x64.exe' | Select-Object -First 1
+  #         $setup = Get-ChildItem out/installers/new -Filter 'GizeMate-Setup-*-x64.exe' | Select-Object -First 1
   #         powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-test.ps1 -Arch x64 -Installer $setup.FullName
   #     - name: Upgrade OLD x64 -> NEW ARM64 keeps settings and the startup entry
   #       shell: pwsh
   #       run: |
-  #         $old = Get-ChildItem out/installers/old -Filter 'Desktop-Cat-Setup-*.exe' | Select-Object -First 1
-  #         $new = Get-ChildItem out/installers/new -Filter 'Desktop-Cat-Setup-*-arm64.exe' | Select-Object -First 1
+  #         $old = Get-ChildItem out/installers/old -Filter 'GizeMate-Setup-*.exe' | Select-Object -First 1
+  #         $new = Get-ChildItem out/installers/new -Filter 'GizeMate-Setup-*-arm64.exe' | Select-Object -First 1
   #         powershell -NoProfile -ExecutionPolicy Bypass -File scripts/upgrade-test.ps1 -OldInstaller $old.FullName -Arch arm64 -Installer $new.FullName

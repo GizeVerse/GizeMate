@@ -15,6 +15,7 @@ import { CatPuppet } from '../../../src/renderer/overlay/cat/puppet';
 import { CatScene, type DeviceRect, type Layer } from '../../../src/renderer/overlay/scene';
 import { isRenderState } from '../../../src/renderer/overlay/validate';
 import { boxInside, createExtentCtx, emptyBox, type Box } from './extentCtx';
+import { slow } from '../../helpers/slowTimeout';
 
 const DT = 1000 / 60;
 
@@ -406,5 +407,5 @@ describe('reacting poses stay inside the drawn bounds', () => {
       }
     }
     expect(failures.slice(0, 5)).toEqual([]);
-  }, 120_000);
+  }, slow(120_000));
 });

@@ -534,10 +534,10 @@ describe('Android repository hygiene', () => {
 
   it('names outputs by what they are, and offers one command for signed APK and AAB', () => {
     const script = read('scripts', 'android-gradle.mjs');
-    expect(script).toContain('GizeCat-${version}-android-unsigned.apk');
-    expect(script).toContain('GizeCat-${version}-android.apk');
-    expect(script).toContain("GizeCat-${version}-android${aabSigned ? '' : '-unsigned'}.aab");
-    expect(script).toContain('GizeCat-${version}-android-trial-debugsigned.apk');
+    expect(script).toContain('GizeMate-${version}-android-unsigned.apk');
+    expect(script).toContain('GizeMate-${version}-android.apk');
+    expect(script).toContain("GizeMate-${version}-android${aabSigned ? '' : '-unsigned'}.aab");
+    expect(script).toContain('GizeMate-${version}-android-trial-debugsigned.apk');
     // An AAB's name comes from its own signature block, not from which configuration exists.
     expect(script).toContain('hasJarSignature(aab)');
     expect(script).not.toContain('keystore.properties');
@@ -566,8 +566,8 @@ describe('Android repository hygiene', () => {
     const script = read('scripts', 'android-gradle.mjs');
     // By source output, not extension: the trial is an APK too and must leave the release APK alone.
     expect(script).toContain('replaces: Object.values(apkNames)');
-    expect(script).toContain('replaces: [`GizeCat-${version}-android.aab`, `GizeCat-${version}-android-unsigned.aab`]');
-    expect(script).toMatch(/name: `GizeCat-\$\{version\}-android-trial-debugsigned\.apk`,\s*replaces: \[\],/);
+    expect(script).toContain('replaces: [`GizeMate-${version}-android.aab`, `GizeMate-${version}-android-unsigned.aab`]');
+    expect(script).toMatch(/name: `GizeMate-\$\{version\}-android-trial-debugsigned\.apk`,\s*replaces: \[\],/);
     // Removed before the copy, and both before the checksums are written.
     const removed = script.indexOf('fs.rmSync(path.join(dest, old)');
     expect(removed).toBeGreaterThan(-1);

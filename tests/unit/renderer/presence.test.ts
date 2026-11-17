@@ -20,6 +20,7 @@ import { seededRandom } from '../../../src/renderer/overlay/cat/math';
 import { CatScene, type Layer } from '../../../src/renderer/overlay/scene';
 import { presenceRectPx } from '../../../src/main/overlay/renderMapping';
 import { createExtentCtx, emptyBox, type Box } from './extentCtx';
+import { slow } from '../../helpers/slowTimeout';
 
 const ANCHOR = { x: 1200, y: 900 };
 
@@ -166,7 +167,7 @@ describe('presence rect covers the drawn cat', () => {
     }
     expect(failures.slice(0, 5)).toEqual([]);
     expect(least).toBeGreaterThanOrEqual(HEADROOM_DIP);
-  }, 120_000);
+  }, slow(120_000));
 
   it('with >= 6 DIP of headroom under every v1.2 render hint (flight kinds, hard landings, balance)', () => {
     const cases: Array<[AnimClip, Hints]> = [];
@@ -192,7 +193,7 @@ describe('presence rect covers the drawn cat', () => {
       }
     }
     expect(failures.slice(0, 5)).toEqual([]);
-  }, 120_000);
+  }, slow(120_000));
 });
 
 // The T8 click guard (catHost.ts) relies on both: it cuts out the obstacle windows meeting the presence
@@ -249,7 +250,7 @@ describe('presence rect covers the hit rects, which reach past the sim bounds', 
       }
     }
     expect(failures.slice(0, 5)).toEqual([]);
-  }, 120_000);
+  }, slow(120_000));
 
   it('a climbing cat reaches at least 11 DIP (x size x scale) below its grip point, under the sim bounds', () => {
     for (const size of [1, 1.5, 2.5]) {

@@ -67,8 +67,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # One NSIS installer per architecture, Desktop-Cat-Setup-<version>-x64.exe and
-  # Desktop-Cat-Setup-<version>-arm64.exe, built on the x64 runner. The ARM64 one is only checked
+  # One NSIS installer per architecture, GizeMate-Setup-<version>-x64.exe and
+  # GizeMate-Setup-<version>-arm64.exe, built on the x64 runner. The ARM64 one is only checked
   # statically here (PE machine, koffi payload, asar header, fuses); an x64 runner cannot run
   # ARM64 binaries.
   windows:
@@ -103,7 +103,7 @@ jobs:
         run: node scripts/check-win-payload.mjs --arch arm64 --dir release/win-arm64-unpacked
       - name: SHA-256 checksums
         run: |
-          $files = @(Get-ChildItem release/Desktop-Cat-Setup-*.exe | Sort-Object Name)
+          $files = @(Get-ChildItem release/GizeMate-Setup-*.exe | Sort-Object Name)
           if ($files.Count -ne 2) { throw "expected 2 installers, found $($files.Count)" }
           $lines = $files | ForEach-Object { '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant(), $_.Name }
           $text = ($lines -join "`n") + "`n"
@@ -113,7 +113,7 @@ jobs:
         with:
           name: windows-nsis-installer
           path: |
-            release/Desktop-Cat-Setup-*.exe
+            release/GizeMate-Setup-*.exe
             release/SHA256SUMS-windows.txt
           if-no-files-found: error
           retention-days: 14
@@ -280,7 +280,7 @@ jobs:
       - name: Collect the installers for round 2 (unsigned)
         run: |
           $ErrorActionPreference = 'Stop'
-          $files = @(Get-ChildItem release/Desktop-Cat-Setup-*.exe | Sort-Object Name)
+          $files = @(Get-ChildItem release/GizeMate-Setup-*.exe | Sort-Object Name)
           if ($files.Count -ne 2) { throw "expected 2 installers, found $($files.Count)" }
           New-Item -ItemType Directory -Force -Path signpath/installers-in | Out-Null
           foreach ($f in $files) {
@@ -323,7 +323,7 @@ jobs:
           INSTALLER_REQUEST: ${{ steps.sign-installers.outputs.signing-request-id }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $inputs = @(Get-ChildItem signpath/installers-in/Desktop-Cat-Setup-*.exe | Sort-Object Name)
+          $inputs = @(Get-ChildItem signpath/installers-in/GizeMate-Setup-*.exe | Sort-Object Name)
           $pairs = @(); $signed = @()
           foreach ($f in $inputs) {
             $out = "signpath/installers-out/$($f.Name)"
@@ -367,7 +367,7 @@ jobs:
         with:
           name: windows-nsis-installer-signed
           path: |
-            final/Desktop-Cat-Setup-*.exe
+            final/GizeMate-Setup-*.exe
             final/SHA256SUMS-windows.txt
             final/signing-provenance-windows.txt
           if-no-files-found: error

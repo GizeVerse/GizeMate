@@ -10,6 +10,7 @@ import type { DisplayGeometry, WindowInfo } from '../../../../src/shared/world';
 import { mulberry32, newPersistedCat } from '../../../../src/core/behavior';
 import { PHYSICAL_STATES } from '../../../../src/core/behavior/states';
 import { callCat, display, Harness, ledge, onWindowTop, settingsWith, SINGLE, stripId, tabStrip, taskbar, taskbarId, topId, WAKE_MS, world } from './fixtures';
+import { slow } from '../../../helpers/slowTimeout';
 
 const MIN = 60_000;
 const WALL = 1_800_000_000_000;
@@ -435,7 +436,7 @@ describe('window tops and sides', () => {
       if (onWall && toppedOut) climbed++;
     }
     expect(climbed).toBeGreaterThanOrEqual(1);
-  }, 120_000);
+  }, slow(120_000));
 
   it('with "Climb windows" off it never climbs (and with "Sit on windows" off neither)', () => {
     const tall = { x: 900, y: 400, width: 600, height: 640 };
@@ -643,5 +644,5 @@ describe('typing keeps the cat off surfaces', () => {
     const free = trips(0);
     expect(free).toBeGreaterThan(0);
     expect(calm).toBeLessThan(free * 0.7);
-  }, 120_000);
+  }, slow(120_000));
 });

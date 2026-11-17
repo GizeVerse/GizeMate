@@ -15,9 +15,9 @@
 //
 // Signing is Gradle's (android/app/build.gradle.kts, docs/platforms/android-signing.md). This script
 // never reads or prints a signing value; it only names what came out, by looking at the outputs:
-//   GizeCat-<version>-android.apk/.aab            signed with the configured release key
-//   GizeCat-<version>-android-unsigned.apk/.aab   no release key was configured
-//   GizeCat-<version>-android-trial-debugsigned.apk   the trial build, signed with the SDK debug key
+//   GizeMate-<version>-android.apk/.aab            signed with the configured release key
+//   GizeMate-<version>-android-unsigned.apk/.aab   no release key was configured
+//   GizeMate-<version>-android-trial-debugsigned.apk   the trial build, signed with the SDK debug key
 //
 // What gets collected follows the tasks requested (assembleRelease, bundleRelease, assembleTrial),
 // so a run Gradle found UP-TO-DATE still collects, and a requested output that is missing stops
@@ -199,8 +199,8 @@ function requestedOutputs() {
   if (asked('assembleRelease')) {
     const dir = path.join(out, 'apk', 'release');
     const apkNames = {
-      'app-release-unsigned.apk': `GizeCat-${version}-android-unsigned.apk`,
-      'app-release.apk': `GizeCat-${version}-android.apk`,
+      'app-release-unsigned.apk': `GizeMate-${version}-android-unsigned.apk`,
+      'app-release.apk': `GizeMate-${version}-android.apk`,
     };
     const built = recordedApkName(dir);
     if (!Object.hasOwn(apkNames, built)) fail(`unexpected release APK name in output-metadata.json: ${built}`);
@@ -211,14 +211,14 @@ function requestedOutputs() {
     const aabSigned = hasJarSignature(aab);
     files.push({
       file: aab,
-      name: `GizeCat-${version}-android${aabSigned ? '' : '-unsigned'}.aab`,
-      replaces: [`GizeCat-${version}-android.aab`, `GizeCat-${version}-android-unsigned.aab`],
+      name: `GizeMate-${version}-android${aabSigned ? '' : '-unsigned'}.aab`,
+      replaces: [`GizeMate-${version}-android.aab`, `GizeMate-${version}-android-unsigned.aab`],
     });
   }
   if (asked('assembleTrial')) {
     files.push({
       file: requireOutput(path.join(out, 'apk', 'trial', 'app-trial.apk')),
-      name: `GizeCat-${version}-android-trial-debugsigned.apk`,
+      name: `GizeMate-${version}-android-trial-debugsigned.apk`,
       replaces: [],
     });
   }
@@ -242,7 +242,7 @@ function collect({ version, files }) {
     for (const old of replaces) fs.rmSync(path.join(dest, old), { force: true });
     fs.copyFileSync(file, path.join(dest, name));
   }
-  const prefix = `GizeCat-${version}-android`;
+  const prefix = `GizeMate-${version}-android`;
   const lines = fs
     .readdirSync(dest)
     .filter((n) => n.startsWith(prefix) && /\.(apk|aab)$/.test(n))

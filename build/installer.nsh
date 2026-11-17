@@ -76,7 +76,7 @@
           ClearErrors
           FileOpen $R7 "$APPDATA\Desktop Cat\login-item-removed-by-uninstall" w
           ${ifNot} ${Errors}
-            FileWrite $R7 "Startup entry removed by the Desktop Cat uninstaller.$\r$\n"
+            FileWrite $R7 "Startup entry removed by the GizeMate uninstaller.$\r$\n"
             FileClose $R7
           ${endIf}
         ${endIf}
@@ -108,7 +108,7 @@
   !ifndef APP_64
     !macro customInit
       ${IfNot} ${IsNativeARM64}
-        MessageBox MB_OK|MB_ICONSTOP "This Desktop Cat installer is for Windows on Arm (ARM64) PCs. On this PC, use the x64 installer instead: Desktop-Cat-Setup-${VERSION}-x64.exe" /SD IDOK
+        MessageBox MB_OK|MB_ICONSTOP "This GizeMate installer is for Windows on Arm (ARM64) PCs. On this PC, use the x64 installer instead: GizeMate-Setup-${VERSION}-x64.exe" /SD IDOK
         SetErrorLevel 1
         Quit
       ${EndIf}
