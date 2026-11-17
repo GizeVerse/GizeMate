@@ -20,7 +20,7 @@ The manifest declares **four permissions, all for the optional floating cat** (1
 
 First use of **Float over apps** shows, in the app, before Android's page opens:
 
-> Let your cat walk over other apps. GizeCat needs Android's "Display over other apps" permission to draw the cat on top of your launcher and other apps. Without it the cat can only live inside this app, which keeps working normally. GizeCat uses it only to draw the cat. It does not read what is on your screen, does not record anything and never touches the network. The cat takes touches only where it is drawn, and a small area around it. Android will open its own settings page. Turn on GizeCat there, then come back. You can turn it off again at any time.
+> Let your cat walk over other apps. GizeMate needs Android's "Display over other apps" permission to draw the cat on top of your launcher and other apps. Without it the cat can only live inside this app, which keeps working normally. GizeMate uses it only to draw the cat. It does not read what is on your screen, does not record anything and never touches the network. The cat takes touches only where it is drawn, and a small area around it. Android will open its own settings page. Turn on GizeMate there, then come back. You can turn it off again at any time.
 
 - **Declined:** the floating cat stays off; the app works as before. Nothing asks again until the user taps Float over apps again.
 - **Revoked later:** the floating cat stops with a plain message and never restarts by itself.

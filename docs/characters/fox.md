@@ -10,19 +10,20 @@ From the app's copy: "Independent and observant. It warms up slowly, but once it
 
 ## How it moves
 
-A long, low quadruped: it trots (`walk`, gait scale 1.1) and has its own `run`, `stalk` and `slink`, `climb`, and a mouse `pounce`. Nominal size 100 by 62 DIP. It climbs window edges. Clips such as `hop`, `bounce`, `float` and `appear` are drawn as other fox clips (`walk`, `dance`, `stand`, `stand`).
+A long, low quadruped: it trots (`walk`, gait scale 1.1) and has its own `run`, `stalk` and `slink`, `climb`, and a mouse `pounce`. Nominal size 100 by 62 DIP. It climbs window edges. It also draws `hop`, `squish`, `scratch`, `meow` and a soft `vanish` and `appear` natively. Clips resolved through its alias table: `sprint` as `run`, `slip` and `hiss` as `startle`, `impact` as `land`, `landRecover` as `shake`, `grumpy` as `annoyed`, `pawAt` as `swat`, `edgeSit` as `sit`, `balance` as `crouch`, `bounce` as `dance`, `float` as `stand`, `swing` as `climb`, `beam` as `scan`.
 
 ## Signature behaviours
 
-Seven, each with a cooldown of 70 seconds to 4 minutes:
+Eight, each with a cooldown of 70 seconds to 4.5 minutes:
 
-- **Mouse pounce**: alert, a low wiggle, a leap and a nose-first dive (moves a little; the most likely of its signatures).
+- **Mouse pounce**: alert, a low wiggle, a leap and a nose-first dive (moves a little).
 - **Play bow**: chest down, rump up, brush wagging.
 - **Peek out**: ducks low and rises to look.
 - **Slow stare**: sits, then walks toward the cursor for a long, slow look (needs the cursor near).
 - **Spin trick**: chases its own brush.
 - **Head tilt**: a curious tilt at something near (needs the cursor near).
 - **Roll around**: a roll on its back, only in a happy, relaxed or excited mood.
+- **Slip away**: slips away in a puff of dust, pops up somewhere else and looks around (movement type `teleport`; rare, long cooldown).
 
 ## What it reacts to
 
@@ -43,5 +44,4 @@ Climbs edges: yes. Flies: no. Passes through things: no. Squashes: no. Memory: a
 ## Known limitations
 
 - Not run in the real app; preview sheets show posed frames only (one extra scratch file, `_c3left.png`, sits among its sheets and is not a deliverable).
-- Its `hop` is drawn as a `walk`, so a world event that asks for a hop shows a step.
 - One character at a time.

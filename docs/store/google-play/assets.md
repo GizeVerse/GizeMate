@@ -22,7 +22,7 @@ Google allows up to 8 screenshots for each device type, and treats 7-inch and 10
 | 7-inch tablet | "a minimum of 4", up to 8 | Between 1,080 and 7,680 px | 16:9 landscape or 9:16 portrait |
 | 10-inch tablet | "a minimum of 4", up to 8 | Between 1,080 and 7,680 px | 16:9 landscape or 9:16 portrait |
 
-Google's page does not say that tablet screenshots are mandatory, or give a file-size limit for phone or tablet screenshots. **GizeCat is made for tablets, so provide both tablet sets anyway.** Provide phone screenshots too if the app is offered on phones.
+Google's page does not say that tablet screenshots are mandatory, or give a file-size limit for phone or tablet screenshots. **GizeMate is made for tablets, so provide both tablet sets anyway.** Provide phone screenshots too if the app is offered on phones.
 
 To be eligible for Google's recommendation formats that use screenshots, an app needs at least four, each 16:9 landscape (minimum 1920 × 1080) or 9:16 portrait (minimum 1080 × 1920).
 
@@ -37,7 +37,7 @@ To be eligible for Google's recommendation formats that use screenshots, an app 
 
 ## Shots worth capturing, once the app runs
 
-The cat on the floor in landscape and portrait; being petted; picked up; the settings sheet with coats and personalities; split screen next to another app. Show the cat inside GizeCat's own window, never over other apps, because the app cannot do that.
+The cat on the floor in landscape and portrait; being petted; picked up; the settings sheet with coats and personalities; split screen next to another app. Show the cat inside GizeMate's own window, never over other apps, because the app cannot do that.
 
 ## Source
 

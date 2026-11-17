@@ -10,7 +10,7 @@ From the app's copy: "Playful, curious and a bit of a prankster, but never scary
 
 ## How it moves
 
-It floats and bobs (locomotion `float`, gait scale 0.9); `walk`, `run`, `hop` and `bounce` are all drawn as `float`. Nominal size 64 by 84 DIP. It can fly and pass through things (capabilities), and it fades out and back in (`vanish`, `appear`). It does not climb edges.
+It floats and bobs (locomotion `float`, gait scale 0.9); `walk`, `run`, `stalk`, `slink`, `sprint`, `climb`, `balance`, `hop` and `bounce` are all drawn as `float`. It draws `stretch`, `groom`, `scratch`, `meow`, `pawAt`, `swat`, `rollOver`, `tailChase` and `impact` natively (they used to be aliases). Nominal size 64 by 84 DIP. It can fly and pass through things (capabilities), and it fades out and back in (`vanish`, `appear`). It does not climb edges.
 
 ## Signature behaviours
 

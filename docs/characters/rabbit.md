@@ -10,11 +10,11 @@ From the app's copy: "Affectionate, bubbly and a little timid. It needs a calm m
 
 ## How it moves
 
-It hops instead of walking (locomotion `hop`): `walk`, `run` and `sprint` are all drawn as `hop`. Nominal size 66 by 68 DIP. It does **not** climb edges (it has no `climb` clip; that clip is drawn as a stand). It squashes when it lands (capability `squashes`).
+It hops instead of walking (locomotion `hop`): `walk`, `run`, `sprint`, `stalk` and `slink` are all drawn as `hop`. It draws `vanish` and `appear` natively (the burrow). Nominal size 66 by 68 DIP. It does **not** climb edges (it has no `climb` clip; that clip is drawn as a stand). It squashes when it lands (capability `squashes`).
 
 ## Signature behaviours
 
-Seven, with cooldowns of 60 seconds to 3 minutes:
+Eight, with cooldowns of 60 seconds to 4 minutes:
 
 - **Binky**: a crouch, then a joyful leap with a twist (needs energy, not while sleepy).
 - **Periscope**: stands tall on its hind feet and looks around, ears up (the most frequent).
@@ -22,6 +22,7 @@ Seven, with cooldowns of 60 seconds to 3 minutes:
 - **Foot thump**: thumps a hind foot as a warning, only when curious, startled or confused.
 - **Nibble**: sits and nibbles something held in its forepaws (relaxed, happy or curious).
 - **Zoomies**: hops in circles (needs high energy and a happy or excited mood).
+- **Burrow**: dives into a burrow and pops up somewhere else, looking around (movement type `teleport`; rare; the code comment says the engine swaps it under reduced motion).
 - **Peekaboo**: ducks low and peeks out again.
 
 ## What it reacts to

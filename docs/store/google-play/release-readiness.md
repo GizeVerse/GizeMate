@@ -1,6 +1,6 @@
 # Google Play release readiness (owner checklist)
 
-GizeCat is **not on Google Play** and nothing here says it will be, or when. Do not state or imply availability anywhere until a listing is live. Google's rules below were read on 2026-11-08 and they change; check them again when you act.
+GizeMate is **not on Google Play** and nothing here says it will be, or when. Do not state or imply availability anywhere until a listing is live. Google's rules below were read on 2026-11-08 and they change; check them again when you act.
 
 Nothing in 1.4.0 has been executed on any device. Statuses use the 1.4.0 vocabulary in [../../platforms/README.md](../../platforms/README.md#status-vocabulary-for-140).
 
@@ -27,9 +27,9 @@ Nothing in 1.4.0 has been executed on any device. Statuses use the 1.4.0 vocabul
 | [x] | Application id `io.github.gizeverse.gizecat`. Permanent after the first upload | IMPLEMENTED |
 | [x] | **Target API.** `targetSdk = 36`. Google requires "Android 16 (API level 36)" or higher for new apps and updates from August 31, 2026 | IMPLEMENTED |
 | [x] | Minimum Android 10 (API 29), no forced orientation, resizable | IMPLEMENTED |
-| [ ] | AAB format, signed with the upload key: `GizeCat-<version>-android.aab` | REQUIRES_OWNER_CREDENTIALS (unsigned AAB: COMPILED_OR_PACKAGED) |
+| [ ] | AAB format, signed with the upload key: `GizeMate-<version>-android.aab` | REQUIRES_OWNER_CREDENTIALS (unsigned AAB: COMPILED_OR_PACKAGED) |
 | [ ] | Play App Signing: decide before the first upload ([section 2 of the signing guide](../../platforms/android-signing.md#2-decide-how-play-and-the-github-apk-relate)) | REQUIRES_OWNER_CREDENTIALS |
-| [ ] | Free or paid. GizeCat has no ads or purchases. The owner decides | REQUIRES_OWNER_CREDENTIALS |
+| [ ] | Free or paid. GizeMate has no ads or purchases. The owner decides | REQUIRES_OWNER_CREDENTIALS |
 
 ## Store listing
 
@@ -65,9 +65,9 @@ This is required even though the app collects nothing: "You must link to a priva
 
 A cat character can appeal to children, and Google says imagery or terminology aimed at children can affect its assessment of the declared audience, whatever you select.
 
-If any target age group includes children, the [Families policy](https://support.google.com/googleplay/android-developer/answer/9893335) applies. GizeCat's facts help: no ads, no data collection, no third-party SDKs beyond AndroidX, no social features, no location. Points to read closely:
+If any target age group includes children, the [Families policy](https://support.google.com/googleplay/android-developer/answer/9893335) applies. GizeMate's facts help: no ads, no data collection, no third-party SDKs beyond AndroidX, no social features, no location. Points to read closely:
 
-- The policy says apps must not merely wrap a website in a WebView. GizeCat is a WebView app, but it packages all of its content and loads no website. Be ready to explain that.
+- The policy says apps must not merely wrap a website in a WebView. GizeMate is a WebView app, but it packages all of its content and loads no website. Be ready to explain that.
 - Content accessible to children must be appropriate for them, and your answers on target audience, data safety and content rating have to agree.
 
 Choosing the audience is a judgement for the owner, with legal weight (COPPA, GDPR). This page gives no advice on which to pick.

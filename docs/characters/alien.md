@@ -10,7 +10,7 @@ From the app's copy: "Endlessly curious and a little unpredictable, drawn to any
 
 ## How it moves
 
-It levitates a few DIP above the ground and glides (locomotion `glide`, gait scale 1.1): `walk`, `run` and `climb` are all drawn as `float`. Nominal size 76 by 80 DIP. It can fly (capability), but it does not pass through things and does not climb edges.
+It levitates a few DIP above the ground and glides (locomotion `glide`, gait scale 1.1): `walk`, `run`, `stalk`, `slink`, `sprint` and `climb` are all drawn as `float` (`bounce` as `hop`). It draws `meow`, `pawAt`, `swat`, `hiss`, `impact`, `edgeSit` and `tailChase` natively (they used to be aliases). Nominal size 76 by 80 DIP. It can fly (capability), but it does not pass through things and does not climb edges.
 
 ## Signature behaviours
 

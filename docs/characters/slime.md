@@ -10,7 +10,7 @@ From the app's copy: "Playful and affectionate. Everything is a game, and everyt
 
 ## How it moves
 
-A limbless jelly that bounces (locomotion `bounce`, gait scale 0.95): `walk`, `run` and `sprint` are drawn as `bounce`. It squashes and stretches with each step and wobbles after landing (capability `squashes`). Nominal size 70 by 58 DIP. It flattens to a puddle for `hide`, `sleep` and `squish`, so its clickable region is widest there. It does not climb edges.
+A limbless jelly that bounces (locomotion `bounce`, gait scale 0.95): `walk`, `run` and `sprint` are drawn as `bounce`, and `stalk` and `slink` as `hop`. It draws `groom`, `scratch`, `pawAt`, `swat`, `meow`, `hiss`, `impact`, `rollOver` and `tailChase` natively (they used to be aliases). It squashes and stretches with each step and wobbles after landing (capability `squashes`). Nominal size 70 by 58 DIP. It flattens to a puddle for `hide`, `sleep` and `squish`, so its clickable region is widest there. It does not climb edges.
 
 ## Signature behaviours
 

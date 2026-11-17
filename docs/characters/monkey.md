@@ -10,7 +10,7 @@ From the app's copy: "Playful, restless and a little mischievous. Gets bored qui
 
 ## How it moves
 
-A hunched knuckle-walk on all fours (locomotion `walk`, gait scale 1.05). Nominal size 72 by 86 DIP. It climbs window edges and hangs from ledges. Clips it draws natively include walk, run, climb, swing, hop, scan, peek, dance, scratch, groom, pawAt and a chest-beating `meow`; other clips resolve through its alias table (for example `stalk` and `slink` are drawn as `walk`, `bounce` as `hop`, `pounce` as `jump`).
+A hunched knuckle-walk on all fours (locomotion `walk`, gait scale 1.05). Nominal size 72 by 86 DIP. It climbs window edges and hangs from ledges. Clips it draws natively include walk, run, stalk, slink, sprint, climb, swing, hop, pounce, scan, peek, dance, scratch, groom, pawAt and a chest-beating `meow`, plus slip, impact, landRecover, swat, hiss, grumpy, balance, edgeSit, tailChase, rollOver and confused. Only six clips resolve through its alias table: `bounce` as `hop`, `float` as `fall`, `vanish` as `hide`, `appear` as `peek`, `squish` as `land`, `beam` as `meow`.
 
 ## Signature behaviours
 
