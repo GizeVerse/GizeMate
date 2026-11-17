@@ -116,7 +116,7 @@ Any failure stops the job, and no signed artifact is produced. The causes includ
 
 **Owner setup, once:**
 
-1. Apply at [signpath.org](https://signpath.org/terms) with the GizeVerse/GizeCat repository. Prepare the code signing policy page and turn on MFA for everyone with access.
+1. Apply at [signpath.org](https://signpath.org/terms) with the GizeVerse/GizeMate repository. Prepare the code signing policy page and turn on MFA for everyone with access.
 2. In SignPath:
    - Create the project, and connect GitHub as the trusted build system.
    - Create a release signing policy with manual approval.
@@ -129,13 +129,13 @@ Any failure stops the job, and no signed artifact is produced. The causes includ
 4. In GitHub, **Settings, Environments**, create `windows-signing` with yourself as required reviewer, **before** the first run. Add the secret `SIGNPATH_API_TOKEN` and the variables listed in [release-automation.md](release-automation.md#windows-signing-workflow-releaseyml):
 
 ```powershell
-gh secret set SIGNPATH_API_TOKEN --env windows-signing --repo GizeVerse/GizeCat
-gh variable set SIGNPATH_ORGANIZATION_ID --env windows-signing --repo GizeVerse/GizeCat --body <organization-id>
-gh variable set SIGNPATH_PROJECT_SLUG --env windows-signing --repo GizeVerse/GizeCat --body <project-slug>
-gh variable set SIGNPATH_SIGNING_POLICY_SLUG --env windows-signing --repo GizeVerse/GizeCat --body <policy-slug>
-gh variable set SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG --env windows-signing --repo GizeVerse/GizeCat --body <installer-config-slug>
+gh secret set SIGNPATH_API_TOKEN --env windows-signing --repo GizeVerse/GizeMate
+gh variable set SIGNPATH_ORGANIZATION_ID --env windows-signing --repo GizeVerse/GizeMate --body <organization-id>
+gh variable set SIGNPATH_PROJECT_SLUG --env windows-signing --repo GizeVerse/GizeMate --body <project-slug>
+gh variable set SIGNPATH_SIGNING_POLICY_SLUG --env windows-signing --repo GizeVerse/GizeMate --body <policy-slug>
+gh variable set SIGNPATH_INSTALLER_ARTIFACT_CONFIGURATION_SLUG --env windows-signing --repo GizeVerse/GizeMate --body <installer-config-slug>
 # optional, round 1:
-gh variable set SIGNPATH_APP_ARTIFACT_CONFIGURATION_SLUG --env windows-signing --repo GizeVerse/GizeCat --body <app-config-slug>
+gh variable set SIGNPATH_APP_ARTIFACT_CONFIGURATION_SLUG --env windows-signing --repo GizeVerse/GizeMate --body <app-config-slug>
 ```
 
 5. Run **Actions, release-artifacts, Run workflow** with `windows_signing: signpath`, on the candidate branch or `main`.

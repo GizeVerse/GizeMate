@@ -25,7 +25,7 @@ Every download contains an app named **Desktop Cat.app**. The bundle name and it
 
 ## Install an ad-hoc test build, step by step
 
-1. Download the zip for your Mac and `SHA256SUMS.txt` from the release page (<https://github.com/GizeVerse/GizeCat/releases>).
+1. Download the zip for your Mac and `SHA256SUMS.txt` from the release page (<https://github.com/GizeVerse/GizeMate/releases>).
 2. Check it in Terminal: `shasum -a 256 ~/Downloads/GizeCat-1.4.0-mac-arm64-adhoc.zip`. The hash must match the file's line in `SHA256SUMS.txt`.
 3. Double-click the zip to unpack it, and move **Desktop Cat.app** to the **Applications** folder. "Open at login" only works from there.
 4. Open the app once. macOS refuses to open it. Close the message; do not move the app to the Trash.
@@ -97,4 +97,4 @@ What it does not do:
 
 ## Feedback
 
-Mac reports are the only way macOS statuses can move. Open a **Platform report** at <https://github.com/GizeVerse/GizeCat/issues>, choose macOS, and give your macOS version, Intel or Apple Silicon, and which zip or DMG you installed. If the overlay ever blocks clicks, quit GizeCat (menu-bar icon, or Activity Monitor) and say so first. Logs are in `~/Library/Application Support/Desktop Cat/logs/`; read them before you attach them.
+Mac reports are the only way macOS statuses can move. Open a **Platform report** at <https://github.com/GizeVerse/GizeMate/issues>, choose macOS, and give your macOS version, Intel or Apple Silicon, and which zip or DMG you installed. If the overlay ever blocks clicks, quit GizeCat (menu-bar icon, or Activity Monitor) and say so first. Logs are in `~/Library/Application Support/Desktop Cat/logs/`; read them before you attach them.

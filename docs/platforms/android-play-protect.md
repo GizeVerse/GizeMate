@@ -72,7 +72,7 @@ Evidence to attach:
    network permission.
 4. A statement that the app contains no code downloaded or loaded at runtime, no accessibility,
    screen capture or notification-listener use, and no telemetry (`docs/PRIVACY.md`).
-5. Source repository: `https://github.com/GizeVerse/GizeCat`, tag of the build.
+5. Source repository: `https://github.com/GizeVerse/GizeMate`, tag of the build.
 6. A contact address of the owner's choosing.
 
 ## Recommended distribution path

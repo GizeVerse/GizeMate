@@ -18,14 +18,14 @@ By default the cat lives **inside its own window**. The native app can also **fl
 - **Release APK and AAB:** `GizeCat-1.4.0-android-unsigned.apk` and `GizeCat-1.4.0-android-unsigned.aab` are **unsigned** until the owner's release key exists (REQUIRES_OWNER_CREDENTIALS). Android does not install an unsigned APK, and Google Play does not accept an unsigned AAB.
 - **Signing pipeline:** ready, and it has never run, because no key exists. The build takes the key from the `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` environment variables, or else from `android/keystore.properties`. With neither, the outputs are unsigned. `npm run android:release` builds both, and the manual `android-release.yml` workflow does the same with its secrets in the `android-signing` environment. Signed files are named `GizeCat-1.4.0-android.apk` and `.aab`. The owner's procedure is in [android-signing.md](android-signing.md).
 - **Google Play:** not listed. A listing needs the owner's Google Play developer account (REQUIRES_OWNER_CREDENTIALS). Draft texts and a readiness list for the owner are in [docs/store/google-play/](../store/google-play/release-readiness.md).
-- **Newest APK, 1.4.2 (stable release):** `GizeCat-1.4.2-android-trial-debugsigned.apk` ([v1.4.2 release](https://github.com/GizeVerse/GizeCat/releases/tag/v1.4.2); Android-only; Windows and macOS are not updated). Signed with the Android Debug certificate, so not a Google Play package, and Play Protect may warn. It installs over the 1.4.1 and 1.4.0 trial APKs: same application id, same debug key, higher versionCode. Install, upgrade, permission and notification steps: [android-overlay.md](android-overlay.md#install).
+- **Newest APK, 1.4.2 (stable release):** `GizeCat-1.4.2-android-trial-debugsigned.apk` ([v1.4.2 release](https://github.com/GizeVerse/GizeMate/releases/tag/v1.4.2); Android-only; Windows and macOS are not updated). Signed with the Android Debug certificate, so not a Google Play package, and Play Protect may warn. It installs over the 1.4.1 and 1.4.0 trial APKs: same application id, same debug key, higher versionCode. Install, upgrade, permission and notification steps: [android-overlay.md](android-overlay.md#install).
 - **Trial APK:** `GizeCat-1.4.0-android-trial-debugsigned.apk` (1.4.0) and 1.4.1 and the 1.4.2 one above are Android-Debug signed, never Google Play production packages:
   - It is labelled **GizeCat (trial)** and has its own application id, `io.github.gizeverse.gizecat.trial`. It installs next to a later signed app, with its own, separate cat.
   - It is signed with the build machine's Android **debug** key. A debug key is a development key with a well-known password; it is not managed like a release key. The trial is not a release and will not be updated in place by a signed release.
 
 ### Install the trial APK, step by step
 
-1. On the tablet, download the APK from the release page (<https://github.com/GizeVerse/GizeCat/releases>) in Chrome or the Files app.
+1. On the tablet, download the APK from the release page (<https://github.com/GizeVerse/GizeMate/releases>) in Chrome or the Files app.
 2. Optional: on a computer, check it against `SHA256SUMS.txt` (PowerShell: `Get-FileHash .\GizeCat-1.4.0-android-trial-debugsigned.apk -Algorithm SHA256`).
 3. Open the APK. Android asks you to allow installs from that app (Chrome or Files): turn on **Allow from this source**, then go back.
 4. Tap **Install**. Google Play Protect may warn about an app from an unknown developer or offer to scan it; that is expected for an app from outside Play.
@@ -116,4 +116,4 @@ The same web app as on the iPad ([ipados.md](ipados.md)), installed from Chrome.
 
 ## Feedback
 
-Android reports are the only way these statuses can move. Open a **Platform report** at <https://github.com/GizeVerse/GizeCat/issues>, choose "Other (say below)", and give your tablet model, Android version, Android System WebView version (Settings → Apps → Android System WebView), and whether you used the trial APK or the web app in Chrome.
+Android reports are the only way these statuses can move. Open a **Platform report** at <https://github.com/GizeVerse/GizeMate/issues>, choose "Other (say below)", and give your tablet model, Android version, Android System WebView version (Settings → Apps → Android System WebView), and whether you used the trial APK or the web app in Chrome.

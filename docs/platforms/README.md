@@ -1,6 +1,6 @@
 # GizeCat on every device (1.4.0 release candidate)
 
-GizeCat 1.4.0 is a **release candidate. It is not released.** The current release is 1.3.0 for Windows x64. The project owner decides later whether 1.4.0 is published. **Android is released separately:** GizeCat 1.4.2 (Android-only, stable, [release page](https://github.com/GizeVerse/GizeCat/releases/tag/v1.4.2)) floats the cat over other apps; the owner used it on one physical Android phone and other devices are not individually verified. Windows and macOS are not updated by it.
+GizeCat 1.4.0 is a **release candidate. It is not released.** The current release is 1.3.0 for Windows x64. The project owner decides later whether 1.4.0 is published. **Android is released separately:** GizeCat 1.4.2 (Android-only, stable, [release page](https://github.com/GizeVerse/GizeMate/releases/tag/v1.4.2)) floats the cat over other apps; the owner used it on one physical Android phone and other devices are not individually verified. Windows and macOS are not updated by it.
 
 **Nothing in 1.4.0 has run on any device.** The code exists, some of it was compiled or packaged, and that is all. A build is not a test. Every statement on these pages about how GizeCat behaves on a device comes from reading the code and the platform documentation.
 
@@ -126,7 +126,7 @@ These statuses describe the candidate build. **1.4.0 is not published**, so a fi
 
 ## Feedback
 
-Real-world reports are how any of these statuses can move. Please use the repository's issue forms at <https://github.com/GizeVerse/GizeCat/issues>:
+Real-world reports are how any of these statuses can move. Please use the repository's issue forms at <https://github.com/GizeVerse/GizeMate/issues>:
 - **Platform report** for what happened on a Mac, an iPad, an Android tablet, a Windows on Arm PC, Windows 10 or several monitors. The form's operating-system list does not name iPadOS, Android or Windows on Arm yet; choose "Other (say below)" and name your device, its OS version and which artifact you installed.
 - **Bug report** for something that went wrong.
 - **Feature request** for ideas.

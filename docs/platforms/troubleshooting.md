@@ -253,7 +253,7 @@ Nothing changes until you confirm the preview. If you see one of these messages,
 
 ## Report what happened
 
-Your report is how these statuses can move. Open an issue at <https://github.com/GizeVerse/GizeCat/issues>:
+Your report is how these statuses can move. Open an issue at <https://github.com/GizeVerse/GizeMate/issues>:
 
 - **Platform report** for what happened on a Mac, an iPad, an Android tablet, a Windows on Arm PC, Windows 10 or several monitors. Choose "Other (say below)" for iPad, Android or Windows on Arm.
 - **Bug report** for something that went wrong.

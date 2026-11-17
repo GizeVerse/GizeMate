@@ -183,7 +183,7 @@ Back up the keystore and its passwords offline. GitHub never shows a secret agai
 | `SIGNPATH_ROUND1_FILES` | Variable, optional | `DesktopCatUia.exe` (default) or `DesktopCat.exe DesktopCatUia.exe` | Must match the round 1 configuration |
 | `WINDOWS_SIGNER_SUBJECT` | Variable, optional | Text | Text the signer certificate's subject must contain, once you know it from the first signing |
 
-Since 2023-06-01 the [CA/Browser Forum's code-signing requirements](https://cabforum.org/working-groups/code-signing/requirements/) require certificate keys to be generated and kept in a hardware crypto module, so a certificate bought today cannot be exported as `.pfx` for a CI secret. A token or cloud-HSM certificate is used on your own computer with `scripts/sign-windows.ps1` instead ([windows-signing.md](windows-signing.md)). Variables are set with `gh variable set <NAME> --env windows-signing --repo GizeVerse/GizeCat --body <value>`.
+Since 2023-06-01 the [CA/Browser Forum's code-signing requirements](https://cabforum.org/working-groups/code-signing/requirements/) require certificate keys to be generated and kept in a hardware crypto module, so a certificate bought today cannot be exported as `.pfx` for a CI secret. A token or cloud-HSM certificate is used on your own computer with `scripts/sign-windows.ps1` instead ([windows-signing.md](windows-signing.md)). Variables are set with `gh variable set <NAME> --env windows-signing --repo GizeVerse/GizeMate --body <value>`.
 
 ### Creating and storing the secrets
 
@@ -199,17 +199,17 @@ With the GitHub CLI (run on your own computer, in a terminal only you can see):
 
 ```sh
 # Files, on macOS or Linux (macOS: base64 -i file; Linux: base64 -w0 file). Nothing is written to disk.
-base64 -i Certificates.p12 | gh secret set MAC_CSC_LINK --env macos-signing --repo GizeVerse/GizeCat
-base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set APPLE_API_KEY_P8_BASE64 --env macos-signing --repo GizeVerse/GizeCat
+base64 -i Certificates.p12 | gh secret set MAC_CSC_LINK --env macos-signing --repo GizeVerse/GizeMate
+base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set APPLE_API_KEY_P8_BASE64 --env macos-signing --repo GizeVerse/GizeMate
 
 # Text values: gh prompts for the value, so it stays out of your shell history.
-gh secret set MAC_CSC_KEY_PASSWORD --env macos-signing --repo GizeVerse/GizeCat
+gh secret set MAC_CSC_KEY_PASSWORD --env macos-signing --repo GizeVerse/GizeMate
 ```
 
 ```powershell
 # Files, in PowerShell on Windows.
-gh secret set SIGNPATH_API_TOKEN --env windows-signing --repo GizeVerse/GizeCat
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\upload.keystore")) | gh secret set ANDROID_KEYSTORE_BASE64 --env android-signing --repo GizeVerse/GizeCat
+gh secret set SIGNPATH_API_TOKEN --env windows-signing --repo GizeVerse/GizeMate
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\upload.keystore")) | gh secret set ANDROID_KEYSTORE_BASE64 --env android-signing --repo GizeVerse/GizeMate
 ```
 
 The certificate and keystore files themselves must stay outside the repository. Replace `XXXXXXXXXX` with your key's ID.

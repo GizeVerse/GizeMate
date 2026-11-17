@@ -70,12 +70,12 @@ Secrets handling:
 3. In GitHub, create the environment `macos-signing` with yourself as required reviewer, **before** the first run. Then set the secrets and the optional variable:
 
 ```sh
-base64 -i DeveloperID.p12 | gh secret set MAC_CSC_LINK --env macos-signing --repo GizeVerse/GizeCat
-gh secret set MAC_CSC_KEY_PASSWORD --env macos-signing --repo GizeVerse/GizeCat
-base64 -i AuthKey_<KEY_ID>.p8 | gh secret set APPLE_API_KEY_P8_BASE64 --env macos-signing --repo GizeVerse/GizeCat
-gh secret set APPLE_API_KEY_ID --env macos-signing --repo GizeVerse/GizeCat
-gh secret set APPLE_API_ISSUER --env macos-signing --repo GizeVerse/GizeCat
-gh variable set MAC_EXPECTED_TEAM_ID --env macos-signing --repo GizeVerse/GizeCat --body <TEAM_ID>
+base64 -i DeveloperID.p12 | gh secret set MAC_CSC_LINK --env macos-signing --repo GizeVerse/GizeMate
+gh secret set MAC_CSC_KEY_PASSWORD --env macos-signing --repo GizeVerse/GizeMate
+base64 -i AuthKey_<KEY_ID>.p8 | gh secret set APPLE_API_KEY_P8_BASE64 --env macos-signing --repo GizeVerse/GizeMate
+gh secret set APPLE_API_KEY_ID --env macos-signing --repo GizeVerse/GizeMate
+gh secret set APPLE_API_ISSUER --env macos-signing --repo GizeVerse/GizeMate
+gh variable set MAC_EXPECTED_TEAM_ID --env macos-signing --repo GizeVerse/GizeMate --body <TEAM_ID>
 ```
 
 4. Bring `macos-packages.yml` to `main`: a `workflow_dispatch` workflow can only be started once its file is on the default branch ([the rule](release-automation.md#the-default-branch-rule)).

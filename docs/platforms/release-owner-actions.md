@@ -26,7 +26,7 @@ Never paste a secret into a chat, an issue, a commit, a log or a message to an a
 
 **Route A, SignPath (CI):**
 
-1. **[IDENTITY] [APPROVAL]** Apply to SignPath Foundation with GizeVerse/GizeCat. Before or during the application:
+1. **[IDENTITY] [APPROVAL]** Apply to SignPath Foundation with GizeVerse/GizeMate. Before or during the application:
    - **[APPROVAL]** Publish a "Code signing policy" page with SignPath's credit line, the team roles and a privacy policy link, and mention it on the home and download pages.
    - Turn on MFA for every account with access to SignPath and the repository.
    - Settle two points with SignPath:

@@ -77,4 +77,4 @@ What it does not do:
 
 ## Feedback
 
-iPad reports are the only way these statuses can move. Open a **Platform report** at <https://github.com/GizeVerse/GizeCat/issues>, choose "Other (say below)", and give your iPad model, iPadOS version, whether you used a Safari tab or the Home Screen app, and where the app was hosted.
+iPad reports are the only way these statuses can move. Open a **Platform report** at <https://github.com/GizeVerse/GizeMate/issues>, choose "Other (say below)", and give your iPad model, iPadOS version, whether you used a Safari tab or the Home Screen app, and where the app was hosted.

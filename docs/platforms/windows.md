@@ -19,7 +19,7 @@ The installer, the shortcuts and the Apps entry are still named **Desktop Cat** 
 
 ## Install, step by step
 
-1. Download the installer for your PC and `SHA256SUMS.txt` from the release page on GitHub (<https://github.com/GizeVerse/GizeCat/releases>).
+1. Download the installer for your PC and `SHA256SUMS.txt` from the release page on GitHub (<https://github.com/GizeVerse/GizeMate/releases>).
 2. Check the download. In PowerShell, in your Downloads folder: `Get-FileHash .\Desktop-Cat-Setup-1.4.0-x64.exe -Algorithm SHA256`. The hash must match the line for that file in `SHA256SUMS.txt`.
 3. Quit a running GizeCat first: right-click its tray icon, then **Quit**.
 4. Run the installer. It installs for your Windows account only, into `%LOCALAPPDATA%\Programs\DesktopCat`. No administrator rights are needed.
@@ -90,4 +90,4 @@ Not part of any published installer. The unreleased work adds six more character
 
 ## Feedback
 
-Open an issue at <https://github.com/GizeVerse/GizeCat/issues>. Use **Platform report** for Windows on Arm, Windows 10 or multi-monitor results, and **Bug report** for problems. Settings → Diagnostics → Export diagnostics writes a JSON file you can read before you attach it; it contains no API keys or window titles. If the overlay ever blocks clicks, quit GizeCat (tray menu, or Task Manager) and say so first in your report.
+Open an issue at <https://github.com/GizeVerse/GizeMate/issues>. Use **Platform report** for Windows on Arm, Windows 10 or multi-monitor results, and **Bug report** for problems. Settings → Diagnostics → Export diagnostics writes a JSON file you can read before you attach it; it contains no API keys or window titles. If the overlay ever blocks clicks, quit GizeCat (tray menu, or Task Manager) and say so first in your report.

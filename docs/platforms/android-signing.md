@@ -172,7 +172,7 @@ A signed file is still not a tested app: nothing in 1.4.0 has run on a device. I
 
 ## 7. GitHub secrets, for signing in CI
 
-The manual workflow `.github/workflows/android-release.yml` has never been started. Its signed path reads these secrets from a GitHub **Environment** named `android-signing`. Create that environment first, with a required reviewer, in **Settings, Environments** of `GizeVerse/GizeCat`: a job that names a missing environment makes GitHub create it without protection rules. The workflow's guide is [release-automation.md](release-automation.md).
+The manual workflow `.github/workflows/android-release.yml` has never been started. Its signed path reads these secrets from a GitHub **Environment** named `android-signing`. Create that environment first, with a required reviewer, in **Settings, Environments** of `GizeVerse/GizeMate`: a job that names a missing environment makes GitHub create it without protection rules. The workflow's guide is [release-automation.md](release-automation.md).
 
 | Secret name | Format |
 |---|---|
@@ -186,7 +186,7 @@ The manual workflow `.github/workflows/android-release.yml` has never been start
 Optional, recommended: the environment **variable** (not a secret) `ANDROID_EXPECTED_CERT_SHA256` holds your upload certificate's SHA-256 fingerprint, as 64 hex characters (colons allowed). The script's README file prints it in this form. With it set, the workflow refuses outputs signed by any other certificate:
 
 ```powershell
-gh variable set ANDROID_EXPECTED_CERT_SHA256 --repo GizeVerse/GizeCat --env android-signing --body <SHA256_HEX>
+gh variable set ANDROID_EXPECTED_CERT_SHA256 --repo GizeVerse/GizeMate --env android-signing --body <SHA256_HEX>
 ```
 
 Whether or not it is set, the workflow refuses:
@@ -197,13 +197,13 @@ Whether or not it is set, the workflow refuses:
 Set the secrets on the environment, with `--env android-signing`. Do not set them repository-wide: a repository secret would reach the job without the reviewer gate. Without a value on the command line, `gh` prompts and nothing lands in your history:
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes('<KEYSTORE_PATH>')) | gh secret set ANDROID_KEYSTORE_BASE64 --repo GizeVerse/GizeCat --env android-signing
-gh secret set ANDROID_KEYSTORE_PASSWORD --repo GizeVerse/GizeCat --env android-signing
-gh secret set ANDROID_KEY_ALIAS --repo GizeVerse/GizeCat --env android-signing
-gh secret set ANDROID_KEY_PASSWORD --repo GizeVerse/GizeCat --env android-signing
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('<KEYSTORE_PATH>')) | gh secret set ANDROID_KEYSTORE_BASE64 --repo GizeVerse/GizeMate --env android-signing
+gh secret set ANDROID_KEYSTORE_PASSWORD --repo GizeVerse/GizeMate --env android-signing
+gh secret set ANDROID_KEY_ALIAS --repo GizeVerse/GizeMate --env android-signing
+gh secret set ANDROID_KEY_PASSWORD --repo GizeVerse/GizeMate --env android-signing
 ```
 
-On macOS or Linux, the first line is `base64 < <KEYSTORE_PATH> | tr -d '\n' | gh secret set ANDROID_KEYSTORE_BASE64 --repo GizeVerse/GizeCat --env android-signing`.
+On macOS or Linux, the first line is `base64 < <KEYSTORE_PATH> | tr -d '\n' | gh secret set ANDROID_KEYSTORE_BASE64 --repo GizeVerse/GizeMate --env android-signing`.
 
 - Never expose these secrets to a pull-request build, or to any job other than the one that signs.
 - Gradle's own rule is the backstop for any job: with all four variables blank the build is unsigned, and with only some of them set it stops and names the missing ones.

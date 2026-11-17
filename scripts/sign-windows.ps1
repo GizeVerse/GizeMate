@@ -68,7 +68,7 @@ $repo = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $repo
 $thumb = $CertificateThumbprint.ToUpperInvariant()
 $codeSigningOid = '1.3.6.1.5.5.7.3.3'
-$projectUrl = 'https://github.com/GizeVerse/GizeCat'
+$projectUrl = 'https://github.com/GizeVerse/GizeMate'
 
 function Invoke-Native([string] $what, [scriptblock] $command) {
   $previous = $ErrorActionPreference

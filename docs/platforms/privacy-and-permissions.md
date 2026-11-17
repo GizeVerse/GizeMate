@@ -80,4 +80,4 @@ A foreground service draws the cat in a small transparent window above other app
 
 ## Where to report a privacy concern
 
-Open an issue at <https://github.com/GizeVerse/GizeCat/issues>. A security vulnerability goes through [SECURITY.md](../../SECURITY.md), never a public issue.
+Open an issue at <https://github.com/GizeVerse/GizeMate/issues>. A security vulnerability goes through [SECURITY.md](../../SECURITY.md), never a public issue.
