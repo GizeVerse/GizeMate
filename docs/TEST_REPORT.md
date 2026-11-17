@@ -33,12 +33,12 @@ The 13 baseline failures were each root-caused: five code defects (Laser Mode co
 
 ## Packaging (built, not installed, not published)
 
-Built from a clean tree at `57f7e83` with `npm run package:win` (own run under the machine lock). **Nothing was installed or launched from the installers** (the owner's real installation lives on this PC; no install or upgrade test was run).
+Built from a clean tree at `25a884d` (supersedes the 57f7e83 build) with `npm run package:win` (own run under the machine lock). **Nothing was installed or launched from the installers** (the owner's real installation lives on this PC; no install or upgrade test was run).
 
 | File | Size | SHA-256 | Signing |
 |---|---|---|---|
-| `release/Desktop-Cat-Setup-1.6.0-x64.exe` | 121,718,671 bytes | `438dd0c0a532b19de73e22d78a7f56df1d3072b5d38eec72764df341919352a1` | unsigned (`Get-AuthenticodeSignature`: NotSigned) |
-| `release/Desktop-Cat-Setup-1.6.0-arm64.exe` | 116,213,938 bytes | `ff88c5a64d87aac5801d6ef3b34f85e3af4e95071f09beebea92d97bada8b27e` | unsigned (NotSigned) |
+| `release/Desktop-Cat-Setup-1.6.0-x64.exe` | 121,728,972 bytes | `f875f7c1e5bd59881862b4a40458dedd40d3c4fe6b0a32052a8829f5330e5c88` | unsigned (`Get-AuthenticodeSignature`: NotSigned) |
+| `release/Desktop-Cat-Setup-1.6.0-arm64.exe` | 116,224,086 bytes | `3a4b07eb55efacb420e978bc9419fc1b00af380dd847ee43ebacf8f06e0eb959` | unsigned (NotSigned) |
 
 Static payload checks (`scripts/check-win-payload.mjs --strict`) pass for both architectures. The Windows on Arm installer has never been run on ARM hardware. Details: [1.6.0 artifact inventory](releases/1.6.0-artifact-inventory.md).
 
