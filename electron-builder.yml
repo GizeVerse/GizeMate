@@ -1,7 +1,7 @@
 appId: io.github.enesiltas.desktopcat
 productName: Desktop Cat
 copyright: Copyright © 2026 enesiltas
-afterPack: build/afterPack.cjs
+afterSign: build/afterSign.cjs
 electronVersion: 44.9.3
 npmRebuild: false
 directories:

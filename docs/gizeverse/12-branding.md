@@ -72,3 +72,21 @@ No new logos or artwork were made; every icon derives from `build/icon.png`.
 1. **Installer names.** Rename the installer-visible names (builder `productName`, shortcutName, uninstallDisplayName, artifactName) only after `scripts/upgrade-test.ps1` passes from 1.2.0 on a disposable Windows user or VM. Never on a machine with a real install. Since 1.4.0 the test takes `-Arch x64|arm64`, and the rename must keep the `-x64` / `-arm64` suffixes.
 2. **Diagnostics export file name.** `desktop-cat-diagnostics-<stamp>.json` could become a GizeCat name, since the audit classes it as display. It was left as it is because tools may look for it.
 3. **Logos.** No new logos or assets were created; the cat icon has no text and needs no change.
+
+## 1.6.0 update: GizeMate is the installed name
+
+Decided by the owner for 1.6.0 (final name; no longer provisional). What follows the new name and what deliberately does not:
+
+| Surface | 1.6.0 |
+|---|---|
+| In-app names, window titles, tray, menus, About | GizeMate (`BRAND.product`) |
+| Start menu and desktop shortcuts, Settings › Apps entry (`shortcutName`, `uninstallDisplayName`) | GizeMate (`BRAND.installedName`) |
+| Exe version strings (FileDescription, ProductName: Task Manager › Startup apps) | GizeMate, set by `build/afterSign.cjs` (an `afterSign` hook: electron-builder rewrites the version strings after `afterPack`) |
+| Installer file names | `GizeMate-Setup-<version>-<arch>.exe` |
+| Android launcher and notification name, web app name | GizeMate |
+| Android release file names | `GizeMate-<version>-android.apk` / `.aab` |
+| **Unchanged (frozen identifiers)** | `productName` "Desktop Cat" (app.getName(), encrypted-key scope), `appId` `io.github.enesiltas.desktopcat`, install folder `%LOCALAPPDATA%\Programs\DesktopCat`, executable `DesktopCat.exe`, data folder `%APPDATA%\Desktop Cat`, Run-key value, NSIS GUID, Android `applicationId` `io.github.gizeverse.gizecat`, storage keys, the macOS bundle name |
+
+Upgrade reasoning (read from electron-builder's NSIS behaviour and the installer scripts; **not observed by running an installer**): the installer keeps the same application id and install location, so an install over 1.5.0 or earlier is an in-place update; electron-builder runs the previous version's uninstaller first, which removes the old "Desktop Cat" shortcuts, and the new installer creates the "GizeMate" ones. `deleteAppDataOnUninstall` stays false, so user data is untouched. The owner should confirm this once on a test PC (docs/releases/1.6.0-install-and-upgrade.md).
+
+Not renamed: macOS (`Desktop Cat.app` bundle, not part of this release) and Linux artifacts.

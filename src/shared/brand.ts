@@ -10,7 +10,7 @@ export const BRAND = Object.freeze({
   /**
    * The name Windows shows for the installed app: the Start menu and desktop shortcuts, Settings › Apps ›
    * Installed apps and Task Manager › Startup apps. Since 1.6.0 it is the product name: the installer sets the
-   * shortcut and uninstall names, and build/afterPack.cjs sets the exe's version strings. Frozen identifiers
+   * shortcut and uninstall names, and build/afterSign.cjs sets the exe's version strings. Frozen identifiers
    * (productName, app id, folders, executable) keep the old names. Text that tells the user what to find or
    * click in Windows names this, not `product`, so the two can differ again if a rename is ever staged.
    */

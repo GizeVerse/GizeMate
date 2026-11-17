@@ -33,9 +33,9 @@ describe('BRAND', () => {
     expect(value('productName')).toBe('Desktop Cat');
     expect(value('shortcutName')).toBe(BRAND.installedName);
     expect(value('uninstallDisplayName')).toBe(BRAND.installedName);
-    // The exe's FileDescription / ProductName (Task Manager › Startup apps) are set by the afterPack hook.
-    expect(value('afterPack')).toBe('build/afterPack.cjs');
-    expect(read('build/afterPack.cjs')).toContain(`const DISPLAY_NAME = '${BRAND.installedName}';`);
+    // The exe's FileDescription / ProductName (Task Manager › Startup apps) are set by the afterSign hook.
+    expect(value('afterSign')).toBe('build/afterSign.cjs');
+    expect(read('build/afterSign.cjs')).toContain(`const DISPLAY_NAME = '${BRAND.installedName}';`);
     // The installer file name carries the product name too.
     expect(value('artifactName')).toBeDefined();
     expect(yml).toContain('artifactName: GizeMate-Setup-${version}-${arch}.${ext}');

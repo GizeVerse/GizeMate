@@ -1,79 +1,62 @@
-# GizeCat
+# GizeMate
 
-**A small cat that lives on your screen, and never gets in the way of your clicks.**
+**A small universe of companions that live on your screen, and never get in the way of your clicks.**
 
-GizeCat (formerly Desktop Cat) is the first character of **GizeVerse**, a small, open-source home for playful digital characters that share your screen. It is free, MIT-licensed, and honest about where it has actually been tested.
+GizeMate (formerly GizeCat, and before that Desktop Cat) is a desktop and Android companion from **GizeVerse**, a small, open-source home for playful digital characters that share your screen. It is free, MIT-licensed, and honest about where it has actually been tested.
 
-GizeCat is one animated, persistent cat, the same on every device. It wanders along the bottom of your screen, naps when you're away, and can be petted, picked up and thrown. On Windows it also climbs the sides of windows, walks along their tops and browser tab strips, rides an auto-hiding taskbar and hunts your cursor.
+Pick one of seven companions: the original **cat**, a **monkey**, a **fox**, a **rabbit**, a **ghost**, a **slime** and an **alien**. One companion lives on your screen at a time. Each has its own look, way of moving (walk, hop, float, bounce, glide), personality, memory, voice and special behaviours, and each keeps its own memory and journal. The interface comes in **English and Turkish** (Automatic follows your system language).
 
-On a desktop, everything except the cat's own body stays clickable. On a tablet, the cat lives inside its own window.
-
-**GizeMate (UNRELEASED 1.6.0, work in progress; provisional name).** The product is becoming a small universe of companions: the cat, plus a monkey, a fox, a rabbit, a ghost, a slime and an alien. One character lives on the desktop at a time; each has its own look, way of moving, personality, memory and voice, and the interface comes in English and Turkish (Automatic follows the system language). An existing cat, with its name, coat and memory, is kept and stays the default. This is implemented in the repository and **has not been run in the real app**; the unit tests and the character preview sheets are the only evidence, and the installers stay unsigned. Android and macOS sources were only inspected for it. Meet them: [docs/characters/](docs/characters/README.md). Installers and release links below still describe the published versions.
+On a desktop, everything except the companion's own body stays clickable. On Windows it climbs the sides of windows, walks along their tops and browser tab strips, rides an auto-hiding taskbar and chases your cursor. On Android it floats over your launcher and other apps. If you already have a cat from an earlier version, it is kept: name, coat, personality, memory and journal carry over.
 
 ![The cat's coats and poses, rendered by the app's own renderer](docs/images/skins.png)
 
 ## Get it on your device
 
-**Android phones and tablets: GizeCat 1.4.2**, the latest release on GitHub ([release page](https://github.com/GizeVerse/GizeMate/releases/tag/v1.4.2), [how to install](#download-and-install-android-phones-and-tablets)). It is an **Android-only** release: the cat floats over your launcher and other apps. The owner has used it on one physical Android phone; other models are untested. The APK is signed with the Android Debug certificate, is not a Google Play package, and Play Protect may show a warning.
+**GizeMate 1.6.0** is on the [Releases page](https://github.com/GizeVerse/GizeMate/releases/tag/v1.6.0):
 
-**Windows: 1.3.0, for Windows x64** ([Releases](https://github.com/GizeVerse/GizeMate/releases), [how to install](#download-and-install-windows-1011)). It stays the current Windows release. The 1.4.0 Preview installers (x64 and ARM64) are on the [v1.4.0 pre-release](https://github.com/GizeVerse/GizeMate/releases/tag/v1.4.0); 1.4.2 does not update any Windows or macOS binary.
+| Device | File | Status | Signing |
+|---|---|---|---|
+| Windows 10/11, x64 | `GizeMate-Setup-1.6.0-x64.exe` | Built and packaged; the app ran from the unpacked build on the builders' Windows 11 PC; the installer itself was never executed by the builders | **Not code-signed**: SmartScreen warns, Smart App Control may block it |
+| Windows 11 on Arm | `GizeMate-Setup-1.6.0-arm64.exe` | Built and statically inspected; **never run on ARM hardware** | **Not code-signed**, as above |
+| Android phones and tablets | `GizeMate-1.6.0-android.apk` (install directly) and `GizeMate-1.6.0-android.aab` (for Google Play) | Built and signature-verified; **not run by the builders**: real-device testing is the owner's | Signed with the project's release key; not distributed through Google Play |
 
-**Living Companion (1.5.0 release candidate).** 1.5.0 is a **release candidate: it is not published and not tagged**, and the current published releases are still Windows v1.3.0 and Android v1.4.2. It makes the cat feel more alive on **Windows and Android**: seven selectable personalities, a mood the cat shows, small world events (a mouse, a butterfly, a little storm), Laser Mode, a Cat Journal, reduced motion and optional sound cues. Every feature is IMPLEMENTED and statically verified (type check, lint, read-only review) only: **nothing in 1.5.0 has been run**, not a test, an emulator, a simulator or the app itself. The Windows 1.5.0 installers are unsigned. Android 1.5.0 builds are the debug-signed trial APK and an unsigned release APK and AAB. What it is, what each platform does and what is not verified: [docs/living-companion/README.md](docs/living-companion/README.md), [draft release notes](docs/releases/1.5.0-release-candidate.md).
+Check each file against `SHA256SUMS.txt` on the release page before running it. macOS and iPad are not part of this release. What the status words mean: [docs/platforms/](docs/platforms/README.md). If something does not work: [troubleshooting](docs/platforms/troubleshooting.md). Release notes: [docs/releases/1.6.0-release-notes.md](docs/releases/1.6.0-release-notes.md); known limitations: [docs/releases/1.6.0-known-limitations.md](docs/releases/1.6.0-known-limitations.md).
 
-**The 1.4.0 Preview (Windows, macOS, iPad) was published only as a pre-release, and nothing in it has been run on a device by its builders.** The table shows where each device stands. A build is not a test.
-
-| Device | 1.4.0 candidate | Status | Signing | Guide |
-|---|---|---|---|---|
-| Windows x64 | `Desktop-Cat-Setup-1.4.0-x64.exe` | COMPILED_OR_PACKAGED; not run for 1.4.0 (1.3.0 ran on Windows 11 x64) | Unsigned: SmartScreen warns, Smart App Control may block it. Signed builds: REQUIRES_OWNER_CREDENTIALS | [Windows](docs/platforms/windows.md) |
-| Windows ARM64 | `Desktop-Cat-Setup-1.4.0-arm64.exe` | COMPILED_OR_PACKAGED on an x64 PC; statically inspected; never run | Unsigned, as above | [Windows](docs/platforms/windows.md) |
-| macOS Intel | `GizeCat-1.4.0-mac-x64-adhoc.zip` | COMPILED_OR_PACKAGED; statically inspected; never run on a Mac | Ad-hoc signed, **not notarized**: macOS blocks it until you allow it. Developer ID and notarization: REQUIRES_OWNER_CREDENTIALS | [macOS](docs/platforms/macos.md) |
-| macOS Apple Silicon | `GizeCat-1.4.0-mac-arm64-adhoc.zip` | COMPILED_OR_PACKAGED; statically inspected; never run on a Mac | Ad-hoc signed, **not notarized**, as above | [macOS](docs/platforms/macos.md) |
-| iPad | The web app, added to the Home Screen from Safari. Expected address `https://gizeverse.github.io/GizeCat/`, **not deployed**. | Web bundle COMPILED_OR_PACKAGED; never run on an iPad; hosting REQUIRES_OWNER_CREDENTIALS | A web app is not signed. No App Store app (NOT_IMPLEMENTED) | [iPad](docs/platforms/ipados.md) |
-| Android phones and tablets | **1.4.2** (stable): `GizeCat-1.4.2-android-trial-debugsigned.apk` from the [v1.4.2 release](https://github.com/GizeVerse/GizeMate/releases/tag/v1.4.2) | The owner used it on **one physical Android phone** (overlay, drag and throw, edge climbing, touch, rotation, panel, app switching). Other phones and tablets: not verified | Signed with the **Android Debug certificate**: not a Google Play package, Play Protect may warn. A production-signed release APK and AAB need the owner's key (REQUIRES_OWNER_CREDENTIALS) | [Android](docs/platforms/android.md), [floating cat](docs/platforms/android-overlay.md) |
-
-What the status words mean, and the status of every file: [docs/platforms/](docs/platforms/README.md). If something does not work: [troubleshooting](docs/platforms/troubleshooting.md). GizeCat has no listing in any app store.
 
 ## Features
 
-- **A living cat.** A 24-state behaviour simulation with needs, moods, a personality and a small memory. It explores on its own, stays on windows for minutes, hunts the pointer and reacts to throws in varied ways.
-- **Living Companion (1.5.0 release candidate; implemented, never run).** Seven selectable personalities plus Auto, a mood and sleep depth derived from what the cat is doing, bounded local memory, and a quiet **world** around it: 20 everyday and 6 rare events, one every 5 to 30 minutes by default, each a short, harmless visit drawn on the overlay (never clickable). **Laser Mode** (a red dot the cat chases and never catches, off at every start), a **Cat Journal** kept only on your device, reduced motion, new scratch, shake and confused animations, and optional world and cat sound cues (audio stays off by default). Everything can be switched off. [Details](docs/living-companion/README.md).
+- **A living companion.** A 24-state behaviour simulation with needs, moods, a personality and a small memory. It explores on its own, stays on windows for minutes, hunts the pointer and reacts to throws in varied ways.
+- **Living Companion (since 1.5.0).** Seven selectable personalities plus Auto, a mood and sleep depth derived from what the cat is doing, bounded local memory, and a quiet **world** around it: 20 everyday and 6 rare events, one every 5 to 30 minutes by default, each a short, harmless visit drawn on the overlay (never clickable). **Laser Mode** (a red dot the cat chases and never catches, off at every start), a **Cat Journal** kept only on your device, reduced motion, new scratch, shake and confused animations, and optional world and cat sound cues (audio stays off by default). Everything can be switched off. [Details](docs/living-companion/README.md).
 - **Original procedural art.** A vector rig drawn in code: 36 animation clips, 7 coats, an optional pixel style, and no third-party assets.
 - **Click-through by design.** Only the cat's body catches the pointer. There are no global mouse or keyboard hooks.
 - **Works offline; no AI required.** Screen perception is optional and **off by default**; see [Privacy and AI vision](#privacy-and-ai-vision).
 - **Lightweight.** About 1–1.5 % of one CPU core while awake and under 1 % asleep on the Windows 11 test machine ([benchmark](docs/gizeverse/10-performance-dependencies.md)).
 - **Settings** for appearance, behaviour, personality, privacy, AI and diagnostics, in light and dark themes, keyboard accessible.
-- **Take your cat with you (1.4.0 candidate, never run on a device).** Save the cat to a file and load it on another computer, an iPad or an Android tablet. Nothing is uploaded and there is no account; it is a copy, not a sync ([how it works](docs/platforms/profile-transfer.md)).
+- **Take your companion with you.** Save your cat to a file and load it on another computer, an iPad or an Android tablet. Nothing is uploaded and there is no account; it is a copy, not a sync ([how it works](docs/platforms/profile-transfer.md)).
 
 ## Download and install (Windows 10/11)
 
-**Current release: 1.3.0**, for Windows x64. **1.5.0 (Living Companion) is a release candidate, not published or tagged.** Its Windows installers are `Desktop-Cat-Setup-1.5.0-x64.exe` and `Desktop-Cat-Setup-1.5.0-arm64.exe` (NSIS, **unsigned**: SmartScreen warns and Smart App Control may block them), built into `release/1.5.0/windows/` and never run by the build tooling; the owner reviews and publishes them. Windows 1.5.0 status: IMPLEMENTED, COMPILED_OR_PACKAGED, statically verified, NOT RUN (the 1.3.0 baseline ran on Windows 11 hardware). **1.4.0 is a release candidate and is not published yet.** It adds a Windows on Arm installer, macOS support (ad-hoc signed, not notarized test zips), an installable web app for iPads and Android tablets, and a native Android tablet app. None of the 1.4.0 builds has run on a device. Install guides and the status of every target: [docs/platforms/](docs/platforms/README.md).
-
-Download the latest `Desktop-Cat-Setup-<version>.exe` from **[Releases](https://github.com/GizeVerse/GizeMate/releases)** (from 1.4.0: `Desktop-Cat-Setup-<version>-x64.exe`, or `-arm64.exe` for Windows on Arm PCs), check its SHA-256 against the release notes, and run it.
+Download `GizeMate-Setup-1.6.0-x64.exe` (or `GizeMate-Setup-1.6.0-arm64.exe` for Windows on Arm PCs) from **[Releases](https://github.com/GizeVerse/GizeMate/releases)**, check its SHA-256 against `SHA256SUMS.txt`, and run it.
 - **No admin needed.** It is a per-user install into `%LOCALAPPDATA%\Programs\DesktopCat`.
-- **SmartScreen.** The installer is **not code-signed**, so Windows may warn: choose **More info → Run anyway**.
-- **First start.** The cat appears at the bottom of your screen, and a Welcome page explains the controls.
-- **Startup.** GizeCat starts when you sign in to Windows (a one-time notification tells you). Turn it off in Settings → General, or in Task Manager → Startup apps; an opt-out is never overridden.
-- **Upgrading.** Your cat and settings are built to carry over: they live in `%APPDATA%\Desktop Cat`, which every version uses. A real upgrade from 1.0 to 1.1 kept them. For 1.2 to 1.3, the `installer-check` workflow runs the upgrade on a disposable machine; its results are in the repository's Actions tab. Quit the running cat from its tray menu first.
-- **Uninstall** from Windows Settings → Apps. This removes the startup entry too.
+- **SmartScreen.** The installer is **not code-signed**, so Windows may warn: choose **More info → Run anyway** (only after the hash matches).
+- **First start.** The companion appears at the bottom of your screen, and a Welcome page explains the controls. Choose a character under **Characters**.
+- **Startup.** GizeMate starts when you sign in to Windows (a one-time notification tells you). Turn it off in Settings → General, or in Task Manager → Startup apps; an opt-out is never overridden.
+- **Upgrading.** Run the new installer over the old one (quit the running companion from its tray menu first). Your cat and settings carry over: they live in `%APPDATA%\Desktop Cat`, which every version uses, and the installer keeps the same application identity and install folder. The old "Desktop Cat" shortcuts are replaced by "GizeMate" ones. Back up `%APPDATA%\Desktop Cat` first if you want a safety copy.
+- **Uninstall** from Windows Settings → Apps → GizeMate. This removes the startup entry too, and keeps your data folder.
 
-The installer, shortcuts and Apps entry are still named **Desktop Cat**. They are renamed only after an upgrade test on a disposable machine shows that existing installs carry over ([why](docs/gizeverse/12-branding.md)).
-
-You can also build it yourself; see [Build, run, test](#build-run-test).
+The program file is still `DesktopCat.exe` and the data folder is still `Desktop Cat`: those names are internal and are kept so that upgrades never lose your companion ([why](docs/gizeverse/12-branding.md)). Full guide: [docs/releases/1.6.0-install-and-upgrade.md](docs/releases/1.6.0-install-and-upgrade.md). You can also build it yourself; see [Build, run, test](#build-run-test).
 
 ## Download and install (Android phones and tablets)
 
-**GizeCat 1.4.2** is on the [v1.4.2 release page](https://github.com/GizeVerse/GizeMate/releases/tag/v1.4.2): `GizeCat-1.4.2-android-trial-debugsigned.apk` and `SHA256SUMS.txt` (the APK's SHA-256 is `9b2158d81be485b4ef24f0f5cba091f142ed83045a861065a650a195a78bf536`). Needs Android 10 or later.
+**GizeMate 1.6.0** (Android 10 or later) is on the [v1.6.0 release page](https://github.com/GizeVerse/GizeMate/releases/tag/v1.6.0): `GizeMate-1.6.0-android.apk` (direct installation), `GizeMate-1.6.0-android.aab` (the Google Play bundle; not for sideloading) and `SHA256SUMS.txt`.
 
 1. Download the APK and check its SHA-256 against `SHA256SUMS.txt`.
-2. Open it on your device and allow "Install unknown apps" for the app you opened it from. It installs as **GizeCat (trial)** and updates the 1.4.1 and 1.4.0 trial APKs in place, keeping your cat.
-3. Open GizeCat and tap **Start floating cat**. The app first explains the **Display over other apps** permission and opens Android's own settings page only when you tap **Open Android settings**; you turn it on yourself, and can turn it off any time. On Android 13 and later it asks once to show a small notification (Pause, Hide, Stop); declining changes nothing else.
-4. The cat now floats over other apps. It never starts by itself, not even after a reboot, and the app works without the permission.
+2. Open it on your device and allow "Install unknown apps" for the app you opened it from. It installs as **GizeMate**. It updates an earlier **release-signed** build of this app (such as the 1.5.0 build) in place and keeps your companion; the earlier debug-signed "GizeCat (trial)" builds are a separate app: use **Take your companion to another device** in the app to move your cat over, then remove the trial.
+3. Open GizeMate and tap **Float over apps**. The app first explains the **Display over other apps** permission and opens Android's own settings page only when you tap **Open Android settings**; you turn it on yourself, and can turn it off any time. On Android 13 and later it asks once to show a small notification (Pause, Hide, Stop); declining changes nothing else.
+4. The companion now floats over other apps. It never starts by itself, not even after a reboot, and the app works without the permission.
 
-**Please read:** the APK is signed with the **Android Debug certificate**, so it is **not a production Google Play package**, and **Google Play Protect may show a warning**. Do not turn Play Protect off on our account; install only if you trust this source. A static review found nothing unusual ([report](docs/platforms/android-play-protect.md)), but that does not prove the app is safe. Limits: the cat looks slightly dimmer on Android 12 and later, a small area around the cat takes touches, there is no global cursor tracking, and movement is the floor and side edges with no ceiling pose.
+The APK is signed with the project's release key, but it is not a Google Play download, so **Google Play Protect may still ask you to confirm** an app from outside the store. Install only if you trust this source ([report](docs/platforms/android-play-protect.md)). The Android build has not been run by its builders: the owner tests on real devices, so please report what works and what does not through [GitHub Issues](https://github.com/GizeVerse/GizeMate/issues) (device model, Android version, what you saw). Details, grant and revoke steps, uninstall: [docs/platforms/android.md](docs/platforms/android.md).
 
-**1.5.0 release candidate (not published).** Android 1.5.0 (versionName 1.5.0, versionCode 10500) adds the Living Companion (a new home panel section for personality, world events, Laser mode, audio, accessibility and the journal) and still declares exactly the same four permissions. Its candidate files are built into `release/1.5.0/android/` by `scripts/android-gradle.mjs`: `GizeCat-1.5.0-android-trial-debugsigned.apk` (Android Debug certificate, for trials), and the release APK and AAB, which are **unsigned** (`GizeCat-1.5.0-android-unsigned.apk`, `GizeCat-1.5.0-android-unsigned.aab`) until the owner signs them with a release key. An unsigned APK cannot be installed. The owner checked the **1.4.2** floating cat on one physical phone; **no 1.5.0 code has run on any Android device, emulator or simulator**, and tablets and other phones are not individually verified. The install steps above are the published 1.4.2 steps.
-
-The owner has confirmed the 1.4.2 feature set on **one physical Android phone**. Tablets and other manufacturers' phones may behave differently (vendor battery managers and overlay rules in particular). **Please report what works and what does not** through [GitHub Issues](https://github.com/GizeVerse/GizeMate/issues): your device model, Android version and what you saw. Details, grant and revoke steps, uninstall: [docs/platforms/android-overlay.md](docs/platforms/android-overlay.md).
 
 ## Platforms
 
@@ -92,7 +75,7 @@ The owner has confirmed the 1.4.2 feature set on **one physical Android phone**.
 
 ## Privacy and AI vision
 
-- **Off by default.** GizeCat works without looking at your screen. It knows where windows are, so it can climb them, and when you are idle, so it can nap. It never reads keystrokes, typed text or the clipboard. There is no telemetry.
+- **Off by default.** GizeMate works without looking at your screen. It knows where windows are, so it can climb them, and when you are idle, so it can nap. It never reads keystrokes, typed text or the clipboard. There is no telemetry.
 - **Opt-in screen perception.** Two levels:
   - **Local statistics.** A short burst of tiny, masked, in-memory frames gives brightness, motion and similar coarse labels. Nothing is stored or sent.
   - **AI vision.** You configure it. It can use a local model (Ollama, OpenAI-compatible servers) or, behind a separate cloud switch, Anthropic. The cat can only pick from a fixed list of reactions.
@@ -120,7 +103,7 @@ Details: [docs/PRIVACY.md](docs/PRIVACY.md), [docs/AI_SETUP.md](docs/AI_SETUP.md
 | Tray icon | Left-click show/hide; right-click menu (pause, interactions on/off, vision privacy pause, call, laser mode, settings, quit) |
 | `Ctrl+Alt+Shift+C` | Show/hide (configurable) |
 
-Laser Mode (1.5.0 candidate) is started from the Companion page of Settings, the tray menu or the cat's menu, and is off every time GizeCat starts. In the web host: tap the cat, stroke it with a finger to pet it, or hold it and drag. On macOS (1.4.0 candidate) a click on the menu-bar icon opens its menu instead of hiding the cat, and the shortcut is `Control+Option+Shift+C`. Full guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
+Laser Mode (1.5.0 candidate) is started from the Companion page of Settings, the tray menu or the cat's menu, and is off every time GizeMate starts. In the web host: tap the cat, stroke it with a finger to pet it, or hold it and drag. On macOS (1.4.0 candidate) a click on the menu-bar icon opens its menu instead of hiding the cat, and the shortcut is `Control+Option+Shift+C`. Full guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
 ## What is implemented
 

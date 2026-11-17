@@ -338,6 +338,11 @@ function payloadSection(opts, tmp, failures, warnings) {
   if (res.versionInfo.FileVersion && !String(res.versionInfo.FileVersion).startsWith(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version)) {
     failures.push(`exe FileVersion ${res.versionInfo.FileVersion} differs from package.json version`);
   }
+  // 1.6.0: the exe's FileDescription / ProductName (Task Manager > Startup apps) are the installed name, set by build/afterSign.cjs.
+  const installed = /installedName: '([^']+)'/.exec(fs.readFileSync(path.join(root, 'src/shared/brand.ts'), 'utf8'))?.[1];
+  for (const k of ['FileDescription', 'ProductName']) {
+    if (installed && res.versionInfo[k] !== installed) failures.push(`exe ${k} is "${res.versionInfo[k]}", expected the installed name "${installed}" (build/afterSign.cjs)`);
+  }
   const er = fileReader(exe);
   try {
     res.imports = peImports(er);

@@ -23,6 +23,9 @@ async function prepare(userData: string): Promise<{ app: ElectronApplication; pa
   const page = await settingsPage(app);
   await expect(page.locator('#root, body').first()).toBeVisible();
   await page.waitForFunction('!!document.querySelector(".rail .nav-item")');
+  // On first run the settings window may already be open, drawn in the system language (Turkish on a Turkish PC);
+  // the patch above re-renders it in place a moment later. Wait for that before anything reads labels.
+  await page.waitForFunction('document.documentElement.lang === "en"');
   await page.emulateMedia({ reducedMotion: null });
   return { app, page };
 }
