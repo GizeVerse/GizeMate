@@ -516,7 +516,7 @@ describe('check-win-payload: an unpacked folder', () => {
     writePayload(dir, 'x64', {
       extraAsar: {
         'src/main/app.ts': Buffer.from('// source'),
-        'release/Desktop-Cat-Setup-1.2.0.exe': Buffer.from('MZ'),
+        'release/GizeMate-Setup-1.2.0.exe': Buffer.from('MZ'),
         '.claude/state/notes.json': Buffer.from('{}'),
       },
     });
@@ -572,7 +572,7 @@ describe('app.asar allow-list (asarStrayEntries)', () => {
       'docs/PRIVACY.md',
       'out/web/index.html',
       'out/preview/cat.png',
-      'release/Desktop-Cat-Setup-1.2.0.exe',
+      'release/GizeMate-Setup-1.2.0.exe',
       '.claude/state/notes.json',
       'tests/unit/x.test.ts',
       'electron-builder.yml',
@@ -689,7 +689,7 @@ describe('electron-builder.yml: one installer per architecture', () => {
   });
 
   it('names each installer by architecture and builds no combined installer', () => {
-    expect(nsis).toContain('artifactName: Desktop-Cat-Setup-${version}-${arch}.${ext}');
+    expect(nsis).toContain('artifactName: GizeMate-Setup-${version}-${arch}.${ext}');
     expect(nsis).toMatch(/buildUniversalInstaller: false/);
   });
 });
@@ -851,7 +851,7 @@ describe('install-test.ps1 and upgrade-test.ps1: which installer is tested', () 
       expect(fn(install, name).length, name).toBeGreaterThan(0);
       expect(fn(upgrade, name), name).toBe(fn(install, name));
     }
-    expect(install).not.toMatch(/Filter 'Desktop-Cat-Setup-\*\.exe' \| Select-Object -First 1/);
+    expect(install).not.toMatch(/Filter 'GizeMate-Setup-\*\.exe' \| Select-Object -First 1/);
     expect(upgrade).not.toMatch(/Sort-Object LastWriteTime/);
     expect(install).toMatch(/\$setup = Resolve-Installer \$root \$version \$Arch \$Installer/);
     expect(upgrade).toMatch(/\$new = Resolve-Installer \$root \$version \$Arch \$Installer/);
@@ -890,45 +890,45 @@ describe('install-test.ps1 and upgrade-test.ps1: which installer is tested', () 
   }
 
   it.runIf(onWindows)(
-    'picks exactly Desktop-Cat-Setup-<version>-<arch>.exe, refuses none or several, and checks an explicit path',
+    'picks exactly GizeMate-Setup-<version>-<arch>.exe, refuses none or several, and checks an explicit path',
     () => {
       const root = freshDir();
       const v = '1.4.0';
       const rel = (...p: string[]): string => path.join(root, 'release', ...p);
-      for (const f of [rel('Desktop-Cat-Setup-1.1.0.exe'), rel('Desktop-Cat-Setup-1.2.0.exe'), rel(v, 'Desktop-Cat-Setup-1.4.0-x64.exe'), rel(v, 'Desktop-Cat-Setup-1.4.0-arm64.exe')]) writeFile(f, 'MZ');
+      for (const f of [rel('GizeMate-Setup-1.1.0.exe'), rel('GizeMate-Setup-1.2.0.exe'), rel(v, 'GizeMate-Setup-1.4.0-x64.exe'), rel(v, 'GizeMate-Setup-1.4.0-arm64.exe')]) writeFile(f, 'MZ');
       const dup = freshDir();
-      writeFile(path.join(dup, 'release', 'Desktop-Cat-Setup-1.4.0-x64.exe'), 'MZ');
-      writeFile(path.join(dup, 'release', v, 'Desktop-Cat-Setup-1.4.0-x64.exe'), 'MZ');
+      writeFile(path.join(dup, 'release', 'GizeMate-Setup-1.4.0-x64.exe'), 'MZ');
+      writeFile(path.join(dup, 'release', v, 'GizeMate-Setup-1.4.0-x64.exe'), 'MZ');
       // The 1.4.0 release run writes to release\<version>\windows\ (WINREG-3).
       const win = freshDir();
-      for (const a of ['x64', 'arm64']) writeFile(path.join(win, 'release', v, 'windows', `Desktop-Cat-Setup-1.4.0-${a}.exe`), 'MZ');
-      writeFile(path.join(win, 'release', 'Desktop-Cat-Setup-1.2.0.exe'), 'MZ');
+      for (const a of ['x64', 'arm64']) writeFile(path.join(win, 'release', v, 'windows', `GizeMate-Setup-1.4.0-${a}.exe`), 'MZ');
+      writeFile(path.join(win, 'release', 'GizeMate-Setup-1.2.0.exe'), 'MZ');
       // A stale copy next to the fresh versioned one is never picked silently.
       const dupWin = freshDir();
-      writeFile(path.join(dupWin, 'release', 'Desktop-Cat-Setup-1.4.0-x64.exe'), 'MZ');
-      writeFile(path.join(dupWin, 'release', v, 'windows', 'Desktop-Cat-Setup-1.4.0-x64.exe'), 'MZ');
+      writeFile(path.join(dupWin, 'release', 'GizeMate-Setup-1.4.0-x64.exe'), 'MZ');
+      writeFile(path.join(dupWin, 'release', v, 'windows', 'GizeMate-Setup-1.4.0-x64.exe'), 'MZ');
       for (const script of ['install-test.ps1', 'upgrade-test.ps1']) {
         const [x64, arm64, missing, several, explicitOk, explicitWrongArch, explicitAbsent, winX64, winArm64, severalWin] = resolve(path.join(ROOT, 'scripts', script), [
           { root, version: v, arch: 'x64' },
           { root, version: v, arch: 'arm64' },
           { root, version: '9.9.9', arch: 'x64' },
           { root: dup, version: v, arch: 'x64' },
-          { root, version: v, arch: 'arm64', explicit: rel(v, 'Desktop-Cat-Setup-1.4.0-arm64.exe') },
-          { root, version: v, arch: 'x64', explicit: rel(v, 'Desktop-Cat-Setup-1.4.0-arm64.exe') },
+          { root, version: v, arch: 'arm64', explicit: rel(v, 'GizeMate-Setup-1.4.0-arm64.exe') },
+          { root, version: v, arch: 'x64', explicit: rel(v, 'GizeMate-Setup-1.4.0-arm64.exe') },
           { root, version: v, arch: 'x64', explicit: rel('nothing.exe') },
           { root: win, version: v, arch: 'x64' },
           { root: win, version: v, arch: 'arm64' },
           { root: dupWin, version: v, arch: 'x64' },
         ]);
-        expect(winX64?.path?.toLowerCase(), script).toMatch(/\\release\\1\.4\.0\\windows\\desktop-cat-setup-1\.4\.0-x64\.exe$/);
-        expect(winArm64?.path?.toLowerCase(), script).toMatch(/\\release\\1\.4\.0\\windows\\desktop-cat-setup-1\.4\.0-arm64\.exe$/);
-        expect(severalWin?.error, script).toMatch(/several copies of Desktop-Cat-Setup-1\.4\.0-x64\.exe/);
+        expect(winX64?.path?.toLowerCase(), script).toMatch(/\\release\\1\.4\.0\\windows\\gizemate-setup-1\.4\.0-x64\.exe$/);
+        expect(winArm64?.path?.toLowerCase(), script).toMatch(/\\release\\1\.4\.0\\windows\\gizemate-setup-1\.4\.0-arm64\.exe$/);
+        expect(severalWin?.error, script).toMatch(/several copies of GizeMate-Setup-1\.4\.0-x64\.exe/);
         expect(missing?.error, script).toMatch(/not found in release\\, release\\9\.9\.9\\ or release\\9\.9\.9\\windows\\/);
-        expect(x64?.path?.toLowerCase(), script).toMatch(/\\release\\1\.4\.0\\desktop-cat-setup-1\.4\.0-x64\.exe$/);
-        expect(arm64?.path?.toLowerCase(), script).toMatch(/\\release\\1\.4\.0\\desktop-cat-setup-1\.4\.0-arm64\.exe$/);
-        expect(missing?.error, script).toMatch(/Desktop-Cat-Setup-9\.9\.9-x64\.exe not found/);
-        expect(several?.error, script).toMatch(/several copies of Desktop-Cat-Setup-1\.4\.0-x64\.exe/);
-        expect(explicitOk?.path?.toLowerCase(), script).toMatch(/desktop-cat-setup-1\.4\.0-arm64\.exe$/);
+        expect(x64?.path?.toLowerCase(), script).toMatch(/\\release\\1\.4\.0\\gizemate-setup-1\.4\.0-x64\.exe$/);
+        expect(arm64?.path?.toLowerCase(), script).toMatch(/\\release\\1\.4\.0\\gizemate-setup-1\.4\.0-arm64\.exe$/);
+        expect(missing?.error, script).toMatch(/GizeMate-Setup-9\.9\.9-x64\.exe not found/);
+        expect(several?.error, script).toMatch(/several copies of GizeMate-Setup-1\.4\.0-x64\.exe/);
+        expect(explicitOk?.path?.toLowerCase(), script).toMatch(/gizemate-setup-1\.4\.0-arm64\.exe$/);
         expect(explicitWrongArch?.error, script).toMatch(/is not the x64 installer/);
         expect(explicitAbsent?.error, script).toMatch(/installer not found/);
       }

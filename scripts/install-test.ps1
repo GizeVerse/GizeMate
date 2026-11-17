@@ -15,7 +15,7 @@
 #   node scripts/with-lock.mjs install-test -- powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-test.ps1 [-Arch x64|arm64] [-Installer <path>]
 #
 # 1.4.0: one installer per architecture. -Arch defaults to the PC's native architecture; the
-# installer is exactly Desktop-Cat-Setup-<package.json version>-<arch>.exe in release\,
+# installer is exactly GizeMate-Setup-<package.json version>-<arch>.exe in release\,
 # release\<version>\ or release\<version>\windows\ (none or several copies is an error;
 # -Installer names one by path). An x64
 # installer may be tested on Windows 11 on Arm (x64 emulation); the arm64 installer refuses to
@@ -45,7 +45,7 @@ function Resolve-Installer([string]$repoRoot, [string]$version, [string]$arch, [
     if (($item.Name -match '-(x64|arm64)\.exe$') -and ($Matches[1] -ne $arch)) { throw "$($item.Name) is not the $arch installer" }
     return $item
   }
-  $name = "Desktop-Cat-Setup-$version-$arch.exe"
+  $name = "GizeMate-Setup-$version-$arch.exe"
   $release = Join-Path $repoRoot 'release'
   # release\ (npm run package:win), release\<version>\ (up to 1.3.0), release\<version>\windows\ (the 1.4.0 release run).
   $versioned = Join-Path $release $version

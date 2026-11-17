@@ -9,7 +9,7 @@
 #   node scripts/with-lock.mjs upgrade-test -- powershell -NoProfile -ExecutionPolicy Bypass -File scripts/upgrade-test.ps1 -OldInstaller <path to Desktop-Cat-Setup-1.0.x.exe> [-Arch x64|arm64] [-Installer <path to the new installer>]
 #
 # 1.4.0: the NEW installer is chosen like install-test.ps1 does (exactly
-# Desktop-Cat-Setup-<package.json version>-<arch>.exe in release\, release\<version>\ or
+# GizeMate-Setup-<package.json version>-<arch>.exe in release\, release\<version>\ or
 # release\<version>\windows\, -Arch
 # defaulting to the PC's native architecture), never by file date. Installers up to 1.3.0 have no
 # architecture suffix and are all x64. On a Windows on Arm PC the cross-architecture upgrade is
@@ -41,7 +41,7 @@ function Resolve-Installer([string]$repoRoot, [string]$version, [string]$arch, [
     if (($item.Name -match '-(x64|arm64)\.exe$') -and ($Matches[1] -ne $arch)) { throw "$($item.Name) is not the $arch installer" }
     return $item
   }
-  $name = "Desktop-Cat-Setup-$version-$arch.exe"
+  $name = "GizeMate-Setup-$version-$arch.exe"
   $release = Join-Path $repoRoot 'release'
   # release\ (npm run package:win), release\<version>\ (up to 1.3.0), release\<version>\windows\ (the 1.4.0 release run).
   $versioned = Join-Path $release $version

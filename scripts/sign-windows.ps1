@@ -137,7 +137,7 @@ $created = New-Object System.Collections.Generic.List[string]
 function Remove-Produced {
   foreach ($f in $created) { if (Test-Path -LiteralPath $f) { Remove-Item -LiteralPath $f -Force } }
   if (Test-Path -LiteralPath $OutputDir) {
-    Get-ChildItem -LiteralPath $OutputDir -Filter 'Desktop-Cat-Setup-*' -File | Remove-Item -Force
+    Get-ChildItem -LiteralPath $OutputDir -Filter 'GizeMate-Setup-*' -File | Remove-Item -Force
     Set-Content -LiteralPath (Join-Path $OutputDir 'SIGNING-FAILED.txt') -Encoding ascii -Value @(
       "Signing failed on $(Get-Date -Format o). The signed installers of this run were removed.",
       'Nothing in this folder is a signed release file.')
@@ -147,7 +147,7 @@ function Remove-Produced {
 try {
   if ($Mode -eq 'SignExisting') {
     # --- Sign copies of the existing final installers ---------------------------------------------
-    $inputs = @('x64', 'arm64') | ForEach-Object { Join-Path $InputDir "Desktop-Cat-Setup-$Version-$_.exe" }
+    $inputs = @('x64', 'arm64') | ForEach-Object { Join-Path $InputDir "GizeMate-Setup-$Version-$_.exe" }
     foreach ($f in $inputs) {
       if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { throw "input installer not found: $f" }
       $state = (Get-AuthenticodeSignature -LiteralPath $f).Status
@@ -205,7 +205,7 @@ try {
     foreach ($a in @(@('x64', 'win-unpacked'), @('arm64', 'win-arm64-unpacked'))) {
       Invoke-Native "static payload check $($a[0])" { & node scripts/check-win-payload.mjs --arch $a[0] --dir (Join-Path $OutputDir $a[1]) }
     }
-    $signed = @('x64', 'arm64') | ForEach-Object { Join-Path $OutputDir "Desktop-Cat-Setup-$Version-$_.exe" }
+    $signed = @('x64', 'arm64') | ForEach-Object { Join-Path $OutputDir "GizeMate-Setup-$Version-$_.exe" }
     foreach ($f in $signed) { if (Test-Path -LiteralPath $f) { $created.Add($f) } }
     $inner = @()
     foreach ($d in 'win-unpacked', 'win-arm64-unpacked') {

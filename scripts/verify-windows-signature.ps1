@@ -17,7 +17,7 @@
   Works in Windows PowerShell 5.1 and PowerShell 7.
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File scripts\verify-windows-signature.ps1 release\1.4.0\windows-signed\Desktop-Cat-Setup-1.4.0-x64.exe release\1.4.0\windows-signed\Desktop-Cat-Setup-1.4.0-arm64.exe
+  powershell -ExecutionPolicy Bypass -File scripts\verify-windows-signature.ps1 release\1.4.0\windows-signed\GizeMate-Setup-1.4.0-x64.exe release\1.4.0\windows-signed\GizeMate-Setup-1.4.0-arm64.exe
 #>
 [CmdletBinding()]
 param(
