@@ -183,20 +183,34 @@ async function waitCalm(page: Page, timeoutMs = 60_000): Promise<WebTestState> {
   }
 }
 
-/** A point the router gives to the cat right now: the centre of its largest hit rect that is on the cat. */
-async function catPoint(page: Page): Promise<{ x: number; y: number }> {
-  const p = await page.evaluate(() => {
-    const h = (globalThis as unknown as PageGlobals).__gizecatWebTest;
-    const rects = [...h.state().hitRects].sort((a, b) => b.width * b.height - a.width * a.height);
-    for (const r of rects) {
-      const x = r.x + r.width / 2;
-      const y = r.y + r.height / 2;
-      if (h.catAt(x, y)) return { x, y };
-    }
-    return null;
-  });
-  if (!p) throw new Error('no point on the cat');
-  return p;
+/**
+ * A point the router gives to the cat right now: the on-the-cat point (the router's own hit test, so
+ * the toolbar, which wins over the cat, excluded) nearest the centre of the cat's largest hit rect.
+ * A cat standing behind the toolbar has no such point until it walks on: wait for one (observable
+ * state, not a fixed sleep).
+ */
+async function catPoint(page: Page, timeoutMs = 20_000): Promise<{ x: number; y: number }> {
+  const find = () =>
+    page.evaluate(() => {
+      const h = (globalThis as unknown as PageGlobals).__gizecatWebTest;
+      const rects = [...h.state().hitRects].sort((a, b) => b.width * b.height - a.width * a.height);
+      for (const r of rects) {
+        const cx = r.x + r.width / 2;
+        const cy = r.y + r.height / 2;
+        const cands: { x: number; y: number }[] = [];
+        for (let i = 0; i <= 8; i++) for (let j = 0; j <= 8; j++) cands.push({ x: r.x + (r.width * i) / 8, y: r.y + (r.height * j) / 8 });
+        cands.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
+        for (const c of cands) if (h.catAt(c.x, c.y)) return c;
+      }
+      return null;
+    });
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const p = await find();
+    if (p) return p;
+    if (Date.now() >= deadline) throw new Error('no point on the cat');
+    await page.waitForTimeout(100);
+  }
 }
 
 /** `seq` appears in order (not necessarily adjacent) in the state history. */
@@ -393,8 +407,11 @@ test('touch: a finger stroking the cat pets it (no pick-up)', async ({ page }, i
   const deadline = Date.now() + 30_000;
   let s = await state(page);
   while (!s.states.includes('beingPetted') && Date.now() < deadline) {
+    // The finger comes down ON the cat (the router's own hit test says so: catPoint), and strokes from there.
+    // A finger that lands beside the cat (the cat's hit rect is ~35 px wide, so an offset of 20 px from its
+    // centre can miss it) is a page press: the browser scrolls and cancels it, and nothing pets the cat.
     const p = await catPoint(page);
-    let x = p.x - 20;
+    let x = p.x;
     await touch.start(x, p.y);
     for (let leg = 0; leg < 6; leg++) {
       const dir = leg % 2 === 0 ? 1 : -1;
@@ -404,6 +421,8 @@ test('touch: a finger stroking the cat pets it (no pick-up)', async ({ page }, i
         await page.waitForTimeout(35);
       }
     }
+    // The cat owned the finger the whole stroke (not a page press, not a pick-up).
+    expect((await state(page)).router.touchMode, 'the cat owns the stroking finger').toBe('stroke');
     await touch.end();
     s = await state(page);
   }

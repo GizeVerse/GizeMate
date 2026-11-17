@@ -13,12 +13,14 @@ export const SLIME_MODULE: CharacterModule = Object.freeze({
     heightDip: 58,
     gaitScale: 0.95,
     // A flat puddle or a splat spreads sideways; a stretch or a bounce reaches a little further than the stand.
-    hitFrontExtentDip: Object.freeze({ bounce: 44, hop: 40, stretch: 46, land: 52, squish: 54, hide: 54, sleep: 52, vanish: 54, appear: 54, startle: 44, dance: 44 }),
+    hitFrontExtentDip: Object.freeze({ bounce: 44, hop: 40, stretch: 46, land: 52, impact: 54, pawAt: 56, swat: 62, groom: 50, scratch: 50, rollOver: 54, tailChase: 46, hiss: 50, meow: 46, squish: 54, hide: 54, sleep: 52, vanish: 54, appear: 54, startle: 44, dance: 44 }),
   }),
   skins: Object.freeze(['lime', 'berry', 'ocean', 'sunset']),
   clips: Object.freeze([
     'stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'crouch', 'jump', 'fall', 'land', 'startle', 'annoyed', 'confused',
     'petted', 'held', 'shake', 'hide', 'bounce', 'hop', 'vanish', 'appear', 'squish', 'stretch', 'scan', 'beam', 'peek', 'dance',
+    // Authored with the pseudopod, the puff and the flop (they used to be aliases of shake, squish, yawn, startle, land and dance).
+    'groom', 'scratch', 'pawAt', 'swat', 'meow', 'hiss', 'impact', 'rollOver', 'tailChase',
   ] as const),
   clipAlias: Object.freeze({
     walk: 'bounce',
@@ -28,21 +30,12 @@ export const SLIME_MODULE: CharacterModule = Object.freeze({
     sprint: 'bounce',
     float: 'hop',
     swing: 'held',
-    groom: 'shake',
-    scratch: 'shake',
-    meow: 'yawn',
-    pawAt: 'squish',
-    swat: 'squish',
     pounce: 'jump',
     climb: 'stretch',
     balance: 'crouch',
     slip: 'startle',
-    impact: 'land',
     landRecover: 'shake',
-    hiss: 'startle',
     grumpy: 'annoyed',
-    rollOver: 'dance',
-    tailChase: 'dance',
     edgeSit: 'sit',
   }),
   personality: Object.freeze({

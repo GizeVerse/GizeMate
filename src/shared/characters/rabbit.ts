@@ -16,32 +16,27 @@ export const RABBIT_MODULE: CharacterModule = Object.freeze({
     hitFrontExtentDip: Object.freeze({ crouch: 38, land: 38, pawAt: 38, wake: 44, stretch: 44, bounce: 46, jump: 42, hop: 42, startle: 40, scratch: 36 }),
   }),
   skins: Object.freeze(['white', 'brown', 'gray', 'spotted']),
+  // Native clips: the whole rest and play vocabulary, the stomp/puff/sulk/balance/dangle/spin/flop/splat/scramble/squeak
+  // gestures, the pounce leap and the burrow vanish/appear. Gaits (walk, run, sprint, stalk, slink) are the 'hop' clip: the
+  // sim restyles every gait to it and the pace shows in the speed (creep, hop, long leaps).
   clips: Object.freeze([
     'stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'crouch', 'jump', 'fall', 'land', 'startle', 'annoyed', 'petted', 'groom', 'pawAt', 'held',
     'hide', 'peek', 'scratch', 'shake', 'confused', 'hop', 'bounce', 'dance', 'scan', 'squish', 'stretch',
+    'pounce', 'swat', 'hiss', 'grumpy', 'balance', 'edgeSit', 'tailChase', 'rollOver', 'impact', 'slip', 'meow', 'vanish', 'appear',
   ] as const),
+  // Kept aliases, each a pose that suits a rabbit (never emitted for it, or the same motion):
+  // walk/run/sprint/stalk/slink: the hop clip itself (speed shapes it); landRecover: shaking it off is what a rabbit does after
+  // a hard landing; climb: never emitted (no wall climbing, climbsEdges false); float: unused by a hopper; swing: hangs by the
+  // scruff like held; beam: unused, the upright periscope with antenna ears is the nearest pose.
   clipAlias: Object.freeze({
     walk: 'hop',
     run: 'hop',
     sprint: 'hop',
-    stalk: 'crouch',
-    slink: 'hide',
-    balance: 'crouch',
-    pounce: 'jump',
-    slip: 'startle',
-    impact: 'land',
+    stalk: 'hop',
+    slink: 'hop',
     landRecover: 'shake',
-    swat: 'annoyed',
-    hiss: 'startle',
-    grumpy: 'annoyed',
-    tailChase: 'dance',
-    edgeSit: 'sit',
-    rollOver: 'loaf',
-    meow: 'scan',
     climb: 'stand',
     float: 'bounce',
-    vanish: 'hide',
-    appear: 'peek',
     swing: 'held',
     beam: 'scan',
   } as const),
@@ -155,6 +150,18 @@ export const RABBIT_MODULE: CharacterModule = Object.freeze({
         emote: 'sparkle',
         sound: 'boing',
       }),
+      // Dive into a burrow and pop up somewhere else, looking around: rare, and never with reduced motion (the engine swaps).
+      Object.freeze({
+        id: 'burrow',
+        clip: 'scan',
+        weight: 0.5,
+        cooldownMs: 240_000,
+        durationMs: Object.freeze([1800, 3000] as const),
+        requires: Object.freeze({ notWhileSleepy: true }),
+        traitBias: Object.freeze({ playfulness: 0.5, mischief: 0.4 }),
+        movement: 'teleport',
+        emote: 'question',
+      }),
       // Duck low and peek out again.
       Object.freeze({
         id: 'peekaboo',
@@ -192,7 +199,7 @@ export const RABBIT_MODULE: CharacterModule = Object.freeze({
   sound: Object.freeze({
     pitch: 1.3,
     voice: 'soft',
-    gain: 0.8,
+    gain: 0.6,
     cooldownMs: 2500,
     cues: Object.freeze({ voice: 'squeak', happy: 'trill', startled: 'thud' }),
   }),

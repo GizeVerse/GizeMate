@@ -398,3 +398,126 @@ describe('fox renderer: behaviours', () => {
     expect(Math.hypot(sx - -8, sy - -58)).toBeLessThan(9);
   });
 });
+
+describe('fox renderer: the soft vanish and appear', () => {
+  const at = (clip: AnimClip, ms: number, extra: Partial<AnimInput> = {}): FoxRenderer => runFox(clip, ms, extra);
+  const strokes = (r: FoxRenderer, ppu: number): number => {
+    const m = createMockCtx();
+    r.draw(m.ctx, { outline: 1.6, shadow: true, pixelsPerUnit: ppu, skin: 'red' });
+    return m.calls.filter((c) => c.name === 'fill' || c.name === 'stroke').length;
+  };
+
+  it('vanish ends fully hidden and appear ends fully visible, the body fading before the brush (and returning after it)', () => {
+    const v0 = at('vanish', 10);
+    expect(v0.pose.alpha).toBeGreaterThan(0.95);
+    const vMid = at('vanish', 560);
+    expect(vMid.pose.alpha).toBeLessThan(0.5);
+    expect(vMid.pose.tailAlpha).toBeGreaterThan(0.8);
+    const vEnd = at('vanish', 1300);
+    expect(vEnd.pose.alpha).toBe(0);
+    expect(vEnd.pose.tailAlpha).toBe(0);
+    expect(vEnd.pose.sqY).toBeLessThan(0.6);
+    const aEarly = at('appear', 150);
+    expect(aEarly.pose.tailAlpha).toBeGreaterThan(aEarly.pose.alpha);
+    const aEnd = at('appear', 1300);
+    expect(aEnd.pose.alpha).toBe(1);
+    expect(aEnd.pose.sqY).toBeGreaterThan(0.97);
+    expect(aEnd.pose.sqY).toBeLessThan(1.03);
+  });
+
+  it('paints nothing when hidden, something while fading, in smooth and pixel mode alike; the dust puff stays inside the bounds', () => {
+    for (const ppu of [2, 0.45]) {
+      expect(strokes(at('vanish', 1300), ppu), `hidden ${ppu}`).toBe(0);
+      expect(strokes(at('vanish', 400), ppu), `fading ${ppu}`).toBeGreaterThan(0);
+      expect(strokes(at('appear', 1300), ppu), `shown ${ppu}`).toBeGreaterThan(0);
+    }
+    for (const clip of ['vanish', 'appear'] as const) {
+      for (let ms = 300; ms <= 800; ms += 100) {
+        const r = at(clip, ms);
+        if (r.pose.dust < 0.05) continue;
+        const c = collect(r);
+        const m = createExtentCtx();
+        r.draw(m.ctx, { outline: 1.6, shadow: false, pixelsPerUnit: 2, skin: 'red' });
+        const b = m.box;
+        expect(b.x0 >= c.x0 - MARGIN && b.y0 >= c.y0 - MARGIN && b.x1 <= c.x1 + MARGIN && b.y1 <= c.y1 + MARGIN, `${clip}@${ms}`).toBe(true);
+      }
+    }
+  });
+
+  it('reduced motion makes both a plain slow fade: no shrink, no dust, no pop', () => {
+    for (const clip of ['vanish', 'appear'] as const) {
+      let prev = clip === 'vanish' ? 1 : 0;
+      for (let t = 0; t <= 1000; t += DT) {
+        const r = new FoxRenderer(seededRandom(5));
+        r.advance(input(clip, { reducedMotion: true }), t, t === 0 ? 0 : DT, 0, 0);
+        // The animator eases reduced motion in; the clip itself never scales or puffs.
+        expect(r.pose.dust, clip).toBe(0);
+        expect(r.pose.sqY, clip).toBeGreaterThan(0.99);
+        void prev;
+        prev = r.pose.alpha;
+      }
+    }
+    const r = new FoxRenderer(seededRandom(5));
+    let last = 1;
+    for (let t = 0; t <= 1100; t += DT) {
+      r.advance(input('vanish', { reducedMotion: true }), t, t === 0 ? 0 : DT, 0, 0);
+      expect(r.pose.alpha, 'monotone fade').toBeLessThanOrEqual(last + 1e-9);
+      expect(last - r.pose.alpha, 'no pop').toBeLessThan(0.1);
+      last = r.pose.alpha;
+    }
+    expect(last).toBeLessThan(0.02);
+  });
+});
+
+describe('fox renderer: the authored scratch, yip, hop and squish', () => {
+  it('the scratch raises a hind paw to the head and moves it fast; the yip opens the mouth wide; the hop leaves the ground; the squish flattens', () => {
+    const lifted = runFox('scratch', 1500);
+    expect(lifted.rig.legs[2]!.fy).toBeLessThan(-20);
+    let lo = Infinity;
+    let hi = -Infinity;
+    const r = new FoxRenderer(seededRandom(3));
+    for (let t = 0; t <= 2200; t += DT) {
+      r.advance(input('scratch'), t, t === 0 ? 0 : DT, 0, 0);
+      if (t > 900) {
+        lo = Math.min(lo, r.pose.bnY);
+        hi = Math.max(hi, r.pose.bnY);
+      }
+    }
+    expect(hi - lo).toBeGreaterThan(4);
+    let open = 0;
+    const y = new FoxRenderer(seededRandom(3));
+    for (let t = 0; t <= 900; t += DT) {
+      y.advance(input('meow'), t, t === 0 ? 0 : DT, 0, 0);
+      open = Math.max(open, y.pose.mouthOpen);
+    }
+    expect(open).toBeGreaterThan(0.8);
+    let air = 0;
+    const h = new FoxRenderer(seededRandom(3));
+    for (let t = 0; t <= 1300; t += DT) {
+      h.advance(input('hop'), t, t === 0 ? 0 : DT, 0, 0);
+      air = Math.min(air, h.pose.offY);
+    }
+    expect(air).toBeLessThan(-8);
+    let flat = 1;
+    const q = new FoxRenderer(seededRandom(3));
+    for (let t = 0; t <= 600; t += DT) {
+      q.advance(input('squish'), t, t === 0 ? 0 : DT, 0, 0);
+      flat = Math.min(flat, q.pose.sqY);
+    }
+    expect(flat).toBeLessThan(0.8);
+  });
+
+  it('the held fox keeps hanging from the scruff while it wriggles (paws paddle over the loop)', () => {
+    const r = new FoxRenderer(seededRandom(3));
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let t = 0; t <= 7600; t += DT) {
+      r.advance(input('held'), t, t === 0 ? 0 : DT, 0, 0);
+      if (t > 1000 && t < 3000) {
+        lo = Math.min(lo, r.pose.fnX);
+        hi = Math.max(hi, r.pose.fnX);
+      }
+    }
+    expect(hi - lo).toBeGreaterThan(3);
+  });
+});

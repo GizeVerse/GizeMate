@@ -3,6 +3,7 @@
 // through the DESKTOP_CAT_TEST hook object in the main process.
 import fs from 'node:fs';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { _electron as electron, test as base, expect, type ElectronApplication, type Page } from '@playwright/test';
 import type { DesktopCatTestApi } from '../../src/main/testHooks';
@@ -105,6 +106,37 @@ export function readLogLines(userData: string): LogLine[] {
     .split('\n')
     .filter(Boolean)
     .map((l) => JSON.parse(l) as LogLine);
+}
+
+/**
+ * Writes a settings.json (schema 3) before launch: the general section (merged over firstRunCompleted true,
+ * startupState visible, language en) plus optional further sections, e.g. { companion: { events: {...} } }.
+ */
+export function seedSettings(userData: string, general: Record<string, unknown> = {}, extra: Record<string, unknown> = {}): void {
+  const doc = { schemaVersion: 3, general: { firstRunCompleted: true, startupState: 'visible', language: 'en', ...general }, ...extra };
+  fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(doc));
+}
+
+/** The overlay page (renderer window) of a display, or the first one. */
+export function overlayPageOf(app: ElectronApplication, displayId?: string): Page | undefined {
+  return app.windows().find((w) => {
+    if (!w.url().includes('/renderer/overlay/')) return false;
+    if (displayId === undefined) return true;
+    try {
+      return new URL(w.url()).searchParams.get('display') === displayId;
+    } catch {
+      return false;
+    }
+  });
+}
+
+export function sha256File(file: string): string | null {
+  return fs.existsSync(file) ? crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') : null;
+}
+
+/** userData/characters/<id>.json (every character but the cat) or cat-state.json (the cat). */
+export function characterStateFile(userData: string, id: string): string {
+  return id === 'cat' ? path.join(userData, 'cat-state.json') : path.join(userData, 'characters', `${id}.json`);
 }
 
 export const test = base.extend<{ userData: string }>({

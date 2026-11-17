@@ -60,6 +60,9 @@ export const POSE_KEYS = [
   'breath',
   'blinkOK',
   'shadow',
+  // Burrow vanish/appear: body opacity 0..1 and the ground clip (> 0.5 hides everything below the ground line, so the body sinks into the earth).
+  'alpha',
+  'burrow',
 ] as const;
 
 export type PoseKey = (typeof POSE_KEYS)[number];
@@ -112,6 +115,8 @@ const BASE: RPose = {
   breath: 1,
   blinkOK: 1,
   shadow: 1,
+  alpha: 1,
+  burrow: 0,
 };
 
 export function createPose(): RPose {

@@ -15,7 +15,7 @@
   --divider: rgba(0, 0, 0, 0.08);
   --text: #1b1b1b;
   --text-2: #5e5e5e;
-  --text-3: #8a8a8a;
+  --text-3: #6b6b6b;
   --accent: #005fb8;
   --accent-hover: #1a6dc0;
   --accent-pressed: #3381c8;
@@ -74,7 +74,7 @@
     --divider: rgba(255, 255, 255, 0.08);
     --text: #ffffff;
     --text-2: #c5c5c5;
-    --text-3: #8b8b8b;
+    --text-3: #a0a0a0;
     --accent: #60cdff;
     --accent-hover: #5ab8e6;
     --accent-pressed: #52a3cc;
@@ -110,7 +110,7 @@
     --warn-stroke: #5c4a22;
     --danger: #ff99a4;
     --danger-solid: #d13438;
-    --danger-solid-hover: #e04347;
+    --danger-solid-hover: #bf2d31;
     --on-danger: #ffffff;
     --danger-bg: #442726;
     --danger-stroke: #6b3433;
@@ -1883,7 +1883,18 @@ p.row-desc {
   *::before,
   *::after {
     transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
   }
+}
+
+/* The companion's own reduced-motion switch (set on <html> by appListeners.ts) calms the interface the same way. */
+html[data-calm] *,
+html[data-calm] *::before,
+html[data-calm] *::after {
+  transition: none !important;
+  animation: none !important;
+  scroll-behavior: auto !important;
 }
 
 @media (forced-colors: active) {

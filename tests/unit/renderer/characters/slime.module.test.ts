@@ -35,7 +35,9 @@ describe('slime module', () => {
       expect(m.clips).toContain(r);
       expect(resolveSlimeClip(c)).toBe(r);
     }
-    for (const c of ['walk', 'run', 'groom', 'scratch', 'swing', 'float'] as const) expect(m.clipAlias[c], c).toBeDefined();
+    // groom and scratch are native now (a pseudopod wipe and rub; product requirement: they were the shake clip).
+    for (const c of ['walk', 'run', 'swing', 'float'] as const) expect(m.clipAlias[c], c).toBeDefined();
+    for (const c of ['groom', 'scratch', 'pawAt', 'swat', 'meow', 'hiss', 'impact', 'rollOver', 'tailChase'] as const) expect(m.clips, c).toContain(c);
   });
 
   it('has at least four palettes, each defined by the renderer, readable (distinct outline) and unique', () => {

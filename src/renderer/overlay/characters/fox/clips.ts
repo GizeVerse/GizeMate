@@ -513,6 +513,10 @@ function clipClimb(p: Pose, c: ClipContext): void {
   p.pupilY += 0.7 * down - 0.5 * up;
   p.tailBase += 0.1 * Math.sin(TAU * 2 * c.t / 7.2) * still + 0.12 * Math.sin(TAU * cy + 1) * move;
   p.tailCurl += 0.25 * Math.sin(TAU * 2 * c.t / 7.2 - 1.1) * still + 0.3 * Math.sin(TAU * cy) * move;
+  p.bodyX += 0.5 * Math.sin(TAU * 2 * cy + 0.9) * move;
+  p.headRot += 0.07 * Math.sin(TAU * cy + 1.4) * move;
+  p.earNR += 0.18 * Math.sin(TAU * 2 * cy) * move;
+  p.mouthOpen = 0.12 * move;
   const dn = c.descend !== undefined && Number.isFinite(c.descend) ? clamp01(c.descend) : 0;
   p.tailBase += 0.6 * dn;
   p.tailCurl += 0.5 * dn;
@@ -719,21 +723,36 @@ function clipHeld(p: Pose, c: ClipContext): void {
   p.headRot = -0.15;
   ears(p, 0.35, 0.4, 0.3, 0.3);
   p.eyeOpen = 1;
-  const kick = Math.sin(TAU * 0.55 * t);
+  // 7.5 s loop: hangs limp and resigned (head low, eyes half shut), then two wriggles: the front paws paddle, the
+  // hind legs kick out of phase, the brush whips, the fox yips. The scruff stays where the mover keeps the cursor.
+  const it = (t % 7.5 + 7.5) % 7.5;
+  const wig = pulse(it, 0.9, 1.3, 2.7, 3.2) + 0.7 * pulse(it, 4.6, 4.9, 5.7, 6.1);
+  const sag = pulse(it, 3.4, 3.9, 4.4, 4.7) + pulse(it, 6.3, 6.8, 7.2, 7.5);
+  const k = c.reducedMotion ? 0.4 : 1;
+  const w = wig * k;
+  const kick = Math.sin(TAU * 0.55 * t) * (1 - wig) + Math.sin(TAU * 3.1 * t) * w;
+  const paddle = Math.sin(TAU * 3.1 * t);
+  p.headY += 2 * sag - 1.2 * w * Math.abs(paddle);
+  p.headRot += -0.12 * sag + 0.1 * w * Math.sin(TAU * 1.55 * t);
+  p.eyeSquint = 0.5 * sag;
+  p.mouthOpen = 0.12 + 0.3 * w * Math.max(0, Math.sin(TAU * 1.55 * t + 0.6));
+  ears(p, 0.35 + 0.35 * w + 0.15 * sag, 0.4 + 0.35 * w + 0.15 * sag, 0.3 + 0.3 * w, 0.3 + 0.3 * w);
+  p.tailBase += 0.35 * w * Math.sin(TAU * 1.55 * t + 1);
+  p.tailCurl += 0.5 * w * Math.sin(TAU * 1.55 * t);
+  p.arch += 0.1 * w * paddle;
   const fnRx = torsoPointX(p, 0.62, 0.42);
   const fnRy = torsoPointY(p, 0.62, 0.42);
   const bnRx = torsoPointX(p, -0.6, 0.42);
   const bnRy = torsoPointY(p, -0.6, 0.42);
-  setFoot(p, LEG_FN, fnRx + 4 + 0.6 * kick, fnRy + 19, 1.6);
-  setFoot(p, LEG_FF, fnRx + 1.5, fnRy + 18.5, 1.6);
-  setFoot(p, LEG_BN, bnRx + 3, bnRy + 21 + 0.8 * kick, 1.45);
-  setFoot(p, LEG_BF, bnRx - 1.5, bnRy + 20.5 - 0.8 * kick, 1.45);
-  p.tailBase = -1.5;
-  p.tailCurl = 0.5;
+  setFoot(p, LEG_FN, fnRx + 4 + 0.6 * kick + 2.5 * w * paddle, fnRy + 19 - 2.5 * w * Math.max(0, paddle), 1.6 - 0.5 * w * paddle);
+  setFoot(p, LEG_FF, fnRx + 1.5 - 2.5 * w * paddle, fnRy + 18.5 - 2.5 * w * Math.max(0, -paddle), 1.6 + 0.5 * w * paddle);
+  setFoot(p, LEG_BN, bnRx + 3 - 4 * w * paddle, bnRy + 21 + 0.8 * kick - 3 * w * Math.max(0, -paddle), 1.45 + 0.4 * w * paddle);
+  setFoot(p, LEG_BF, bnRx - 1.5 + 4 * w * paddle, bnRy + 20.5 - 0.8 * kick - 3 * w * Math.max(0, paddle), 1.45 - 0.4 * w * paddle);
+  p.tailBase += -1.5 - 0.12;
+  p.tailCurl += 0.5 + 0.45;
   p.tailStiff = 0.12;
   p.shadow = 0;
   p.lookW = 0.5;
-  p.mouthOpen = 0.12;
 }
 
 // ---- hide, peek, scan ------------------------------------------------------------------------------
@@ -835,7 +854,13 @@ function clipRollOver(p: Pose, c: ClipContext): void {
   p.mouthOpen = 0.35 * onBack;
   p.tongue = 0.5 * onBack;
   p.tailBase = -0.5 + 0.3 * wig;
-  p.tailCurl = -0.6;
+  p.tailCurl = -0.6 + 0.5 * Math.sin(TAU * 1.1 * it) * onBack;
+  // Rocks side to side on its back, one hind leg kicking, the head tossing back.
+  p.rot = 0.08 * Math.sin(TAU * 1.1 * it) * onBack;
+  p.headRot += 0.14 * Math.sin(TAU * 1.1 * it + 1) * onBack;
+  p.bnY -= 2.5 * Math.max(0, wig) * onBack;
+  p.earNR = 0.35 * onBack;
+  p.earFR = 0.4 * onBack;
   p.shadow = 1;
 }
 
@@ -1004,6 +1029,218 @@ function clipPounce(p: Pose, c: ClipContext): void {
   p.shadow = 1 - 0.5 * leap;
 }
 
+// ---- scratch, yip, hop, squish ---------------------------------------------------------------------
+
+function clipScratch(p: Pose, c: ClipContext): void {
+  sitPose(p);
+  // 3.4 s loop: the near hind leg comes up behind the head, scratches the ear and cheek fast, goes back down.
+  const it = (c.t % 3.4 + 3.4) % 3.4;
+  const raise = pulse(it, 0.15, 0.55, 2.75, 3.2);
+  const scr = Math.sin(TAU * 7.2 * it) * raise;
+  const settle = 1 - raise;
+  p.headX = lerp(9, 3, raise) + 0.7 * scr;
+  p.headY = lerp(-45, -34, raise) + 0.5 * scr;
+  p.headRot = lerp(0.22, -0.3, raise) + 0.05 * scr;
+  p.bodyX += 0.4 * scr - 1.2 * raise;
+  p.tilt -= 0.12 * raise;
+  setFoot(p, LEG_BN, lerp(-3, -3 + 2.4 * scr, raise), lerp(0, -31 + 3.4 * scr, raise), lerp(0, -0.7, raise));
+  p.eyeHappy = 0.85 * raise;
+  p.eyeSquint = 0.4 * raise;
+  p.mouthOpen = 0.12 * raise * (0.5 + 0.5 * Math.sin(TAU * 1.4 * it));
+  p.earNR = 0.95 * raise + 0.1 * scr * raise;
+  p.earNF = 0.35 * raise;
+  p.earFR = 0.25 * raise;
+  p.tailCurl += 0.2 * Math.sin(TAU * 1.1 * c.t) * settle;
+  p.blinkOK = raise > 0.3 ? 0 : 1;
+  p.lookW = settle;
+}
+
+/** The yip: a sharp bark. A quick dip, the head snaps up with the mouth wide, then a smaller second one. */
+function clipMeow(p: Pose, c: ClipContext): void {
+  sitPose(p);
+  const t = c.t;
+  const dip = pulse(t, 0, 0.07, 0.1, 0.16);
+  const y1 = pulse(t, 0.1, 0.15, 0.27, 0.36);
+  const y2 = 0.65 * pulse(t, 0.42, 0.47, 0.56, 0.66);
+  const y = Math.max(y1, y2);
+  const k = c.reducedMotion ? 0.5 : 1;
+  p.headY += 3 * dip - 4.5 * y * k;
+  p.headX += -1 * dip - 1.4 * y * k;
+  p.headRot += -0.1 * dip + 0.5 * y * k;
+  p.mouthOpen = 0.92 * y;
+  p.tongue = 0.35 * y;
+  p.offY = -1.6 * y * k;
+  p.sqY = 1 - 0.03 * dip;
+  p.bodyY += 1 * dip;
+  p.eyeSquint = 0.35 * y;
+  p.earNR -= 0.6 * y;
+  p.earFR -= 0.55 * y;
+  p.tailCurl += 0.6 * y * k;
+  p.tailBase += 0.3 * y * k;
+  p.blinkOK = 0;
+  p.shadow = 1 - 0.3 * y * k;
+}
+
+/** A springy pronk in place: stiff legs, all four paws leave the ground, the brush bounces. */
+function clipHop(p: Pose, c: ClipContext): void {
+  standPose(p);
+  const cy = (c.t / 0.64) % 1;
+  const crouch = 1 - sseg(cy, 0, 0.2);
+  const air = Math.sin(Math.PI * clamp01((cy - 0.2) / 0.62));
+  const k = c.reducedMotion ? 0.5 : 1;
+  p.offY = -13 * air * k;
+  p.sqY = 1 - 0.1 * crouch * k;
+  p.sqX = 1 + 0.05 * crouch * k;
+  p.bodyY += 3 * crouch;
+  p.headY += 3 * crouch - 2 * air;
+  p.arch = 0.45 * air;
+  p.tilt += 0.08 * air - 0.05 * crouch;
+  setFoot(p, LEG_FN, 11 + 3 * air, -7 * air, 0.5 * air);
+  setFoot(p, LEG_FF, 6.5 + 2 * air, -8 * air, 0.5 * air);
+  setFoot(p, LEG_BN, -18.5 - 2 * air, -7 * air, -0.4 * air);
+  setFoot(p, LEG_BF, -23 - 3 * air, -8 * air, -0.4 * air);
+  ears(p, -0.15 - 0.3 * air, -0.1 - 0.3 * air);
+  p.eyeHappy = 0.5;
+  p.mouthOpen = 0.3 * air;
+  p.tailBase += 0.5 * air - 0.2 * crouch;
+  p.tailCurl += 0.5 * Math.sin(TAU * cy);
+  p.shadow = 1 - 0.5 * air;
+}
+
+/** The pounce-landing squish: flat on the belly with the legs splayed, then a springy settle. */
+function clipSquish(p: Pose, c: ClipContext): void {
+  standPose(p);
+  const t = c.t;
+  const k = c.reducedMotion ? 0.5 : 1;
+  const d = (1 - sseg(t, 0.1, 0.34)) * clamp01(0.3 + t / 0.05);
+  const over = pulse(t, 0.3, 0.42, 0.46, 0.7);
+  p.sqY = 1 - 0.3 * d * k + 0.06 * over * k;
+  p.sqX = 1 + 0.22 * d * k - 0.04 * over * k;
+  p.bodyY += 4 * d;
+  p.headY += 5 * d;
+  p.headX += 3 * d;
+  p.headRot -= 0.15 * d;
+  p.tilt -= 0.08 * d;
+  setFoot(p, LEG_FN, 11 + 9 * d, 0, 0);
+  setFoot(p, LEG_FF, 6.5 + 8 * d, 0, 0);
+  setFoot(p, LEG_BN, -18.5 - 7 * d, 0, 0);
+  setFoot(p, LEG_BF, -23 - 8 * d, 0, 0);
+  ears(p, 0.9 * d, 0.9 * d, 0.5 * d, 0.5 * d);
+  p.eyeSquint = 0.8 * d;
+  p.mouthOpen = 0.3 * d;
+  p.tailBase += 0.5 * d;
+  p.tailPuff = 0.5 * d;
+  p.blinkOK = d > 0.3 ? 0 : 1;
+}
+
+// ---- vanish and appear ------------------------------------------------------------------------------
+
+/** Lowest, smallest and most hidden state: where a vanish ends and an appear begins. */
+function slippedPose(p: Pose): void {
+  standPose(p);
+  p.bodyY = -15;
+  p.headY = -25;
+  p.headX = 27;
+  p.tilt = -0.07;
+  p.haunch = 0.3;
+  p.sqY = 0.42;
+  p.sqX = 0.78;
+  setFoot(p, LEG_FN, 14, 0, 0);
+  setFoot(p, LEG_FF, 9, 0, 0);
+  setFoot(p, LEG_BN, -14, 0, 0);
+  setFoot(p, LEG_BF, -19, 0, 0);
+  ears(p, 0.6, 0.65, 0.5, 0.5);
+  p.eyeHappy = 0.6;
+  p.tailBase = 0.5;
+  p.tailCurl = -0.1;
+  p.tailStiff = 0.4;
+  p.alpha = 0;
+  p.tailAlpha = 0;
+  p.blinkOK = 0;
+  p.lookW = 0;
+}
+
+/**
+ * The fox slips away: a sly smirk and a low crouch, then it sinks and shrinks to nothing while the body fades first;
+ * the brush lingers last, and a little dust puff marks the spot. Reduced motion: a slow, gentle fade in place.
+ */
+function clipVanish(p: Pose, c: ClipContext): void {
+  const t = c.t;
+  standPose(p);
+  if (c.reducedMotion) {
+    p.alpha = 1 - sseg(t, 0, 0.9);
+    p.eyeHappy = 0.4 * sseg(t, 0, 0.4);
+    p.blinkOK = 0;
+    return;
+  }
+  const lo = sseg(t, 0, 0.3);
+  const shrink = sseg(t, 0.2, 0.62);
+  p.bodyY = lerp(-28.5, -15, lo);
+  p.headY = lerp(-40.5, -25, lo);
+  p.headX = lerp(26, 27, lo);
+  p.tilt = -0.07 * lo;
+  p.haunch = 0.3 * lo;
+  p.sqY = lerp(1, 0.42, shrink);
+  p.sqX = lerp(1, 0.78, shrink);
+  setFoot(p, LEG_FN, lerp(11, 14, lo), 0, 0);
+  setFoot(p, LEG_FF, lerp(6.5, 9, lo), 0, 0);
+  setFoot(p, LEG_BN, lerp(-18.5, -14, lo), 0, 0);
+  setFoot(p, LEG_BF, lerp(-23, -19, lo), 0, 0);
+  ears(p, 0.6 * lo, 0.65 * lo, 0.5 * lo, 0.5 * lo);
+  p.eyeHappy = 0.6 * lo;
+  p.eyeSquint = 0.3 * lo;
+  const wave = Math.sin(TAU * 2.4 * t) * (1 - shrink * 0.4);
+  p.tailBase = lerp(0.12, 0.5, lo);
+  p.tailCurl = lerp(-0.45, -0.1, lo) + 0.6 * wave * lo;
+  p.tailStiff = 0.4;
+  p.alpha = 1 - sseg(t, 0.22, 0.62);
+  p.tailAlpha = 1 - sseg(t, 0.52, 0.9);
+  p.dust = pulse(t, 0.4, 0.5, 0.58, 0.9);
+  p.dustT = sseg(t, 0.4, 0.9);
+  p.blinkOK = 0;
+  p.lookW = 1 - lo;
+}
+
+/** The reverse: the brush returns first, the body grows out of a puff of dust, the ears pop up last. */
+function clipAppear(p: Pose, c: ClipContext): void {
+  const t = c.t;
+  standPose(p);
+  if (c.reducedMotion) {
+    p.alpha = sseg(t, 0, 0.9);
+    p.eyeHappy = 0.4 * (1 - sseg(t, 0.4, 0.9));
+    p.blinkOK = 0;
+    return;
+  }
+  slippedPose(p);
+  const grow = sseg(t, 0.12, 0.62);
+  const settle = sseg(t, 0.6, 0.9);
+  const over = pulse(t, 0.5, 0.62, 0.66, 0.84);
+  p.alpha = sseg(t, 0.18, 0.55);
+  p.tailAlpha = sseg(t, 0, 0.28);
+  p.sqY = lerp(0.42, 1, grow) + 0.06 * over;
+  p.sqX = lerp(0.78, 1, grow) - 0.03 * over;
+  p.bodyY = lerp(-15, -28.5, settle);
+  p.headY = lerp(-25, -40.5, settle);
+  p.headX = lerp(27, 26, settle);
+  p.tilt = lerp(-0.07, 0, settle);
+  p.haunch = lerp(0.3, 0, settle);
+  setFoot(p, LEG_FN, lerp(14, 11, settle), 0, 0);
+  setFoot(p, LEG_FF, lerp(9, 6.5, settle), 0, 0);
+  setFoot(p, LEG_BN, lerp(-14, -18.5, settle), 0, 0);
+  setFoot(p, LEG_BF, lerp(-19, -23, settle), 0, 0);
+  const ear = sseg(t, 0.56, 0.86);
+  ears(p, lerp(0.6, -0.25, ear), lerp(0.65, -0.2, ear), lerp(0.5, 0, ear), lerp(0.5, 0, ear));
+  p.eyeHappy = lerp(0.6, 0.3, settle);
+  p.eyeSquint = 0.2 * (1 - settle);
+  p.tailBase = lerp(0.5, 0.22, settle);
+  p.tailCurl = lerp(-0.1, -0.45, settle) + 0.4 * Math.sin(TAU * 2.4 * t) * (1 - settle);
+  p.dust = pulse(t, 0.1, 0.22, 0.32, 0.75);
+  p.dustT = sseg(t, 0.1, 0.75);
+  p.pupilX = 0.5 * Math.sin(TAU * 0.9 * t);
+  p.lookW = settle;
+  p.blinkOK = settle > 0.9 ? 1 : 0;
+}
+
 // ---- sampling ---------------------------------------------------------------------------------------
 
 /** Writes the pose of `clip` for the context. Unknown clips draw as a stand (the renderer resolves aliases first). */
@@ -1069,6 +1306,18 @@ export function sampleClip(clip: AnimClip, c: ClipContext, p: Pose): void {
       return clipShake(p, c);
     case 'pounce':
       return clipPounce(p, c);
+    case 'scratch':
+      return clipScratch(p, c);
+    case 'meow':
+      return clipMeow(p, c);
+    case 'hop':
+      return clipHop(p, c);
+    case 'squish':
+      return clipSquish(p, c);
+    case 'vanish':
+      return clipVanish(p, c);
+    case 'appear':
+      return clipAppear(p, c);
     default:
       return clipStand(p, c);
   }
@@ -1078,7 +1327,8 @@ export function sampleClip(clip: AnimClip, c: ClipContext, p: Pose): void {
 export function crossFadeMs(from: AnimClip | null, to: AnimClip): number {
   if (from === null) return 0;
   if (to === 'startle' || to === 'land' || to === 'jump' || to === 'shake') return 140;
-  if (to === 'pounce' || to === 'swat') return 130;
+  if (to === 'pounce' || to === 'swat' || to === 'squish' || to === 'meow') return 130;
+  if (to === 'vanish' || to === 'appear' || from === 'vanish') return 100;
   if (to === 'fall' || from === 'land') return 160;
   if (to === 'sleep' || from === 'sleep' || to === 'loaf' || to === 'rollOver' || from === 'rollOver' || to === 'tailChase' || from === 'tailChase') return 260;
   if (from === 'climb' || to === 'climb') return 340;

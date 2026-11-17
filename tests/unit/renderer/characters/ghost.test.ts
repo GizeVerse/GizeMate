@@ -154,9 +154,52 @@ describe('ghost renderer: every clip of the vocabulary', () => {
   });
 });
 
+describe('ghost renderer: authored clips that used to be aliases', () => {
+  const FORMER: ReadonlyArray<readonly [AnimClip, AnimClip]> = [
+    ['stretch', 'wake'], ['groom', 'sit'], ['scratch', 'confused'], ['meow', 'yawn'], ['pawAt', 'scan'], ['swat', 'startle'], ['rollOver', 'petted'], ['tailChase', 'petted'], ['impact', 'land'],
+  ];
+  const frames = (clip: AnimClip, ms: number): string => {
+    const r = new GhostRenderer(seededRandom(4));
+    run(r, clip, ms);
+    const m = createMockCtx();
+    r.draw(m.ctx, DRAW);
+    return JSON.stringify(m.calls.map((c) => c.args.map((a) => (typeof a === 'number' ? Math.round(a * 10) : a))));
+  };
+
+  it('are native, and no longer aliased', () => {
+    for (const [clip] of FORMER) {
+      expect(GHOST_MODULE.clips, clip).toContain(clip);
+      expect(GHOST_MODULE.clipAlias[clip], clip).toBeUndefined();
+    }
+  });
+
+  it('draw differently from the clip they used to borrow', () => {
+    for (const [clip, old] of FORMER) expect(frames(clip, 400), clip + ' vs ' + old).not.toBe(frames(old, 400));
+  });
+
+  it('the hiss is the harmless boo and the landing recovery shakes itself off (not a sleepy wake)', () => {
+    expect(resolveGhostClip('hiss')).toBe('beam');
+    expect(resolveGhostClip('landRecover')).toBe('shake');
+  });
+
+  it('rollOver tips the sheet over and stays above the ground line', () => {
+    const r = new GhostRenderer(seededRandom(5));
+    let maxY = -Infinity;
+    let tilted = false;
+    for (let t = 0; t <= 3600; t += DT) {
+      r.advance(input('rollOver'), t, t === 0 ? 0 : DT, 0, 0);
+      const { all } = collect(r);
+      maxY = Math.max(maxY, all.y1);
+      if (all.x1 - all.x0 > all.y1 - all.y0) tilted = true;
+    }
+    expect(tilted).toBe(true);
+    expect(maxY).toBeLessThanOrEqual(8);
+  });
+});
+
 describe('ghost renderer: geometry', () => {
   it('hit rects cover everything painted that is body, and reach no further than a little beyond it', () => {
-    const covered: AnimClip[] = ['stand', 'sit', 'loaf', 'float', 'crouch', 'jump', 'fall', 'petted', 'held', 'hide', 'peek', 'dance', 'scan', 'confused', 'annoyed', 'yawn', 'squish'];
+    const covered: AnimClip[] = ['stand', 'sit', 'loaf', 'float', 'crouch', 'jump', 'fall', 'petted', 'held', 'hide', 'peek', 'dance', 'scan', 'confused', 'annoyed', 'yawn', 'squish', 'stretch', 'groom', 'scratch', 'meow', 'pawAt', 'swat', 'rollOver', 'tailChase', 'impact'];
     for (const clip of covered) {
       const r = new GhostRenderer(seededRandom(8));
       run(r, clip, 900, { speed: clip === 'float' ? 1 : 0 });
@@ -213,7 +256,7 @@ describe('ghost renderer: geometry', () => {
   });
 
   it('stays within the module hit-front extents for the strike-like clips', () => {
-    for (const clip of ['crouch', 'land'] as const) {
+    for (const clip of ['crouch', 'land', 'impact', 'pawAt', 'swat', 'rollOver', 'tailChase'] as const) {
       const r = new GhostRenderer(seededRandom(3));
       for (let t = 0; t <= 600; t += DT) {
         r.advance(input(clip), t, DT, 0, 0);
@@ -256,7 +299,7 @@ describe('ghost renderer: modes and robustness', () => {
   };
 
   it('reduced motion calms the loops and the showy one-shots', () => {
-    for (const clip of ['stand', 'float', 'dance', 'petted', 'confused'] as const) {
+    for (const clip of ['stand', 'float', 'dance', 'petted', 'confused', 'pawAt', 'groom', 'rollOver', 'tailChase'] as const) {
       expect(spread(clip, true), clip).toBeLessThan(spread(clip, false) * 0.75);
     }
   });

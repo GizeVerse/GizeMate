@@ -21,7 +21,7 @@ describe('rabbit module', () => {
 
   it('lists exactly the clips the renderer draws natively', () => {
     expect([...M.clips].sort()).toEqual([...NATIVE_CLIPS].sort());
-    for (const c of ['stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'hop', 'jump', 'fall', 'land', 'startle', 'petted', 'held', 'hide', 'peek', 'scan', 'groom', 'scratch', 'bounce', 'dance'] as const) {
+    for (const c of ['stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'hop', 'jump', 'fall', 'land', 'startle', 'petted', 'held', 'hide', 'peek', 'scan', 'groom', 'scratch', 'bounce', 'dance', 'pounce', 'swat', 'hiss', 'grumpy', 'balance', 'edgeSit', 'tailChase', 'rollOver', 'impact', 'slip', 'meow', 'vanish', 'appear'] as const) {
       expect(NATIVE.has(c), c).toBe(true);
     }
   });
@@ -58,7 +58,7 @@ describe('rabbit module', () => {
     const sigs = M.behavior.signatures;
     expect(sigs.length).toBeGreaterThanOrEqual(5);
     const ids = sigs.map((s) => s.id);
-    for (const want of ['binky', 'periscope', 'earWash', 'footThump', 'nibble', 'zoomies']) expect(ids).toContain(want);
+    for (const want of ['binky', 'periscope', 'earWash', 'footThump', 'nibble', 'zoomies', 'burrow']) expect(ids).toContain(want);
     for (const s of sigs) {
       expect(NATIVE.has(s.clip), `${s.id} clip ${s.clip}`).toBe(true);
       for (const l of s.leadIn ?? []) expect(NATIVE.has(l), `${s.id} leadIn ${l}`).toBe(true);

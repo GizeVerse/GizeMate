@@ -147,6 +147,33 @@ function defaultAudio(): AudioContextLike {
   return new Ctor();
 }
 
+/** The shared one-second looping noise source buffer (seeded: identical every time). */
+function makeNoiseBuffer(a: AudioContextLike): AudioBufferLike {
+  const len = Math.max(1, Math.round(a.sampleRate * 1));
+  const buf = a.createBuffer(1, len, a.sampleRate);
+  const data = buf.getChannelData(0);
+  const rnd = seededRandom(0x5eed);
+  for (let i = 0; i < data.length; i++) data[i] = rnd() * 2 - 1;
+  return buf;
+}
+
+/**
+ * Renders one cue's recipe into `out` against ANY context with the Web Audio slice above (a real or an Offline
+ * AudioContext, or a recording fake), exactly as the player does: `character` absent, the cat or unknown = the
+ * cat's unshaped recipes. Used by the offline audio review tool (scripts/audio-review.cjs); the player itself
+ * goes through the same renderCue.
+ */
+export function renderCueOn(a: AudioContextLike, kind: SoundCue, out: GainNodeLike, t0: number, character?: CharacterId): void {
+  let noise: AudioBufferLike | null = null;
+  renderCue(a, kind, out, t0, CUE_DURATION_S[kind], () => (noise ??= makeNoiseBuffer(a)), character === undefined ? null : profileOf(character));
+}
+
+/** The output gain the player sets for a cue at `volume` (0..1) for `character` (absent/cat = 1): volume * master * profile gain. */
+export function cueOutputGain(volume: number, character?: CharacterId): number {
+  const prof = character === undefined ? null : profileOf(character);
+  return volume * MASTER * (prof ? prof.gain : 1);
+}
+
 export function createSoundPlayer(ctx: SoundPlayerContext): SoundPlayer {
   const makeAudio = ctx.audio ?? defaultAudio;
   const setTimer = ctx.setTimer ?? ((fn: () => void, ms: number): unknown => globalThis.setTimeout(fn, ms));
@@ -223,13 +250,8 @@ export function createSoundPlayer(ctx: SoundPlayerContext): SoundPlayer {
 
   const noiseBuffer = (a: AudioContextLike): AudioBufferLike => {
     if (noise) return noise;
-    const len = Math.max(1, Math.round(a.sampleRate * 1));
-    const buf = a.createBuffer(1, len, a.sampleRate);
-    const data = buf.getChannelData(0);
-    const rnd = seededRandom(0x5eed);
-    for (let i = 0; i < data.length; i++) data[i] = rnd() * 2 - 1;
-    noise = buf;
-    return buf;
+    noise = makeNoiseBuffer(a);
+    return noise;
   };
 
   return {
@@ -430,7 +452,8 @@ function voiceChain(a: AudioContextLike, voice: SoundProfile['voice'], bus: Gain
       bp.frequency.linearRampToValueAtTime(1300, t0 + dur * 0.4);
       bp.frequency.linearRampToValueAtTime(600, t0 + dur);
       const wet = a.createGain();
-      wet.gain.value = 1.1;
+      // Make-up for the narrow resonant band-pass (it removes about 18 dB against the other voices: measured offline).
+      wet.gain.value = 8;
       const dry = a.createGain();
       dry.gain.value = 0.25;
       bus.connect(bp);

@@ -49,6 +49,11 @@ export interface Tgt {
   puddle: number;
   /** Spring frequency (rad/s) of the stretch. */
   omega: number;
+  /** Pseudopod (the slime hand): extension 0..1.3, angle (rad, 0 = forward, + up, pi = backwards), base height as a fraction of the body, 1 = drawn in front of the body (else behind it). */
+  arm: number;
+  armA: number;
+  armY: number;
+  armFront: number;
 }
 
 export function createTgt(): Tgt {
@@ -89,6 +94,10 @@ export function resetTgt(t: Tgt): void {
   t.alpha = 1;
   t.puddle = 1;
   t.omega = 26;
+  t.arm = 0;
+  t.armA = 0;
+  t.armY = 0.4;
+  t.armFront = 0;
 }
 
 export interface ClipCtx {
@@ -570,6 +579,171 @@ const hop: Sampler = (T, c) => {
   T.omega = 36;
 };
 
+// ---- clips that used to be aliases (groom/scratch -> shake, pawAt/swat -> squish, meow -> yawn, hiss -> startle,
+// impact -> land, rollOver/tailChase -> dance): a limbless jelly does each with a pseudopod, a puff or a flop. ------
+
+/** Smoothing its face with a pseudopod: the lobe rises to the cheek and wipes, eyes happily shut (loop). */
+const groom: Sampler = (T, c) => {
+  const w = Math.sin(TAU * 1.7 * c.tl);
+  T.s = -0.1;
+  T.flat = 0.1;
+  T.faceH = 0.56;
+  T.happy = 0.85;
+  T.eyeOpen = 0.2;
+  T.blush = 0.7;
+  T.smile = 0.9;
+  T.mouthOpen = 0.1;
+  T.arm = 0.85;
+  T.armY = 0.3;
+  T.armA = 2.55 + 0.25 * w;
+  T.armFront = 1;
+  T.lean = 0.03 * w;
+  T.tilt = -0.08 + 0.05 * w;
+  breathe(T, c, 0.02, 0.45);
+};
+
+/** Rubbing the crown with a pseudopod, head tilted into it (loop). */
+const scratch: Sampler = (T, c) => {
+  const w = Math.sin(TAU * 5.5 * c.tl);
+  T.s = -0.06;
+  T.faceH = 0.52;
+  T.happy = 0.8;
+  T.eyeOpen = 0.25;
+  T.blush = 0.6;
+  T.smile = 0.8;
+  T.arm = 0.95;
+  T.armY = 0.6;
+  T.armA = 2.2 + 0.2 * w;
+  T.armFront = 1;
+  T.tilt = 0.1;
+  T.lean = 0.02 * w;
+  T.jig = 0.02 + 0.015 * Math.abs(w);
+  breathe(T, c, 0.015, 0.5);
+};
+
+/** Batting at the look target with a pseudopod, leaning into every swing (loop). */
+const pawAt: Sampler = (T, c) => {
+  const w = Math.sin(TAU * 2.2 * c.tl);
+  T.s = -0.1;
+  T.flat = 0.08;
+  T.arm = 0.85 + 0.25 * Math.sin(TAU * 2.2 * c.tl + 1.2);
+  T.armY = 0.35;
+  T.armA = 0.1 + 0.45 * w;
+  T.lean = 0.1 + 0.03 * w;
+  T.eyeScale = 1.1;
+  T.pupX = 1.2;
+  T.faceX = 0.15;
+  T.smile = 0.85;
+  T.mouthOpen = 0.12;
+  T.jig = 0.025;
+  T.omega = 30;
+};
+
+/** One quick swipe: the lobe winds up, whips forward, snaps back (one-shot, 0.45 s). */
+const swat: Sampler = (T, c) => {
+  const t = c.t;
+  const wind = sseg(t, 0, 0.16);
+  const hit = sseg(t, 0.18, 0.27);
+  const back = sseg(t, 0.34, 0.45);
+  T.arm = (0.5 + 0.2 * wind + 0.5 * hit) * (1 - 0.9 * back);
+  T.armY = 0.35;
+  T.armA = 1.3 * wind * (1 - hit) - 0.05 * hit;
+  T.lean = -0.1 * wind * (1 - hit) + 0.2 * hit * (1 - back);
+  T.s = -0.1 * wind * (1 - hit) + 0.08 * hit * (1 - back);
+  T.eyeScale = 1.1;
+  T.eyeOpen = 0.85;
+  T.smile = 0.6;
+  T.mouthOpen = 0.25 * hit * (1 - back);
+  T.jig = 0.03 + 0.04 * hit * (1 - back);
+  T.omega = 38;
+};
+
+/** A boinging call: the jelly stretches tall twice and the mouth opens wide (one-shot, 0.9 s). */
+const meow: Sampler = (T, c) => {
+  const t = c.t;
+  const a = pulse(t, 0.08, 0.18, 0.32, 0.42);
+  const b = pulse(t, 0.45, 0.55, 0.7, 0.82);
+  const k = Math.max(a, 0.85 * b);
+  T.s = 0.14 * k;
+  T.tear = 0.25 * k;
+  T.tip = 0.12 * k;
+  T.lift = 2.5 * k;
+  T.mouthOpen = 1.1 * k;
+  T.eyeScale = 1 + 0.12 * k;
+  T.faceH = 0.58 + 0.03 * k;
+  T.smile = 0.3;
+  T.jig = 0.03 + 0.04 * k;
+  T.omega = 30;
+};
+
+/** Defensive puff: the whole body swells wide and bristles (a fast surface tremble), a scowl, then deflates (one-shot, 1.2 s). */
+const hiss: Sampler = (T, c) => {
+  const t = c.t;
+  const puff = sseg(t, 0, 0.12) * (1 - sseg(t, 0.85, 1.2));
+  T.s = 0.1 * puff;
+  T.flat = 0.28 * puff;
+  T.jig = 0.03 + 0.11 * puff * (0.6 + 0.4 * Math.sin(TAU * 14 * t));
+  T.eyeOpen = 1 - 0.5 * puff;
+  T.eyeScale = 1.05;
+  T.smile = -0.9 * puff;
+  T.mouthOpen = 0.7 * puff;
+  T.blush = 0;
+  T.lean = 0.03 * Math.sin(TAU * 20 * t) * puff;
+  T.faceH = 0.56;
+  T.omega = 34;
+};
+
+/** A hard landing: flattened into a wide splat, then slowly re-forming (one-shot, 0.45 s). */
+const impact: Sampler = (T, c) => {
+  const t = c.t;
+  const A = 0.55 + 0.3 * clamp01(c.impact);
+  T.s = -A * (1 - 0.55 * sseg(t, 0.12, 0.45));
+  T.flat = 0.45 * (1 - sseg(t, 0.1, 0.45));
+  T.puddle = 1.5;
+  T.eyeOpen = 0.3 + 0.7 * sseg(t, 0.2, 0.45);
+  T.mouthOpen = 0.35 * (1 - sseg(t, 0, 0.3));
+  T.jig = 0.05;
+  T.omega = 28;
+};
+
+/** Flopped onto its side and rocking, face tipped over, blissful (loop). */
+const rollOver: Sampler = (T, c) => {
+  const u = Math.sin(TAU * 0.9 * c.tl);
+  // The reduced-motion layer scales s by (1 - 0.55 rm): counter it so the flop keeps its shape and only the rocking calms.
+  T.s = -0.5 / (1 - 0.55 * c.rm);
+  T.flat = 0.35;
+  T.tilt = 1.1 + 0.2 * u * (1 - 0.8 * c.rm);
+  T.rot = 0.16 * u * (1 - 0.8 * c.rm);
+  T.pivY = -8;
+  T.faceH = 0.55;
+  T.faceX = 0.3;
+  T.happy = 1;
+  T.eyeOpen = 0;
+  T.blush = 0.8;
+  T.smile = 1;
+  T.mouthOpen = 0.3;
+  T.jig = 0.05;
+  T.omega = 26;
+};
+
+/** Pirouette: the face sweeps across the body as if it were spinning on the spot (loop). */
+const tailChase: Sampler = (T, c) => {
+  const ph = TAU * 1.7 * c.tl;
+  T.faceX = 0.95 * Math.sin(ph);
+  T.pupX = 1.5 * Math.sin(ph);
+  T.lean = 0.16 * Math.sin(ph - 1.2);
+  T.tilt = 0.25 * Math.sin(ph + 0.6);
+  T.s = -0.1 * Math.cos(2 * ph);
+  T.lift = 3 * Math.max(0, Math.sin(2 * ph + 1));
+  T.tear = 0.15 * Math.abs(Math.sin(ph));
+  T.eyeOpen = 0.9;
+  T.mouthOpen = 0.3;
+  T.smile = 0.9;
+  T.blush = 0.5;
+  T.jig = 0.07;
+  T.omega = 32;
+};
+
 const TABLE: Partial<Record<AnimClip, Sampler>> = {
   stand,
   sit,
@@ -598,6 +772,15 @@ const TABLE: Partial<Record<AnimClip, Sampler>> = {
   beam,
   peek,
   dance,
+  groom,
+  scratch,
+  pawAt,
+  swat,
+  meow,
+  hiss,
+  impact,
+  rollOver,
+  tailChase,
 };
 
 /** Writes the target of a native clip (anything else is a stand: the renderer resolves aliases first). */

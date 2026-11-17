@@ -36,9 +36,16 @@ function fadeFor(from: AnimClip | null, to: AnimClip): number {
     case 'sleep':
       return 0.5;
     case 'startle':
+    case 'hiss':
       return 0.06;
     case 'land':
+    case 'impact':
+    case 'slip':
       return 0.05;
+    case 'swat':
+      return 0.08;
+    case 'pounce':
+      return 0.1;
     case 'held':
       return 0.07;
     case 'jump':
@@ -96,7 +103,7 @@ export class MonkeyRenderer implements CharacterRenderer {
   private readonly from = createPose();
   private readonly tailPose = { tailBase: 0, tailCurl: 0, tailBend: 0, tailStiff: 0.3, tailPuff: 0, tailFront: 0 };
   private readonly ctxC: ClipContext = {
-    t: 0, cyc: 0, speed: 0, stride: 0, vy: 0, impact: 0, k: 1, lookX: 0, lookY: 0, hasLook: false, arousal: 0, contentment: 0.5, airT: 0, flip: false, engage: 0, dir: 1, sway: 0, sleepDepth: 0,
+    t: 0, cyc: 0, speed: 0, stride: 0, vy: 0, impact: 0, k: 1, lookX: 0, lookY: 0, hasLook: false, arousal: 0, contentment: 0.5, airT: 0, flip: false, engage: 0, dir: 1, sway: 0, sleepDepth: 0, bal: 0.5,
   };
   private clip: AnimClip | null = null;
   private clipStart = Number.NaN;
@@ -205,6 +212,7 @@ export class MonkeyRenderer implements CharacterRenderer {
     c.arousal = clamp01(finite(input.arousal, 0));
     c.contentment = clamp01(finite(input.contentment, 0.5));
     c.sleepDepth = clamp01(finite(input.sleepDepth, 0));
+    c.bal = clamp01(finite(input.balance, 0.5));
     c.hasLook = input.hasLook && Number.isFinite(input.lookX) && Number.isFinite(input.lookY);
     c.lookX = c.hasLook ? input.lookX : 0;
     c.lookY = c.hasLook ? input.lookY : 0;
@@ -213,8 +221,8 @@ export class MonkeyRenderer implements CharacterRenderer {
     c.stride = 0;
     c.engage = 0;
     c.dir = 1;
-    if (native === 'walk' || native === 'run' || native === 'climb') {
-      const cfg = GAIT_CFG[native];
+    if (GAIT_CLIPS.has(native)) {
+      const cfg = GAIT_CFG[native as keyof typeof GAIT_CFG];
       let v = c.speed;
       if (native === 'climb') {
         this.climbSpeed = damp(this.climbSpeed, speed, 6, dt);
@@ -275,8 +283,10 @@ export class MonkeyRenderer implements CharacterRenderer {
     tp.tailBend = out.tailBend;
     tp.tailStiff = out.tailStiff;
     tp.tailPuff = out.tailPuff;
-    const airborne = native === 'held' || native === 'jump' || native === 'fall' || native === 'swing' || native === 'climb' || native === 'hop';
-    const groundY = airborne || Math.abs(out.rot) > 0.3 || out.offY < -2 ? Number.NaN : -2.6;
+    const airborne = native === 'held' || native === 'jump' || native === 'fall' || native === 'pounce' || native === 'swing' || native === 'climb' || native === 'hop' || native === 'edgeSit';
+    // A whole number of turns (the tuck-and-roll ends at TAU) is upright again.
+    const turned = Math.abs(out.rot - TAU * Math.round(out.rot / TAU)) > 0.3;
+    const groundY = airborne || turned || out.offY < -2 ? Number.NaN : -2.6;
     const rig = this.rig;
     this.tail.step(rig.tailRootX, rig.tailRootY, tp as unknown as Parameters<TailChain['step']>[2], dt * 1000, -mx, -my, groundY);
   }
@@ -457,6 +467,7 @@ export class MonkeyRenderer implements CharacterRenderer {
         p.pupilX += 0.5 * e;
         p.pupilY += 0.6 * e;
         p.brow += 0.4 * e;
+        p.armBack = e > 0.3 ? 1 : 0;
         p.lookW *= 1 - e;
         break;
       }
@@ -545,6 +556,9 @@ export class MonkeyRenderer implements CharacterRenderer {
     const mzx = 2 + 5 * turn + 5.6;
     this.hpt(mzx + 7.6, 5.2, 0, 0);
     this.hpt(mzx, 5.2 + 5.6, 0, 0);
+    // The diagonals of the muzzle ellipse (the bounds are circles at the samples, not the polygon between them).
+    this.hpt(mzx + 5.4, 5.2 + 4.1, 0, -1);
+    this.hpt(mzx + 5.4, 5.2 - 4.1, 0, -1);
     this.hpt(8.4 - 2.4 * turn, -7.5 - 2 * perk, EAR_R, 0);
     this.hpt(-9.6 + 2.6 * turn, -3.6 - 2.2 * perk, EAR_R, 0);
     // Arms (hits 2, 3): shoulder, elbow, hand (with fingers).
@@ -572,7 +586,7 @@ export class MonkeyRenderer implements CharacterRenderer {
     const n = tail.count;
     for (let i = 0; i < n; i++) this.pt(tail.x[i]!, tail.y[i]!, 3.2 * tail.puff, i <= n * 0.55 ? 6 : -1);
     const k = clamp(this.pose.shadow, 0, 1.5);
-    g.addGround(m[0]! * rig.bodyX + m[4]!, 27 * k * Math.abs(m[0]!) + 4, 4.2 * k + 0.8);
+    g.addGround(m[0]! * rig.bodyX + m[2]! * rig.bodyY + m[4]!, 27 * k * Math.abs(m[0]!) + 4, 4.2 * k + 0.8);
     this.g = null;
   }
 
@@ -619,7 +633,7 @@ function smoothStep(t: number): number {
 }
 
 function resetBasePose(p: Pose): void {
-  CLIP_FNS.stand!(p, { t: 0, cyc: 0, speed: 0, stride: 0, vy: 0, impact: 0, k: 1, lookX: 0, lookY: 0, hasLook: false, arousal: 0, contentment: 0.5, airT: 0, flip: false, engage: 0, dir: 1, sway: 0, sleepDepth: 0 });
+  CLIP_FNS.stand!(p, { t: 0, cyc: 0, speed: 0, stride: 0, vy: 0, impact: 0, k: 1, lookX: 0, lookY: 0, hasLook: false, arousal: 0, contentment: 0.5, airT: 0, flip: false, engage: 0, dir: 1, sway: 0, sleepDepth: 0, bal: 0.5 });
 }
 
 export function createMonkeyRenderer(random: () => number): CharacterRenderer {

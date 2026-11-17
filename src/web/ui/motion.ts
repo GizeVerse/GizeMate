@@ -14,7 +14,12 @@ export function systemReducedMotion(): boolean {
 
 /** Keeps `loop` in step with the setting and the system preference; returns the function that stops listening. */
 export function bindReducedMotion(loop: PreviewLoop, getSettings: () => Settings): { sync(): void; dispose(): void } {
-  const sync = (): void => loop.setReducedMotion(getSettings().companion.reducedMotion || systemReducedMotion());
+  const sync = (): void => {
+    const calm = getSettings().companion.reducedMotion || systemReducedMotion();
+    loop.setReducedMotion(calm);
+    // CSS transitions follow the same choice (html[data-calm] in web.css).
+    if (typeof document !== 'undefined') document.documentElement.toggleAttribute('data-calm', calm);
+  };
   let query: MediaQueryList | null = null;
   try {
     query = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;

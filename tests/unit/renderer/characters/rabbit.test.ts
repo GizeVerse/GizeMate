@@ -356,6 +356,9 @@ describe('geometry through the scene', () => {
           expect(h.width, `${clip} rect ${i} width`).toBeLessThan(110);
           expect(h.height, `${clip} rect ${i} height`).toBeLessThan(115);
         }
+        // A burrowed-away rabbit (vanish after ~0.8 s, appear at its very start) is invisible: only a token spot
+        // stays clickable, so it never blocks the desktop.
+        if ((clip === 'vanish' && t >= 800) || (clip === 'appear' && t === 0)) continue;
         // Every vertex of every fill (body parts, face, ears) lies inside some hit rect.
         let bad = '';
         for (const sh of rec.shapes) {

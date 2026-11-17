@@ -69,6 +69,12 @@ export const POSE_KEYS = [
   'blinkOK',
   'shadow',
   'blush',
+  // Soft vanish / appear: body opacity 0..1, the brush's own opacity floor 0..1 (the tail is the last to go and
+  // the first to return), and a dust puff (strength 0..1, expansion 0..1) at the ground below the body.
+  'alpha',
+  'tailAlpha',
+  'dust',
+  'dustT',
 ] as const;
 
 export type PoseKey = (typeof POSE_KEYS)[number];
@@ -144,6 +150,10 @@ const BASE: Pose = {
   blinkOK: 1,
   shadow: 1,
   blush: 0,
+  alpha: 1,
+  tailAlpha: 0,
+  dust: 0,
+  dustT: 0,
 };
 
 export const createPose = (): Pose => ({ ...BASE });

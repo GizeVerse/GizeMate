@@ -34,16 +34,23 @@ describe('the fox module', () => {
     }
   });
 
-  it('has at least five signature actions, each with an authored (native) clip and lead-in, cooldowns of 20 s to 5 min', () => {
+  it('has at least five signature actions, each with an authored (native) clip and lead-in, cooldowns of 20 s to 6 min', () => {
     const sigs = FOX_MODULE.behavior.signatures;
     expect(sigs.length).toBeGreaterThanOrEqual(5);
     for (const s of sigs) {
       expect(clips.has(s.clip), `${s.id} clip ${s.clip}`).toBe(true);
       for (const c of s.leadIn ?? []) expect(clips.has(c), `${s.id} leadIn ${c}`).toBe(true);
       expect(s.cooldownMs, s.id).toBeGreaterThanOrEqual(20_000);
-      expect(s.cooldownMs, s.id).toBeLessThanOrEqual(300_000);
-      expect(s.movement, s.id).not.toBe('teleport');
+      expect(s.cooldownMs, s.id).toBeLessThanOrEqual(360_000);
+      // Only the one rare sly trick relocates the fox (a teleport): it needs the authored soft vanish / appear.
+      if (s.movement === 'teleport') expect(s.id).toBe('slipAway');
     }
+    const slip = sigs.find((s) => s.id === 'slipAway');
+    expect(slip?.movement).toBe('teleport');
+    expect(slip?.cooldownMs ?? 0).toBeGreaterThanOrEqual(180_000);
+    expect(slip?.cooldownMs ?? 0).toBeLessThanOrEqual(360_000);
+    expect(slip?.weight ?? 9).toBeLessThanOrEqual(1);
+    for (const c of ['vanish', 'appear', 'scratch', 'meow', 'hop', 'squish'] as const) expect(clips.has(c), `native ${c}`).toBe(true);
     const ids = sigs.map((s) => s.id);
     for (const id of ['mousePounce', 'playBow', 'peekOut', 'slowStare', 'spinTrick', 'headTilt']) expect(ids).toContain(id);
     // Signatures stay flavour: the combined weight is modest next to the shared idle variations.

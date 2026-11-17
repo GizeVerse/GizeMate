@@ -17,6 +17,7 @@ export const HAND_R = 4.4;
 export const FOOT_RX = 6;
 export const FOOT_RY = 3.7;
 export const EAR_R = 5.6;
+const TOOTH = '#fff4e2';
 
 let ctx!: Ctx2D;
 let sk!: MonkeySkin;
@@ -101,15 +102,18 @@ export function drawMonkey(c: Ctx2D, rig: Rig, p: Pose, tail: TailChain, skin: M
 function paintBody(rig: Rig, p: Pose, tail: TailChain, pendant: boolean, ppu: number): void {
   paintTail(tail);
   paintLeg(rig, 1);
-  paintArm(rig, 1, p);
+  paintArm(rig, 1, p, 0);
   paintTorso(rig, p);
   paintLeg(rig, 0);
   // A near arm thrown up beside the head goes behind it; a hand at the face stays in front.
   const behind = Math.hypot(rig.hand[0]! - rig.headX, rig.hand[1]! - rig.headY) > 19 && rig.hand[1]! < rig.sh[1]! - 8;
-  if (behind) paintArm(rig, 0, p);
+  const back = p.armBack > 0.5;
+  if (behind) paintArm(rig, 0, p, 0);
+  else if (back) paintArm(rig, 0, p, 1);
   if (pendant && !halo && !(rig.hand[1]! > rig.chestY + 4 && rig.headY < rig.chestY - 3)) paintPendant(rig, ppu);
   paintHead(rig, p);
-  if (!behind) paintArm(rig, 0, p);
+  if (back && !behind) paintArm(rig, 0, p, 2);
+  else if (!behind) paintArm(rig, 0, p, 0);
   // The pendant hangs in front of the chest, over a hanging arm; with the head down on the chest (sleep) it stays under the head.
   if (pendant && !halo && rig.hand[1]! > rig.chestY + 4 && rig.headY < rig.chestY - 3) paintPendant(rig, ppu);
 }
@@ -188,7 +192,8 @@ function paintLeg(rig: Rig, side: number): void {
   fillEll(ex, ey, FOOT_RX, FOOT_RY, rot, sk.hand);
 }
 
-function paintArm(rig: Rig, side: number, p: Pose): void {
+/** part 0: the whole arm; 1: the limb without the hand (drawn behind the head); 2: the hand alone (drawn over it). */
+function paintArm(rig: Rig, side: number, p: Pose, part: number): void {
   const o = side * 2;
   const sx = rig.sh[o]!;
   const sy = rig.sh[o + 1]!;
@@ -200,13 +205,22 @@ function paintArm(rig: Rig, side: number, p: Pose): void {
   const body = far ? sk.furDark : sk.fur;
   const grip = side === 0 ? p.gripN : p.gripF;
   const a = Math.atan2(hy - ey, hx - ex);
-  outlineSeg(sx, sy, ex, ey, ARM_W1);
-  outlineSeg(ex, ey, hx, hy, ARM_W2);
+  if (part !== 2) {
+    outlineSeg(sx, sy, ex, ey, ARM_W1);
+    outlineSeg(ex, ey, hx, hy, ARM_W2);
+  }
+  if (part === 1) {
+    fillSeg(sx, sy, ex, ey, ARM_W1, body);
+    fillSeg(ex, ey, hx, hy, ARM_W2, body);
+    return;
+  }
   outlineEll(hx, hy, HAND_R, HAND_R, 0);
   const showFingers = !pixel && grip < 0.55;
   if (showFingers) for (let i = -1; i <= 1; i++) outlineEll(hx + Math.cos(a + i * 0.55) * (HAND_R + 1.3), hy + Math.sin(a + i * 0.55) * (HAND_R + 1.3), 1.9, 1.9, 0);
-  fillSeg(sx, sy, ex, ey, ARM_W1, body);
-  fillSeg(ex, ey, hx, hy, ARM_W2, body);
+  if (part === 0) {
+    fillSeg(sx, sy, ex, ey, ARM_W1, body);
+    fillSeg(ex, ey, hx, hy, ARM_W2, body);
+  }
   fillEll(hx, hy, HAND_R, HAND_R, 0, sk.hand);
   if (showFingers) for (let i = -1; i <= 1; i++) fillEll(hx + Math.cos(a + i * 0.55) * (HAND_R + 1.3), hy + Math.sin(a + i * 0.55) * (HAND_R + 1.3), 1.9, 1.9, 0, sk.hand);
   if (!halo && fine && grip >= 0.55) {
@@ -324,6 +338,13 @@ function paintMouth(p: Pose, mx: number, my: number): void {
     ellPath(mx + 0.6, y + ry * 0.55, rx, ry, 0);
     ctx.fillStyle = sk.mouth;
     ctx.fill();
+    if (p.teeth > 0.2 && !pixel) {
+      // Bared teeth (screech, snarl): an upper and a lower row inside the open mouth.
+      const th = Math.min(ry * 0.5, 0.9 + 1.6 * clamp01(p.teeth));
+      ctx.fillStyle = TOOTH;
+      ctx.fillRect(mx + 0.6 - rx * 0.82, y + 0.2, rx * 1.64, th);
+      if (open > 0.5) ctx.fillRect(mx + 0.6 - rx * 0.7, y + ry * 1.1 - th * 0.6, rx * 1.4, th * 0.6);
+    }
     if (open > 0.4 && !pixel) {
       ctx.save();
       ctx.beginPath();
@@ -355,7 +376,7 @@ export function drawMonkeyShadow(c: Ctx2D, rig: Rig, p: Pose): void {
   if (k <= 0.01) return;
   const m = rig.m;
   const air = clamp01(-p.offY / 40);
-  const cx = m[0]! * rig.bodyX + m[4]!;
+  const cx = m[0]! * rig.bodyX + m[2]! * rig.bodyY + m[4]!;
   const spread = 14 + 13 * clamp01(Math.sin(clamp(p.lean, 0, 1.3)));
   const w = spread * k * (1 - 0.35 * air) * Math.abs(m[0]!) + 4;
   const h = 4.2 * k * (1 - 0.3 * air) + 0.8;

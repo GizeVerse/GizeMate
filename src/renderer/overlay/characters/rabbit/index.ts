@@ -20,6 +20,8 @@ const HIT_HAUNCH = 4;
 const HIT_FEET = 5;
 const HIT_TAIL = 6;
 const PAD = 1.2;
+/** Opacity below which the body counts as gone (only a token spot stays clickable). */
+const INVISIBLE_BELOW = 0.15;
 const ELLIPSE_STEPS = 12;
 
 export class RabbitRenderer implements CharacterRenderer {
@@ -29,6 +31,8 @@ export class RabbitRenderer implements CharacterRenderer {
   /** The collector of the measure() call in progress (a field, so the pass allocates no closure). */
   private g: GeometryCollector | null = null;
   private sc = 1;
+  /** -1 while burrowed away (no clickable body), else 0. */
+  private hid = 0;
 
   constructor(random: () => number) {
     this.anim = new RabbitAnimator(random);
@@ -54,7 +58,7 @@ export class RabbitRenderer implements CharacterRenderer {
 
   private acc(x: number, y: number, r: number, hit: number): void {
     const m = this.rig.m;
-    this.g!.add(applyX(m, x, y), applyY(m, x, y), r * this.sc + PAD * 0.5, hit);
+    this.g!.add(applyX(m, x, y), applyY(m, x, y), r * this.sc + PAD * 0.5, this.hid < 0 ? -1 : hit);
   }
 
   private accEllipse(cx: number, cy: number, rx: number, ry: number, rot: number, hit: number): void {
@@ -75,6 +79,9 @@ export class RabbitRenderer implements CharacterRenderer {
     const m = rig.m;
     this.sc = Math.max(Math.hypot(m[0]!, m[1]!), Math.hypot(m[2]!, m[3]!), 1);
     const p = this.anim.pose;
+    // Burrowed away (vanish/appear): the space stays reported for the dirty rect, but only a token spot is clickable.
+    const gone = p.alpha < INVISIBLE_BELOW;
+    this.hid = gone ? -1 : 0;
 
     // Body, haunch and the thighs that join the hind feet to the haunch.
     this.accEllipse(rig.bx, rig.by, rig.brx, rig.bry, rig.bAng, HIT_BODY);
@@ -117,6 +124,11 @@ export class RabbitRenderer implements CharacterRenderer {
 
     // Tail.
     this.accEllipse(rig.tailX, rig.tailY, rig.tailR, rig.tailR, 0, HIT_TAIL);
+
+    if (gone) {
+      this.hid = 0;
+      this.acc(rig.bx, rig.by, 4, HIT_BODY);
+    }
 
     // Shadow: the same extent drawRabbitShadow paints (upper bound: no airborne shrink).
     const k = clamp(p.shadow, 0, 1.5);

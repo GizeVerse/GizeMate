@@ -17,7 +17,7 @@ export const HEAD_RY = 13;
 
 export const POSE_KEYS = [
   'hipX', 'hipY', 'lean', 'spineK', 'neckBend', 'headDX', 'headDY', 'headRot', 'turn',
-  'eyeOpen', 'brow', 'mouth', 'smile', 'pupilX', 'pupilY', 'earPerk', 'chest',
+  'eyeOpen', 'brow', 'mouth', 'smile', 'pupilX', 'pupilY', 'earPerk', 'chest', 'teeth', 'armBack',
   'handNx', 'handNy', 'handFx', 'handFy', 'gripN', 'gripF', 'bendN', 'bendF',
   'footNx', 'footNy', 'footFx', 'footFy', 'legBend',
   'tailBase', 'tailCurl', 'tailBend', 'tailStiff', 'tailPuff',
@@ -127,6 +127,8 @@ export class Rig {
   neckY = 0;
   /** Where the body's centre sits on the ground (shadow). */
   bodyX = 0;
+  /** Height of the body centre (shadow placement under a rotated pose). */
+  bodyY = 0;
 
   solve(p: Pose): void {
     const L = SPINE * clamp(p.spineK, 0.6, 1.4);
@@ -190,6 +192,7 @@ export class Rig {
     this.tailRootX = p.hipX - fx * 8.5 + ux * 1;
     this.tailRootY = p.hipY - fy * 8.5 + uy * 1;
     this.bodyX = (p.hipX + this.chestX) / 2;
+    this.bodyY = (p.hipY + this.chestY) / 2;
 
     // Pose matrix: scale then rotate about the pivot.
     const c = Math.cos(p.rot);

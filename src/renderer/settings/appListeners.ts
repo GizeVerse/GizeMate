@@ -4,6 +4,11 @@
 import type { SettingsStore } from './store';
 
 /** Previews re-evaluate their run state whenever the effective reduced-motion choice flips. */
+/** Mirrors the effective choice on <html data-calm> so CSS transitions and animations stop too, not only the canvases. */
+function markCalm(on: boolean): void {
+  if (typeof document !== 'undefined') document.documentElement.toggleAttribute('data-calm', on);
+}
+
 export function createAppListeners(store: Pick<SettingsStore, 'subscribe'>, previews: { readonly reduced: boolean; refresh(): void }) {
   let wasReduced = previews.reduced;
   let off: (() => void) | null = null;
@@ -11,9 +16,11 @@ export function createAppListeners(store: Pick<SettingsStore, 'subscribe'>, prev
     /** (Re)registers the app-level listeners; call after construction and after every store.unbindAll(). */
     attach(): void {
       off?.();
+      markCalm(previews.reduced);
       off = store.subscribe(() => {
         if (previews.reduced !== wasReduced) {
           wasReduced = previews.reduced;
+          markCalm(wasReduced);
           previews.refresh();
         }
       });

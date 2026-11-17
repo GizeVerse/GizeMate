@@ -276,9 +276,55 @@ describe('slime geometry over every clip, palette and style', () => {
   });
 });
 
+describe('slime authored clips that used to be aliases', () => {
+  const FORMER: ReadonlyArray<readonly [AnimClip, AnimClip]> = [
+    ['groom', 'shake'], ['scratch', 'shake'], ['pawAt', 'squish'], ['swat', 'squish'], ['meow', 'yawn'], ['hiss', 'startle'], ['impact', 'land'], ['rollOver', 'dance'], ['tailChase', 'dance'],
+  ];
+  const frame = (clip: AnimClip, ms: number): string => {
+    const r = createSlimeRenderer(seededRandom(4));
+    run(r, clip, ms);
+    const m = createMockCtx();
+    r.draw(m.ctx, PARAMS());
+    return JSON.stringify(m.calls.map((c) => c.args.map((a) => (typeof a === 'number' ? Math.round(a * 10) : a))));
+  };
+
+  it('are native, no longer aliased, and draw differently from the clip they used to borrow', () => {
+    for (const [clip, old] of FORMER) {
+      expect(SLIME_MODULE.clips, clip).toContain(clip);
+      expect(SLIME_MODULE.clipAlias[clip], clip).toBeUndefined();
+      expect(frame(clip, 300), clip + ' vs ' + old).not.toBe(frame(old, 300));
+    }
+  });
+
+  it('the pseudopod reaches out of the body, is clickable and counted in the bounds (pawAt, swat)', () => {
+    for (const clip of ['pawAt', 'swat'] as AnimClip[]) {
+      const base = createSlimeRenderer(seededRandom(4));
+      run(base, 'stand', 300);
+      const stand = measureOf(base).bounds;
+      const r = createSlimeRenderer(seededRandom(4));
+      let reach = 0;
+      let t = 0;
+      for (let i = 0; i < 40; i++) {
+        r.advance(input(clip), t, i === 0 ? 0 : DT, 0, 0);
+        t += DT;
+        const m = measureOf(r);
+        reach = Math.max(reach, m.bounds.x1 - stand.x1);
+        if (m.hits[5]) expect(m.hits[5].x1).toBeLessThanOrEqual(m.bounds.x1);
+      }
+      expect(reach, clip).toBeGreaterThan(6);
+    }
+  });
+
+  it('no pseudopod in the plain poses', () => {
+    const r = createSlimeRenderer(seededRandom(4));
+    run(r, 'stand', 600);
+    expect(measureOf(r).hits[5] ?? null).toBeNull();
+  });
+});
+
 describe('slime hit regions', () => {
   it('cover the visible body and never reach far beyond it', () => {
-    for (const clip of ['stand', 'sit', 'loaf', 'sleep', 'bounce', 'hop', 'jump', 'fall', 'land', 'stretch', 'held', 'startle', 'squish', 'petted', 'hide', 'dance', 'scan'] as AnimClip[]) {
+    for (const clip of ['stand', 'sit', 'loaf', 'sleep', 'bounce', 'hop', 'jump', 'fall', 'land', 'stretch', 'held', 'startle', 'squish', 'petted', 'hide', 'dance', 'scan', 'groom', 'scratch', 'pawAt', 'swat', 'meow', 'hiss', 'impact', 'rollOver', 'tailChase'] as AnimClip[]) {
       const r = createSlimeRenderer(seededRandom(4));
       let t = 0;
       for (let i = 0; i < 100; i++) {
@@ -476,7 +522,7 @@ describe('slime reduced motion, pixel mode and accessory', () => {
   };
 
   it('reduced motion makes every loop smaller in amplitude', () => {
-    for (const clip of ['bounce', 'hop', 'dance', 'scan', 'petted', 'stand'] as AnimClip[]) {
+    for (const clip of ['bounce', 'hop', 'dance', 'scan', 'petted', 'stand', 'pawAt', 'tailChase', 'rollOver'] as AnimClip[]) {
       expect(range(clip, true), clip).toBeLessThan(range(clip, false));
     }
   });

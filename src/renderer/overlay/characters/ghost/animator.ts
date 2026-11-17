@@ -346,6 +346,6 @@ function clampPose(p: GhostPose): void {
   p.faceVis = clamp01(p.faceVis);
   p.sparkle = clamp01(p.sparkle);
   p.lean = clamp(p.lean, -14, 14);
-  p.rot = clamp(p.rot, -1.2, 1.2);
+  p.rot = clamp(p.rot, -1.7, 1.7);
   p.offX = clamp(p.offX, -40, 40);
 }

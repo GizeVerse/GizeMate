@@ -126,6 +126,45 @@ describe('alien renderer: every clip', () => {
   });
 });
 
+describe('alien renderer: authored clips that used to be aliases or had no pose of their own', () => {
+  const FORMER: ReadonlyArray<readonly [AnimClip, AnimClip]> = [
+    ['meow', 'beam'], ['pawAt', 'scan'], ['swat', 'startle'], ['hiss', 'startle'], ['impact', 'land'], ['edgeSit', 'sit'], ['tailChase', 'rollOver'],
+  ];
+  const frame = (clip: AnimClip, ms: number): string => {
+    const r = new AlienRenderer(seededRandom(6));
+    run(r, clip, ms);
+    const m = createMockCtx();
+    r.draw(m.ctx, { outline: 1.6, shadow: false, pixelsPerUnit: 1, skin: 'green' });
+    return JSON.stringify(m.calls.map((c) => c.args.map((a) => (typeof a === 'number' ? Math.round(a * 10) : a))));
+  };
+
+  it('are native, no longer aliased, and draw differently from the clip they used to borrow', () => {
+    for (const [clip, old] of FORMER) {
+      expect(ALIEN_MODULE.clips, clip).toContain(clip);
+      expect(ALIEN_MODULE.clipAlias[clip], clip).toBeUndefined();
+      expect(frame(clip, 300), clip + ' vs ' + old).not.toBe(frame(old, 300));
+    }
+  });
+
+  it('the call does not fire the beam effect (it used to be the beam clip)', () => {
+    const r = new AlienRenderer(seededRandom(6));
+    run(r, 'meow', 600);
+    expect(r.pose.beam).toBeLessThan(0);
+  });
+
+  it('the hard landing squashes deeper than the plain landing', () => {
+    const low = (clip: AnimClip): number => {
+      const r = new AlienRenderer(seededRandom(6));
+      let top = Infinity;
+      run(r, clip, 140, { impact: 0.9 }, () => {
+        top = Math.min(top, r.pose.sy);
+      });
+      return top;
+    };
+    expect(low('impact')).toBeLessThan(low('land'));
+  });
+});
+
 describe('alien renderer: hit regions', () => {
   it('uses at most eight stable roles, all inside the bounds, none oversized, covering head, torso, limbs and antennae', () => {
     const roles = new Set<number>();
@@ -206,7 +245,7 @@ describe('alien renderer: behaviour of the layers', () => {
   let lastTy = 0;
 
   it('reduced motion calms every energetic clip', () => {
-    for (const clip of ['dance', 'float', 'startle', 'rollOver', 'shake', 'scan', 'stand', 'hop'] as AnimClip[]) {
+    for (const clip of ['dance', 'float', 'startle', 'rollOver', 'shake', 'scan', 'stand', 'hop', 'tailChase', 'pawAt', 'hiss'] as AnimClip[]) {
       const full = travel(clip, false);
       const calm = travel(clip, true);
       expect(calm, clip).toBeLessThan(full * 0.85);

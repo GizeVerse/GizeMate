@@ -4,7 +4,7 @@
 import type { AnimClip } from '../../../../shared/cat';
 import { HELD_SCRUFF_DIP } from '../../../../core/interaction/held';
 import { clamp, clamp01, lerp, pulse, smooth, sseg, TAU } from '../../character/kit';
-import { createPose, resetPose, type RPose } from './pose';
+import { blendPose, createPose, resetPose, type RPose } from './pose';
 
 export interface RClipCtx {
   /** Seconds since the clip started (animation speed applied). */
@@ -17,6 +17,10 @@ export interface RClipCtx {
   vy: number;
   impact: number;
   arousal: number;
+  /** Ground distance covered per hop cycle (local DIP), for planting the feet; 0/absent = unknown. */
+  stride?: number;
+  /** Reduced-motion amount 0..1 (absent = 0). */
+  reduce?: number;
 }
 
 /** Piecewise smooth interpolation through [x0, v0, x1, v1, ...]. */
@@ -628,11 +632,15 @@ const confused: ClipFn = (p, c) => {
 };
 
 const hop: ClipFn = (p, c) => {
-  // Hop cycle: gather, spring, glide, land (ear lag comes from the animator's spring).
+  // Hop cycle: gather, spring, glide, land (ear lag comes from the animator's spring). The sim restyles every
+  // gait to this clip, so the pace shows in the speed: a creep (the hunting stalk 24 DIP/s, the shy slink 42) is
+  // low, small and ears-back with a busy nose; a sprint (360 DIP/s) is long, flat leaps with the ears streaming.
   const ph = c.cycle - Math.floor(c.cycle);
   const v = Math.max(0, c.speed) * 84;
   const k = clamp01((v - 30) / 260);
-  const H = lerp(7, 15, k);
+  const creep = 1 - smooth(clamp01((v - 26) / 36));
+  const dash = smooth(clamp01((v - 190) / 130));
+  const H = lerp(7, 15, k) * (1 - 0.4 * creep) * (1 - 0.15 * dash);
   const air = clamp01((ph - 0.4) / 0.4);
   p.offY = -H * 4 * air * (1 - air);
   const sy = kf(ph, [0, 0.92, 0.3, 0.84, 0.42, 1.1, 0.58, 1.07, 0.78, 1.02, 0.82, 0.82, 0.93, 0.92, 1, 0.92]);
@@ -660,6 +668,81 @@ const hop: ClipFn = (p, c) => {
   p.eFB = 0.16 + 0.4 * kf(ph, [0, 0, 0.42, 0.6, 0.7, 1, 0.84, 0, 1, 0]);
   p.tailLift = 2.5 * kf(ph, [0, 0, 0.42, 1, 0.8, 0.4, 1, 0]);
   p.noseAmp = 0.6;
+  p.shadow = 1;
+  // Planted feet: while a foot is on the ground the body travels over it, so it slides back in body space by
+  // the distance covered since the landing (capped: a very long leap cannot be fully planted).
+  const st = c.stride ?? 0;
+  if (st > 0) {
+    const s = ph >= 0.84 ? ph - 0.84 : ph + 0.16;
+    const hw = ph >= 0.84 ? 1 : 1 - sseg(ph, 0.3, 0.42);
+    const fw = ph >= 0.84 ? 1 : 1 - sseg(ph, 0.36, 0.42);
+    const hs = Math.min(12, 0.85 * st * Math.min(s, 0.46)) * hw;
+    const fs = Math.min(14, 0.85 * st * Math.min(s, 0.56)) * fw;
+    p.hnX -= hs;
+    p.hfX -= hs;
+    p.fnX -= fs;
+    p.ffX -= fs;
+  }
+  if (creep > 0) {
+    p.bodyY += 3 * creep;
+    p.headY += 6 * creep;
+    p.headX += 2 * creep;
+    p.tilt -= 0.14 * creep;
+    p.eNA = lerp(p.eNA, 1.05, 0.85 * creep);
+    p.eFA = lerp(p.eFA, 1.15, 0.85 * creep);
+    p.eNB = lerp(p.eNB, 0.5, creep);
+    p.eFB = lerp(p.eFB, 0.5, creep);
+    p.noseAmp = lerp(p.noseAmp, 1, creep);
+    p.tailLift *= 1 - 0.8 * creep;
+  }
+  if (dash > 0) {
+    p.tilt -= 0.12 * dash;
+    p.headX += 3 * dash;
+    p.headY += 3 * dash;
+    p.headRot -= 0.1 * dash;
+    p.fnX += 4 * dash;
+    p.ffX += 4 * dash;
+    p.hnX -= 3 * dash;
+    p.hfX -= 3 * dash;
+    p.eNA = lerp(p.eNA, 1.2, 0.7 * dash);
+    p.eFA = lerp(p.eFA, 1.3, 0.7 * dash);
+    p.eyeOpen = 1 - 0.15 * dash;
+    p.mouth = 0.12 * dash;
+    p.tailLift += 1.5 * dash;
+  }
+};
+
+const pounce: ClipFn = (p, c) => {
+  // The leap at prey: stretched flat and long, nose up on the rise and down on the way in, forepaws reaching,
+  // hind legs trailing, ears streamed back (shaped by vy).
+  const up = clamp01(-c.vy / 420);
+  const down = smooth(clamp01((c.vy + 80) / 360));
+  p.sqY = 1.05 + 0.1 * up;
+  p.sqX = 1 / Math.pow(p.sqY, 0.6);
+  p.bodyRX = 21.5;
+  p.bodyY = -22;
+  p.tilt = 0.12 + 0.3 * up - 0.5 * down;
+  p.headX = 24;
+  p.headY = -31 + 4 * down - 3 * up;
+  p.headRot = 0.1 + 0.15 * up - 0.3 * down;
+  p.fnX = 27 + 2 * down;
+  p.fnY = -17 + 12 * down;
+  p.ffX = 23 + 2 * down;
+  p.ffY = -15 + 11 * down;
+  p.hnX = -19;
+  p.hnY = -15 + 5 * down;
+  p.hnA = 0.8;
+  p.hfX = -23;
+  p.hfY = -11 + 4 * down;
+  p.hfA = 0.95;
+  p.eNA = 1.05 + 0.1 * S(TAU * 3 * c.t);
+  p.eFA = 1.15 + 0.1 * S(TAU * 3 * c.t + 1);
+  p.eNB = 0.45;
+  p.eFB = 0.4;
+  p.pupilX = 0.4;
+  p.mouth = 0.1;
+  p.tailLift = 3.5;
+  p.noseAmp = 0.3;
   p.shadow = 1;
 };
 
@@ -803,6 +886,314 @@ const stretchClip: ClipFn = (p, c) => {
   p.tailLift = 3 * e;
 };
 
+// ---- gestures: stomp, puff, sulk, balance, dangle, spin, flop, splat, scramble, squeak, burrow -----
+
+const swat: ClipFn = (p, c) => {
+  // Two quick forepaw dabs at the thing in front (a stomp-and-nudge), ears forward, then settle.
+  sitPose(p);
+  const t = c.t;
+  const lift = Math.max(sseg(t, 0, 0.07) * (1 - sseg(t, 0.07, 0.1)), sseg(t, 0.2, 0.26) * (1 - sseg(t, 0.26, 0.29)));
+  const hit = Math.max(sseg(t, 0.07, 0.11) * (1 - sseg(t, 0.13, 0.24)), sseg(t, 0.29, 0.33) * (1 - sseg(t, 0.35, 0.45)));
+  p.tilt = 0.75 - 0.3 * hit - 0.1 * lift;
+  p.headX = 13 + 3 * hit;
+  p.headY = -44 + 3 * hit;
+  p.headRot = 0.1 - 0.16 * hit;
+  p.fnX = 10.5 + 5 * lift + 11 * hit;
+  p.fnY = -2.5 - 13 * lift + 1.5 * hit;
+  p.eNA = 0.1 - 0.1 * hit;
+  p.eFA = 0.0;
+  p.pupilX = 0.4;
+  p.noseAmp = 1;
+  p.tailLift = 2 * hit;
+  p.offY = 0.8 * hit;
+};
+
+const hiss: ClipFn = (p, c) => {
+  // Puffs up on the spot, ears flat, head low and forward, a hind foot thumping twice with a grunt.
+  sitPose(p);
+  const t = c.t;
+  const up = sseg(t, 0, 0.14) * (1 - sseg(t, 0.95, 1.2));
+  const lift = Math.max(env(t, 0.18, 0.24, 0.26, 0.3), env(t, 0.46, 0.52, 0.54, 0.58));
+  const slam = Math.max(env(t, 0.26, 0.285, 0.3, 0.36), env(t, 0.54, 0.565, 0.58, 0.64));
+  p.bodyRX *= 1 + 0.2 * up;
+  p.bodyRY *= 1 + 0.22 * up;
+  p.haunch = 1 + 0.25 * up;
+  p.tailS = 1 + 0.45 * up;
+  p.tilt = lerp(0.75, 0.5, up);
+  p.headX = 13 + 4 * up;
+  p.headY = -44 + 5 * up;
+  p.headRot = 0.1 - 0.3 * up;
+  p.eNA = lerp(0.24, 1.4, up);
+  p.eFA = lerp(0.0, 1.5, up);
+  p.eNB = lerp(0.16, 0.55, up);
+  p.eFB = lerp(0.1, 0.5, up);
+  p.eNL = 1 - 0.05 * up;
+  p.eyeOpen = 1;
+  p.pupilX = 0.35;
+  p.blush = 0;
+  p.noseAmp = 1;
+  p.mouth = up * (0.28 * pulse(t, 0.2, 0.26, 0.62, 0.7) + 0.08 * slam);
+  p.hnY = -3.8 - 9 * lift;
+  p.hnA = 0.5 * lift;
+  p.hnX = -1 - 2.5 * lift;
+  p.offY = 1.2 * slam;
+  p.sqY = 1 + 0.04 * up - 0.04 * slam;
+};
+
+const grumpy: ClipFn = (p, c) => {
+  // A sulk: turned half away, hunched, ears back, eyes narrowed, nose scrunching, a sharp huff now and then.
+  sitPose(p);
+  const t = c.t;
+  const huff = Math.pow(Math.max(0, S(TAU * 0.45 * t)), 6);
+  const fl = pulse(t % 3.7, 2.7, 2.78, 2.86, 2.98);
+  p.tilt = 0.5;
+  p.bodyX -= 1;
+  p.headX = 12;
+  p.headY = -41 + 1.2 * huff;
+  p.headRot = -0.24 + 0.05 * huff;
+  p.turn = -0.5;
+  p.eNA = 1.0;
+  p.eFA = 1.1;
+  p.eNB = 0.5;
+  p.eFB = 0.45;
+  p.eNL = 0.95;
+  p.eyeOpen = 0.5;
+  p.pupilX = -0.3;
+  p.blush = 0;
+  p.noseAmp = 1;
+  p.whisker = 0.5;
+  p.mouth = 0.1 * huff;
+  p.bodyRX *= 1 + 0.04 * huff;
+  p.bodyRY *= 1 + 0.05 * huff;
+  p.tailLift = 2.5 * fl;
+};
+
+const balance: ClipFn = (p, c) => {
+  // Low and wide on a narrow ledge, slow rocking over the feet, tail and ears working as counterweights.
+  crouchPose(p, 0.5);
+  const sw = S(TAU * 0.55 * c.t);
+  p.pivY = -3;
+  p.rot = 0.035 * sw;
+  p.fnX = 20;
+  p.ffX = 13.5;
+  p.hnX = -4;
+  p.hfX = -11;
+  p.bodyX += 1.1 * sw;
+  p.headX += 0.8 * sw;
+  p.headRot = -0.14;
+  p.pupilY = 0.3;
+  p.eNA = 0.4 + 0.2 * sw;
+  p.eFA = 0.5 - 0.2 * sw;
+  p.eNB = 0.3;
+  p.tailLift = 2.5 + 2.5 * sw;
+  p.noseAmp = 0.9;
+};
+
+const edgeSit: ClipFn = (p, c) => {
+  // Sitting on the rim, forepaws planted, hind feet dangling over the drop and swinging lazily, peering down.
+  sitPose(p);
+  const sw = S(TAU * 0.7 * c.t);
+  p.tilt = 0.6;
+  p.headX = 15;
+  p.headY = -41;
+  p.headRot = -0.34;
+  p.pupilY = 0.35;
+  p.fnX = 12;
+  p.fnY = -1;
+  p.ffX = 8;
+  p.ffY = -1;
+  p.hnX = 1.5 + 1.2 * sw;
+  p.hnY = 8;
+  p.hnA = 1.25 + 0.15 * sw;
+  p.hfX = -3.5 - 1.2 * sw;
+  p.hfY = 7.5;
+  p.hfA = 1.3 - 0.15 * sw;
+  p.eNA = 0.15;
+  p.eFA = -0.05;
+  p.noseAmp = 0.8;
+  p.tailLift = 0.5;
+};
+
+const tailChase: ClipFn = (p, c) => {
+  // Spins on the spot after its cotton tail: the body turns about its vertical axis (mirrors through a
+  // thin edge), the head curls back at the tail, small hops, ears streaming. Reduced motion: a gentle wobble.
+  const t = c.t;
+  const th = TAU * 0.85 * t;
+  const cs = C(th);
+  const sn = S(th);
+  const calm = (c.reduce ?? 0) > 0.5;
+  const wid = 0.3 + 0.7 * Math.abs(cs);
+  p.sqX = calm ? 1 - 0.2 * Math.abs(sn) : cs < 0 ? -wid : wid;
+  p.rot = 0.12 * sn;
+  p.pivY = -10;
+  p.offY = -3.5 * Math.abs(S(2 * th));
+  p.tilt = -0.1;
+  p.headX = 14;
+  p.headY = -30;
+  p.headRot = -0.32;
+  p.turn = 0.6 * sn;
+  p.pupilX = -0.4;
+  p.eyeOpen = 0.75;
+  p.mouth = 0.2;
+  p.fnY = -0.5 - 4 * Math.max(0, S(2 * th + 1));
+  p.ffY = -0.5 - 4 * Math.max(0, S(2 * th + 4));
+  p.hnY = -3.8 - 4 * Math.max(0, S(2 * th + 2));
+  p.hfY = -3.8 - 4 * Math.max(0, S(2 * th + 3));
+  p.tailLift = 3 + 2 * S(2 * th);
+  p.tailS = 1.15;
+  p.eNA = 0.7 + 0.4 * S(th + 0.5);
+  p.eFA = 0.8 + 0.4 * S(th + 1.4);
+  p.eNB = 0.4;
+  p.eFB = 0.4;
+  p.noseAmp = 0.8;
+  p.blush = 0.7;
+};
+
+const rollOver: ClipFn = (p, c) => {
+  // Flops over backwards onto its back, legs in the air, ears in the dust, a lazy kick now and then.
+  const t = c.t;
+  const flop = sseg(t, 0.05, 0.55);
+  const w = TAU * 1.4 * t;
+  p.pivX = -3;
+  p.pivY = -16;
+  p.rot = -2.85 * flop + 0.07 * S(w * 0.5) * flop;
+  p.offY = -5 * flop;
+  p.sqY = 1 - 0.1 * env(t, 0.45, 0.55, 0.6, 0.8);
+  p.sqX = 1 + 0.5 * (1 - p.sqY);
+  p.headRot = -0.15 * flop;
+  p.eyeHappy = 0.9 * flop;
+  p.eyeOpen = 1 - 0.9 * flop;
+  p.mouth = 0.15 * flop;
+  p.eNA = lerp(0.3, 1.5, flop);
+  p.eFA = lerp(0.0, 1.6, flop);
+  p.eNB = 0.5 * flop;
+  p.fnX = lerp(13, 11, flop);
+  p.fnY = lerp(-0.5, -8, flop) + 1.5 * S(w) * flop;
+  p.ffX = lerp(8.5, 8, flop);
+  p.ffY = lerp(-0.5, -7, flop) + 1.5 * S(w + 1.6) * flop;
+  const kick = Math.max(0, S(w + 0.4)) * flop;
+  p.hnX = -3 - 4 * kick;
+  p.hnY = -3.8 - 7 * kick;
+  p.hnA = 0.5 * kick;
+  p.hfX = -8 - 4 * kick;
+  p.hfY = -3.8 - 6 * kick;
+  p.hfA = 0.4 * kick;
+  p.tailLift = 2 * flop;
+  p.blush = 0.8;
+  p.noseAmp = 0.5;
+};
+
+const impact: ClipFn = (p, c) => {
+  // The hard landing: flattened for a beat, ears flopped forward, eyes squeezed, limbs splayed, then it rights itself.
+  const t = c.t;
+  const amp = 0.22 + 0.2 * clamp(c.impact, 0, 1);
+  const f = 1 - sseg(t, 0.08, 0.4);
+  const bob = S(TAU * 3.5 * Math.max(0, t - 0.35)) * Math.exp(-6 * Math.max(0, t - 0.35));
+  p.sqY = 1 - amp * f + 0.04 * bob;
+  p.sqX = 1 + 0.9 * (1 - p.sqY);
+  p.headY += 4 * f;
+  p.headRot = -0.25 * f;
+  p.eNA = lerp(0.12, -0.35, f);
+  p.eFA = lerp(0.22, -0.2, f);
+  p.eNB = -0.3 * f;
+  p.eFB = -0.2 * f;
+  p.eyeOpen = 1 - 0.9 * f;
+  p.mouth = 0.4 * f;
+  p.fnX = 13 + 6 * f;
+  p.ffX = 8.5 + 7 * f;
+  p.hnX = -3 + 6 * f;
+  p.hfX = -8 + 4 * f;
+  p.tailLift = 4 * f;
+};
+
+const slip: ClipFn = (p, c) => {
+  // Loses its footing at an edge: forepaws scrabble for the rim, hind feet paddle, ears flail, then it hauls itself up.
+  const t = c.t;
+  const sc = S(TAU * 7 * t);
+  const sc2 = S(TAU * 7 * t + Math.PI);
+  const on = sseg(t, 0, 0.08) * (1 - sseg(t, 0.6, 0.85));
+  p.pivX = -3;
+  p.pivY = -8;
+  p.rot = -0.22 * on;
+  p.tilt = 0.14 + 0.35 * on;
+  p.headX = 19 + 1 * on;
+  p.headY = -34 - 4 * on;
+  p.headRot = 0.3 * on;
+  p.fnX = lerp(13, 17 + 2 * sc, on);
+  p.fnY = lerp(-0.5, -22 + 3 * sc, on);
+  p.ffX = lerp(8.5, 13 - 2 * sc, on);
+  p.ffY = lerp(-0.5, -20 + 3 * sc2, on);
+  p.hnX = -3 - 4 * on + 4 * sc * on;
+  p.hnY = -3.8 - 6 * on * (0.5 + 0.5 * sc);
+  p.hnA = 0.4 * on;
+  p.hfX = -8 - 3 * on + 4 * sc2 * on;
+  p.hfY = -3.8 - 6 * on * (0.5 + 0.5 * sc2);
+  p.hfA = 0.4 * on;
+  p.eNA = 0.3 + 0.5 * S(TAU * 5 * t) * on;
+  p.eFA = 0.2 + 0.5 * S(TAU * 5 * t + 1.7) * on;
+  p.mouth = 0.3 * on;
+  p.pupilY = 0.2 * on;
+  p.tailLift = 3 * on;
+  p.blush = 0;
+};
+
+const meow: ClipFn = (p, c) => {
+  // The attention squeak: sits up, chin lifts, ears perk, two small mouth pulses.
+  sitPose(p);
+  const t = c.t;
+  const up = pulse(t, 0, 0.12, 0.7, 0.9);
+  const m = Math.max(pulse(t, 0.14, 0.2, 0.3, 0.36), pulse(t, 0.4, 0.46, 0.56, 0.62));
+  p.tilt += 0.1 * up;
+  p.headRot += 0.28 * up;
+  p.headY -= 2 * up;
+  p.eNA -= 0.12 * up;
+  p.eFA -= 0.1 * up;
+  p.mouth = 0.5 * m;
+  p.noseAmp = 1;
+  p.bodyRY *= 1 + 0.03 * up;
+};
+
+const GROUND_LEVEL = createPose();
+
+/** Burrow body shared by vanish and appear: `sink` 0 (above ground) .. 1 (gone), fading with `alpha`. */
+function burrowPose(p: RPose, low: number, sink: number, alpha: number, red: number): void {
+  if (red < 0.5) {
+    resetPose(GROUND_LEVEL);
+    crouchPose(GROUND_LEVEL, 1);
+    blendPose(p, p, GROUND_LEVEL, low);
+    p.offY = 38 * sink;
+    p.sqY = 1 - 0.1 * sink;
+    p.burrow = sink > 0.001 ? 1 : 0;
+  }
+  p.alpha = alpha;
+  p.shadow = alpha;
+  p.eyeOpen = 1;
+  p.pupilX = 0.2;
+  p.noseAmp = 0.9;
+}
+
+const vanish: ClipFn = (p, c) => {
+  // Ducks, then dives into a burrow: sinks below the ground line while fading out (reduced motion: a slow plain fade).
+  const t = c.t;
+  const red = c.reduce ?? 0;
+  const sink = sseg(t, 0.18, 0.82);
+  const alpha = red >= 0.5 ? 1 - sseg(t, 0, 0.9) : 1 - sseg(t, 0.35, 0.85);
+  burrowPose(p, sseg(t, 0, 0.16), sink, alpha, red);
+};
+
+const appear: ClipFn = (p, c) => {
+  // Pops up out of the ground: rises with a little bounce, ears unfold, looks around (reduced motion: a slow plain fade-in).
+  const t = c.t;
+  const red = c.reduce ?? 0;
+  const sink = 1 - sseg(t, 0.05, 0.5);
+  const alpha = red >= 0.5 ? sseg(t, 0, 0.9) : sseg(t, 0.02, 0.4);
+  burrowPose(p, 1 - sseg(t, 0.5, 0.85), sink, alpha, red);
+  if (red < 0.5) {
+    p.offY -= 4 * env(t, 0.42, 0.52, 0.56, 0.68);
+    p.headRot += 0.1 * S(TAU * 1.5 * t) * sseg(t, 0.6, 0.8) * (1 - sseg(t, 0.8, 0.9));
+  }
+};
+
 const REGISTRY: Partial<Record<AnimClip, ClipFn>> = {
   stand,
   sit,
@@ -831,6 +1222,19 @@ const REGISTRY: Partial<Record<AnimClip, ClipFn>> = {
   scan,
   squish,
   stretch: stretchClip,
+  pounce,
+  swat,
+  hiss,
+  grumpy,
+  balance,
+  edgeSit,
+  tailChase,
+  rollOver,
+  impact,
+  slip,
+  meow,
+  vanish,
+  appear,
 };
 
 /** The clips the rabbit draws natively (the module lists exactly these). */

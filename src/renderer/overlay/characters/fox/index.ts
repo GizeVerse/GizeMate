@@ -4,7 +4,7 @@
 import { applyMatX, applyMatY, clamp01 } from '../../character/kit';
 import type { AnimInput, CharacterRenderer, DrawParams, EmoteAnchor, GeometryCollector } from '../../character/types';
 import { FoxAnimator } from './animator';
-import { drawFox, drawFoxShadow, EAR_FAR_SRC, EAR_NEAR_SRC, earGeom, HEAD_POINTS, HEAD_SHAPE, headPoint, HP, JAW_SHAPE, shadowExtent } from './draw';
+import { drawFox, drawFoxShadow, dustExtent, EAR_FAR_SRC, EAR_NEAR_SRC, earGeom, HEAD_POINTS, HEAD_SHAPE, headPoint, HP, JAW_SHAPE, shadowExtent } from './draw';
 import { LEG_COUNT, LEG_FF, LEG_FN } from './pose';
 import { LEG_SPECS, PAW_RX, Rig, TORSO_POINTS } from './rig';
 import { getFoxSkin } from './skins';
@@ -21,6 +21,7 @@ export class FoxRenderer implements CharacterRenderer {
   readonly tail = new FoxTail();
   private readonly earPts = new Float64Array(6);
   private readonly shadow = { cx: 0, half: 0, rh: 0 };
+  private readonly dust = { cx: 0, half: 0, h: 0 };
   private g: GeometryCollector | null = null;
 
   constructor(random: () => number) {
@@ -128,6 +129,14 @@ export class FoxRenderer implements CharacterRenderer {
     const sh = this.shadow;
     shadowExtent(rig, p, sh);
     g.addGround(sh.cx, sh.half, sh.rh);
+    // The dust puff of a vanish / appear: room for it in the bounds (never a hit region).
+    if (p.dust > 0.01) {
+      const d = this.dust;
+      dustExtent(rig, p, d);
+      g.add(d.cx - d.half, -6, 10, -1);
+      g.add(d.cx + d.half, -6, 10, -1);
+      g.add(d.cx, -10, 16, -1);
+    }
     this.g = null;
   }
 

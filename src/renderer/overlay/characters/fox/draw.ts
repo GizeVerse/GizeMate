@@ -75,6 +75,8 @@ export function earGeom(src: readonly number[], rot: number, flat: number, out: 
 }
 
 let pixelMode = false;
+/** Absolute opacity of the body and of the brush for this frame (the brush outlasts the body in a vanish). */
+let tailOpacity = 1;
 
 export function drawFox(ctx: Ctx2D, rig: Rig, p: Pose, tail: FoxTail, skin: FoxSkin, o: FoxDrawOptions): void {
   const ol = o.outline;
@@ -83,7 +85,19 @@ export function drawFox(ctx: Ctx2D, rig: Rig, p: Pose, tail: FoxTail, skin: FoxS
 
   if (o.shadow) drawFoxShadow(ctx, rig, p);
 
+  const outer = ctx.globalAlpha;
+  const bodyA = outer * clamp01(p.alpha);
+  tailOpacity = outer * Math.max(clamp01(p.alpha), clamp01(p.tailAlpha));
+  if (bodyA >= 0.004 || tailOpacity >= 0.004) {
+    drawFoxBody(ctx, rig, p, tail, skin, o, ol, fine, bodyA);
+    ctx.globalAlpha = outer;
+  }
+  if (p.dust > 0.01) drawDust(ctx, rig, p);
+}
+
+function drawFoxBody(ctx: Ctx2D, rig: Rig, p: Pose, tail: FoxTail, skin: FoxSkin, o: FoxDrawOptions, ol: number, fine: boolean, bodyA: number): void {
   ctx.save();
+  ctx.globalAlpha = bodyA;
   const m = rig.m;
   ctx.transform(m[0]!, m[1]!, m[2]!, m[3]!, m[4]!, m[5]!);
   ctx.lineCap = 'round';
@@ -156,7 +170,38 @@ export function drawFoxShadow(ctx: Ctx2D, rig: Rig, p: Pose): void {
   const curl = clamp01(p.curl);
   const w = 30 * k * (1 - 0.35 * air) * (1 - 0.18 * curl) * Math.abs(m[0]!) + 4;
   const h = 4.2 * k * (1 - 0.3 * air) + 0.8;
-  drawBlobShadow(ctx, cx, -0.6, w, h, 0.2 * Math.min(1, k) * (1 - 0.5 * air));
+  drawBlobShadow(ctx, cx, -0.6, w, h, 0.2 * Math.min(1, k) * (1 - 0.5 * air) * clamp01(p.alpha));
+}
+
+/** Dust puff geometry (view space, on the ground below the body): centre x, half width, height. Shared by the painter and measure(). */
+export function dustExtent(rig: Rig, p: Pose, out: { cx: number; half: number; h: number }): void {
+  out.cx = rig.m[0]! * rig.bodyX + rig.m[4]!;
+  out.half = 15 + 11 * clamp01(p.dustT);
+  out.h = 8 + 7 * clamp01(p.dustT);
+}
+
+const PUFF_X = [-0.78, -0.3, 0.22, 0.74] as const;
+const PUFF_Y = [0.12, 0.62, 0.38, 0.1] as const;
+
+/** A small ring of soft dust puffs that swells, lifts and fades (a few solid discs in pixel mode). */
+function drawDust(ctx: Ctx2D, rig: Rig, p: Pose): void {
+  const k = clamp01(p.dust);
+  const t = clamp01(p.dustT);
+  const e = { cx: 0, half: 0, h: 0 };
+  dustExtent(rig, p, e);
+  const keep = ctx.globalAlpha;
+  ctx.fillStyle = '#d8c8aa';
+  const n = pixelMode ? 3 : 4;
+  for (let i = 0; i < n; i++) {
+    const px = e.cx + PUFF_X[i]! * e.half;
+    const py = -1.5 - PUFF_Y[i]! * e.h * (0.4 + 0.6 * t);
+    const r = 2.6 + 6.2 * t * (0.7 + 0.3 * PUFF_Y[i]!);
+    ctx.globalAlpha = keep * k * (pixelMode ? 0.85 : 0.55 - 0.1 * i * 0.3);
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = keep;
 }
 
 /** Extent of the shadow for measure(): an upper bound of drawFoxShadow (no airborne shrink). */
@@ -416,6 +461,13 @@ function traceTailPath(ctx: Ctx2D, tail: FoxTail): void {
 }
 
 function drawTail(ctx: Ctx2D, tail: FoxTail, skin: FoxSkin, ol: number, fine: boolean): void {
+  const keep = ctx.globalAlpha;
+  ctx.globalAlpha = tailOpacity;
+  drawTailShape(ctx, tail, skin, ol, fine);
+  ctx.globalAlpha = keep;
+}
+
+function drawTailShape(ctx: Ctx2D, tail: FoxTail, skin: FoxSkin, ol: number, fine: boolean): void {
   traceTailPath(ctx, tail);
   strokeOutline(ctx, skin.outline, ol);
   fillShape(ctx, skin.coat);

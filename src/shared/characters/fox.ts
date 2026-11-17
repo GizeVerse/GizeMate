@@ -38,6 +38,12 @@ const CLIPS: readonly AnimClip[] = [
   'dance',
   'shake',
   'pounce',
+  'scratch',
+  'meow',
+  'hop',
+  'squish',
+  'vanish',
+  'appear',
 ];
 
 /** Everything else draws as one of the native clips (the shared fallbacks would pick similar ones). */
@@ -49,17 +55,11 @@ const ALIAS: Readonly<Partial<Record<AnimClip, AnimClip>>> = {
   hiss: 'startle',
   grumpy: 'annoyed',
   pawAt: 'swat',
-  meow: 'sit',
   edgeSit: 'sit',
   balance: 'crouch',
-  scratch: 'groom',
-  hop: 'walk',
   bounce: 'dance',
   float: 'stand',
-  vanish: 'hide',
-  appear: 'stand',
   swing: 'climb',
-  squish: 'land',
   beam: 'scan',
 };
 
@@ -148,6 +148,20 @@ const SIGNATURES: readonly SignatureAction[] = [
     traitBias: { playfulness: 0.4 },
     emote: 'heart',
     sound: 'chirp',
+  },
+  // The sly trick: slips away in a puff of dust, pops up somewhere else and looks around as if nothing happened.
+  // Rare, long cooldown; the sim only offers it when the fox has a floor to land on (never held, laser or event).
+  {
+    id: 'slipAway',
+    clip: 'scan',
+    weight: 0.7,
+    cooldownMs: 270_000,
+    durationMs: [1400, 2400],
+    requires: { notWhileSleepy: true },
+    traitBias: { mischief: 0.6, independence: 0.3 },
+    movement: 'teleport',
+    emote: 'sparkle',
+    sound: 'yip',
   },
 ];
 

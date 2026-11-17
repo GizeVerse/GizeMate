@@ -45,9 +45,9 @@ const BODY_LENGTH_DIP = 84;
 const MAX_DT = 0.1;
 const SPRING_STEP = 1 / 90;
 /** Clips that rest or idle: the fidget layer, look-at and mood run on them. */
-const AMBIENT: ReadonlySet<AnimClip> = new Set<AnimClip>(['stand', 'sit', 'loaf', 'scan', 'confused', 'crouch']);
+const AMBIENT: ReadonlySet<AnimClip> = new Set<AnimClip>(['stand', 'sit', 'loaf', 'scan', 'confused', 'crouch', 'edgeSit', 'balance']);
 const FIDGET_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>(['stand', 'sit', 'loaf']);
-const LOOK_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>(['stand', 'sit', 'loaf', 'scan', 'confused', 'annoyed']);
+const LOOK_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>(['stand', 'sit', 'loaf', 'scan', 'confused', 'annoyed', 'edgeSit', 'meow']);
 
 const MOOD_RATE = { up: 3, down: 1.6 };
 const REDUCE_RATE = 4;
@@ -62,7 +62,7 @@ export class RabbitAnimator {
   private readonly base: RPose = createPose();
   private readonly clipPose: RPose = createPose();
   private readonly fromPose: RPose = createPose();
-  private readonly ctx: RClipCtx = { t: 0, cycle: 0, speed: 0, vy: 0, impact: 0.5, arousal: 0 };
+  private readonly ctx: RClipCtx = { t: 0, cycle: 0, speed: 0, vy: 0, impact: 0.5, arousal: 0, stride: 0, reduce: 0 };
 
   private clip: AnimClip | null = null;
   private clipStart = Number.NaN;
@@ -172,13 +172,19 @@ export class RabbitAnimator {
 
     const c = this.ctx;
     c.t = (Math.max(0, finiteOr(simTimeMs - this.clipStart, 0)) * animSpeed) / 1000;
+    c.stride = 0;
     if (clip === 'hop') {
       const v = speed * BODY_LENGTH_DIP;
       const stride = lerp(22, 40, clamp01((v - 30) / 220));
-      const hz = clamp(v / stride, 1.6, 4.2) * (1 - 0.25 * this.reduceK);
+      // A creep hops slowly (down to 1.1 per second) instead of shuffling at the normal minimum rate.
+      const creep = 1 - smooth(clamp01((v - 26) / 36));
+      const hz = clamp(v / stride, lerp(1.6, 1.1, creep), 4.2) * (1 - 0.25 * this.reduceK);
       this.cycle += hz * dt * animSpeed;
       if (this.cycle > 1e6) this.cycle -= Math.trunc(this.cycle);
+      // Ground covered per hop cycle: what the planted feet have to make up for.
+      c.stride = v / Math.max(0.2, hz * animSpeed);
     }
+    c.reduce = this.reduceK;
     c.cycle = this.cycle;
     c.speed = speed;
     c.vy = finiteOr(input.vy, 0);
@@ -202,6 +208,8 @@ export class RabbitAnimator {
     if (to === 'held') return 0.22;
     if (from === 'sleep' || to === 'sleep') return 0.45;
     if (to === 'startle') return 0.05;
+    // The burrow is carried by its own clip: a short blend in, and nothing slow between the hidden poses.
+    if (to === 'vanish' || to === 'appear') return 0.06;
     if (from === 'jump' || from === 'fall' || to === 'jump' || to === 'fall' || to === 'land') return 0.07;
     return clamp(CLIP_META[to].fadeInMs / 1000, 0.08, 0.3);
   }
@@ -365,9 +373,10 @@ export class RabbitAnimator {
     // Reduced motion: smaller leaps, squashes and swings, never a flash.
     if (red > 0) {
       const k = 0.5 * red;
+      // The flop onto the back keeps its angle (the clip itself drops the wiggle).
       p.offY *= 1 - k;
       p.offX *= 1 - k;
-      p.rot *= 1 - k;
+      if (clip !== 'rollOver') p.rot *= 1 - k;
       p.sqY = lerp(p.sqY, 1, k);
       p.sqX = lerp(p.sqX, 1, k);
       p.eyeHappy *= 1 - 0.3 * red;

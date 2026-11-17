@@ -9,6 +9,8 @@ const CLIPS: readonly AnimClip[] = [
   'stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'walk', 'run', 'crouch', 'jump', 'fall', 'land',
   'startle', 'annoyed', 'petted', 'groom', 'pawAt', 'held', 'meow', 'hide', 'climb', 'scratch', 'shake',
   'stretch', 'hop', 'swing', 'scan', 'peek', 'dance',
+  // 1.6.0: native motion for what the simulation emits in normal life (it used to alias onto other clips).
+  'stalk', 'slink', 'sprint', 'pounce', 'slip', 'impact', 'landRecover', 'swat', 'hiss', 'grumpy', 'balance', 'edgeSit', 'tailChase', 'rollOver', 'confused',
 ];
 
 const sig = (s: SignatureAction): SignatureAction => Object.freeze({ ...s, ...(s.requires ? { requires: Object.freeze({ ...s.requires }) } : {}) });
@@ -24,26 +26,11 @@ export const MONKEY_MODULE: CharacterModule = Object.freeze({
     heightDip: 86,
     gaitScale: 1.05,
     // How far past the anchor the hit region may reach in front (arms reach out when it grabs or crouches).
-    hitFrontExtentDip: Object.freeze({ pawAt: 62, crouch: 52, hop: 50, land: 52, startle: 46, meow: 44, scan: 48, dance: 48, stretch: 46 }),
+    hitFrontExtentDip: Object.freeze({ pawAt: 62, crouch: 52, hop: 50, land: 52, startle: 46, meow: 44, scan: 48, dance: 48, stretch: 46, pounce: 54, sprint: 58, swat: 44, balance: 44, slip: 42, impact: 46, stalk: 40, slink: 40 }),
   }),
   skins: Object.freeze(['brown', 'golden', 'gray', 'cream', 'black']),
   clips: Object.freeze([...CLIPS]),
   clipAlias: Object.freeze({
-    confused: 'scratch',
-    rollOver: 'dance',
-    stalk: 'walk',
-    slink: 'walk',
-    sprint: 'run',
-    pounce: 'jump',
-    slip: 'startle',
-    impact: 'land',
-    landRecover: 'scan',
-    swat: 'pawAt',
-    hiss: 'startle',
-    grumpy: 'annoyed',
-    balance: 'crouch',
-    tailChase: 'dance',
-    edgeSit: 'sit',
     bounce: 'hop',
     float: 'fall',
     vanish: 'hide',

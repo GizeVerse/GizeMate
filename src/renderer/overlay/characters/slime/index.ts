@@ -52,7 +52,10 @@ for (const clip of ANIM_CLIPS) {
 export const resolveSlimeClip = (clip: AnimClip): AnimClip => RESOLVED.get(clip) ?? 'stand';
 
 /** How much each clip lets the eyes follow the look target. */
-const LOOK_WEIGHT: Partial<Record<AnimClip, number>> = { sleep: 0, wake: 0.2, petted: 0, held: 0, vanish: 0.3, appear: 0.5, stretch: 0.6, dance: 0.3, shake: 0, squish: 0.2, startle: 0.5 };
+const LOOK_WEIGHT: Partial<Record<AnimClip, number>> = { sleep: 0, wake: 0.2, petted: 0, held: 0, vanish: 0.3, appear: 0.5, stretch: 0.6, dance: 0.3, shake: 0, squish: 0.2, startle: 0.5, groom: 0, scratch: 0, rollOver: 0, tailChase: 0, hiss: 0.3, swat: 0.3, impact: 0, pawAt: 0.5 };
+/** Pseudopod: length at extension 1, and its width. */
+const ARM_LEN = 16;
+const ARM_WIDTH = 6.4;
 
 const sgnPow = (v: number, p: number): number => (v < 0 ? -Math.pow(-v, p) : Math.pow(v, p));
 
@@ -108,6 +111,13 @@ export class SlimeRenderer implements CharacterRenderer {
   private dripLen = 0;
   private puddleK = 1;
   private shadowK = 1;
+  /** Pseudopod: base, tip and width in local view coordinates (armOn when it is out). */
+  private armOn = false;
+  private abx = 0;
+  private aby = 0;
+  private atx = 0;
+  private aty = 0;
+  private armW = ARM_WIDTH;
   // Face frame (body frame, y up) of the current pose.
   private fx = 0;
   private fy = 0;
@@ -220,6 +230,10 @@ export class SlimeRenderer implements CharacterRenderer {
     cur.scl = damp(cur.scl, T.scl, 14, dt);
     cur.alpha = damp(cur.alpha, T.alpha, 16, dt);
     cur.puddle = damp(cur.puddle, T.puddle, 18, dt);
+    cur.arm = damp(cur.arm, T.arm, 26, dt);
+    cur.armA = damp(cur.armA, T.armA, 22, dt);
+    cur.armY = damp(cur.armY, T.armY, 14, dt);
+    cur.armFront = T.armFront;
 
     // Velocity lean and the kick of a sudden start or stop on the top of the body.
     const mx = finiteOr(motionX, 0);
@@ -365,6 +379,7 @@ export class SlimeRenderer implements CharacterRenderer {
       T.tear *= 1 - 0.4 * rm;
       T.tip *= 1 - 0.6 * rm;
       T.rot *= 1 - 0.5 * rm;
+      T.arm *= 1 - 0.35 * rm;
       T.tilt *= 1 - 0.5 * rm;
       T.faceX *= 1 - 0.3 * rm;
       void k;
@@ -447,6 +462,22 @@ export class SlimeRenderer implements CharacterRenderer {
     this.minY = minY;
     this.maxY = maxY;
 
+    // Pseudopod: a lobe out of the side of the body (base just inside the edge at its height).
+    this.armOn = c.arm > 0.04 && c.alpha > 0.01;
+    if (this.armOn) {
+      const ayb = clamp(c.armY, 0.1, 0.9) * Hh;
+      const abx = Math.max(2, this.halfWidthAt(ayb) - 1.5);
+      const aby = this.lift + ayb;
+      const len = ARM_LEN * clamp(c.arm, 0, 1.4);
+      const ang = clamp(finiteOr(c.armA, 0), -1.5, 3.4);
+      this.put(abx, aby);
+      this.abx = this.px;
+      this.aby = this.py;
+      this.put(abx + Math.cos(ang) * len, aby + Math.sin(ang) * len);
+      this.atx = Number.isFinite(this.px) ? this.px : this.abx;
+      this.aty = Number.isFinite(this.py) ? this.py : this.aby;
+      this.armW = ARM_WIDTH * clamp(0.55 + 0.45 * c.arm, 0.55, 1) * c.scl;
+    }
     // Face frame.
     const fh = clamp(c.faceH, 0.3, 0.8);
     const fyFromBottom = fh * Hh;
@@ -483,6 +514,7 @@ export class SlimeRenderer implements CharacterRenderer {
     // Faded out (the vanish clip): the space stays reported for the dirty rect, but only a token spot is clickable.
     if (this.cur.alpha < this.invisible) {
       for (let i = 0; i < N; i++) g.add(P[i * 2]!, P[i * 2 + 1]!, PAD, -1);
+      if (this.armOn) g.add(this.atx, this.aty, this.armW * 0.65 + PAD, -1);
       this.put(0, this.lift);
       g.add(this.px, this.py - 3, 3, 0);
       this.put(0, 0);
@@ -498,6 +530,12 @@ export class SlimeRenderer implements CharacterRenderer {
       // Overlap the neighbouring band near a band edge so the rectangles leave no gap inside the body.
       if (f > 0.34 - 0.14 && f < 0.34 + 0.14) g.add(x, y, PAD, primary === 1 ? 0 : 1);
       if (f > 0.68 - 0.14 && f < 0.68 + 0.14) g.add(x, y, PAD, primary === 2 ? 0 : 2);
+    }
+    if (this.armOn) {
+      const r = this.armW * 0.65 + PAD;
+      g.add(this.abx, this.aby, r, 5);
+      g.add((this.abx + this.atx) / 2, (this.aby + this.aty) / 2, r, 5);
+      g.add(this.atx, this.aty, r, 5);
     }
     this.put(0, this.lift);
     const gx = this.px;
@@ -606,6 +644,8 @@ export class SlimeRenderer implements CharacterRenderer {
       }
       strokeOutline(ctx, pal.outline, ol);
     }
+    const armBehind = this.armOn && c.armFront < 0.5;
+    if (armBehind) this.drawArm(ctx, pal.outline, ol, true);
     // Body.
     ctx.beginPath();
     traceClosedSpline(ctx, P, N);
@@ -615,6 +655,7 @@ export class SlimeRenderer implements CharacterRenderer {
       ctx.ellipse(gx, gy + dl * 0.5, 3, 2 + dl * 0.5, 0, 0, TAU);
     }
     strokeOutline(ctx, pal.outline, ol);
+    if (armBehind) this.drawArm(ctx, pal.body, ol, false);
     if (pk > 0.02) {
       ctx.beginPath();
       ctx.ellipse(gx, gy - 0.3, rx, ry * Math.min(1, pk + 0.2), 0, 0, TAU);
@@ -637,9 +678,29 @@ export class SlimeRenderer implements CharacterRenderer {
 
     this.drawInside(ctx, pal, pix, fine, up);
     this.drawFace(ctx, pal, pix, fine, up);
+    if (this.armOn && c.armFront >= 0.5) {
+      this.drawArm(ctx, pal.outline, ol, true);
+      this.drawArm(ctx, pal.body, ol, false);
+    }
     if (c.bubble > 0.02) this.drawBubble(ctx, pal, pix, ol);
     if (o.accessory === 'heartPendant') this.drawPendant(ctx, pal.outline, ol, ppu);
     ctx.restore();
+  }
+
+  /** The pseudopod: a thick rounded stroke ending in a small bulb; the outline pass strokes it wider. */
+  private drawArm(ctx: Ctx2D, color: string, ol: number, outlinePass: boolean): void {
+    const grow = outlinePass ? ol * 2 : 0;
+    const r = this.armW * 0.62 + grow * 0.5;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = Math.max(0.1, this.armW + grow);
+    ctx.beginPath();
+    ctx.moveTo(this.abx, this.aby);
+    ctx.lineTo(this.atx, this.aty);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(this.atx, this.aty, r, 0, TAU);
+    ctx.fill();
   }
 
   /** Core, highlight and the tiny bubbles floating in the jelly. */

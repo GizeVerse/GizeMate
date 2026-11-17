@@ -11,6 +11,8 @@ const rx = (r: ReactionSpec): ReactionSpec => Object.freeze({ ...r });
 const CLIPS: readonly AnimClip[] = [
   'stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'float', 'crouch', 'jump', 'fall', 'land', 'startle', 'petted', 'held', 'hide',
   'peek', 'vanish', 'appear', 'dance', 'scan', 'squish', 'beam', 'annoyed', 'confused', 'shake',
+  // Authored for the ghost (they used to be aliases of wake, sit, confused, yawn, scan, startle, petted and land).
+  'stretch', 'groom', 'scratch', 'meow', 'pawAt', 'swat', 'rollOver', 'tailChase', 'impact',
 ];
 
 export const GHOST_MODULE: CharacterModule = Object.freeze({
@@ -18,14 +20,17 @@ export const GHOST_MODULE: CharacterModule = Object.freeze({
   kind: 'fantasy',
   locomotion: 'float',
   i18nPrefix: 'character.ghost',
-  body: Object.freeze({ widthDip: 64, heightDip: 84, gaitScale: 0.9, hitFrontExtentDip: Object.freeze({ crouch: 40, land: 42 }) }),
+  body: Object.freeze({ widthDip: 64, heightDip: 84, gaitScale: 0.9, hitFrontExtentDip: Object.freeze({ crouch: 40, land: 42, impact: 60, pawAt: 60, swat: 60, rollOver: 60, tailChase: 56 }) }),
   skins: Object.freeze(['pale', 'mint', 'lavender', 'midnight', 'peach']),
   clips: Object.freeze(CLIPS),
   clipAlias: Object.freeze({
+    // Gaits never reach the renderer from the sim: the 'float' locomotion restyles them to float (rate follows speed).
     walk: 'float', run: 'float', stalk: 'float', slink: 'float', sprint: 'float', climb: 'float', balance: 'float', hop: 'float', bounce: 'float',
-    groom: 'sit', edgeSit: 'sit', scratch: 'confused', meow: 'yawn', pawAt: 'scan', rollOver: 'petted', tailChase: 'petted',
-    pounce: 'jump', slip: 'startle', impact: 'land', landRecover: 'wake', swat: 'startle', hiss: 'startle', grumpy: 'annoyed',
-    stretch: 'wake', swing: 'held',
+    edgeSit: 'sit', pounce: 'jump', slip: 'startle', grumpy: 'annoyed', swing: 'held',
+    // A defensive hiss is a harmless "boo": the sheet swells, mouth wide, a glow flare, then a giggle.
+    hiss: 'beam',
+    // Shaking itself off is how it recovers from a hard landing (wake drew a sleepy, dimmed sheet).
+    landRecover: 'shake',
   } as const),
   personality: Object.freeze({
     means: Object.freeze({ curiosity: 0.7, energy: 0.55, playfulness: 0.8, sociability: 0.55, mischief: 0.9, affection: 0.5, independence: 0.6 }),
@@ -89,7 +94,7 @@ export const GHOST_MODULE: CharacterModule = Object.freeze({
   sound: Object.freeze({
     pitch: 0.8,
     voice: 'hollow',
-    gain: 0.8,
+    gain: 0.9,
     cooldownMs: 3000,
     cues: Object.freeze({ voice: 'whoo', happy: 'chime', startled: 'whoo', move: 'whoo' }),
   }),

@@ -227,10 +227,11 @@ function boot(): void {
     const r = controls.getBoundingClientRect();
     return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
   };
+  const routerHitTest = (p: Point, hovering: boolean): boolean => !insideBar(p) && overlays.hitTest(p, hovering, surface ? TOUCH_PAD_DP : 0);
   const router = createPointerRouter({
     gestures: createGestureRecognizer(),
     // The floating cat's window is only the cat and its pad: the whole of it is "on the cat".
-    hitTest: (p, hovering) => !insideBar(p) && overlays.hitTest(p, hovering, surface ? TOUCH_PAD_DP : 0),
+    hitTest: routerHitTest,
     // The floating window has nothing to scroll: a finger that moves on the cat carries it (and a flick throws it).
     touchDragOnMove: surface !== null,
     onSimEvents: deliverSimEvents,
@@ -696,6 +697,7 @@ function boot(): void {
       catId: () => catLoad.cat.catId,
       suspended: () => suspended,
       sheetOpen: () => settingsPanel?.isOpen ?? false,
+      routerHitTest,
     });
     recorder.noteState(catHost.state);
   }

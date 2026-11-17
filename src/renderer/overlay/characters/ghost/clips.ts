@@ -492,6 +492,195 @@ const shake: Sampler = (p, c) => {
   p.lookW = 0;
 };
 
+// ---- clips that used to be aliases (stretch -> wake, groom -> sit, scratch -> confused, meow -> yawn, pawAt -> scan,
+// swat -> startle, rollOver/tailChase -> petted, impact -> land): a legless sheet has its own way of doing each. ------
+
+/** Rises tall with arms overhead and the hem trailing, a little shiver at the top (one-shot, 1.6 s). */
+const stretch: Sampler = (p, c) => {
+  const u = clamp(c.t / 1.6, 0, 1);
+  const dip = pulse(u, 0, 0.12, 0.2, 0.3);
+  const up = pulse(u, 0.22, 0.5, 0.72, 0.95);
+  const shiver = pulse(u, 0.5, 0.56, 0.68, 0.74) * sin(c.t * 40) * c.amp;
+  p.offY = -HOVER + 3 * dip - 7 * up * c.amp;
+  p.sy = 1 - 0.1 * dip + 0.16 * up * c.amp;
+  p.sx = 1 + 0.06 * dip - 0.08 * up * c.amp;
+  p.hemDrop = 5 * up * c.amp;
+  p.hemWide = 1 - 0.1 * up;
+  p.armL = lerp(0.4, 2.85, up);
+  p.armR = p.armL;
+  p.armLen = 1 + 0.2 * up;
+  p.rot = shiver * 0.03;
+  p.eyeSmile = 0.75 * up;
+  p.mouthOpen = 0.55 * pulse(u, 0.4, 0.5, 0.6, 0.7);
+  p.mouthSmile = 0.5;
+  p.lookW = 0.3 * (1 - up);
+};
+
+/** Polishing the sheet: one hand rubs the dome's side, the other tidies the hem (loop). */
+const groom: Sampler = (p, c) => {
+  const t = c.t;
+  const rub = sin(t * 8);
+  p.offY = -7 + sin(t * 1.6) * 1.1 * c.amp;
+  p.sy = 0.95;
+  p.sx = 1.04;
+  p.hemWide = 1.1;
+  p.armR = 1.75 + 0.5 * rub * c.amp;
+  p.armL = 0.25 + 0.12 * sin(t * 4 + 1) * c.amp;
+  p.lean = 2.2 + 0.8 * rub * c.amp;
+  p.rot = 0.05 + 0.02 * rub * c.amp;
+  p.eyeSmile = 0.7;
+  p.cheek = 0.6;
+  p.mouthSmile = 0.7;
+  p.hemAmp = 1.6;
+  p.hemSway = 1.8 + 0.6 * sin(t * 4) * c.amp;
+  p.lookW = 0;
+  p.shadowK = 1.1;
+};
+
+/** A hand scratches the top of the dome, head tilted into it (loop). */
+const scratch: Sampler = (p, c) => {
+  const t = c.t;
+  p.offY = -7 + sin(t * 1.6) * 1.1 * c.amp;
+  p.sy = 0.95;
+  p.sx = 1.04;
+  p.hemWide = 1.1;
+  p.armR = 2.7 + 0.28 * sin(t * 16) * c.amp;
+  p.armLen = 1.05;
+  p.armL = 0.25;
+  p.rot = 0.07 + 0.012 * sin(t * 16) * c.amp;
+  p.lean = 1.5 + 0.7 * sin(t * 16 + 1) * c.amp;
+  p.eyeSmile = 0.85;
+  p.mouthOpen = 0.12;
+  p.mouthSmile = 0.8;
+  p.cheek = 0.4;
+  p.lookW = 0;
+  p.shadowK = 1.1;
+};
+
+/** A hollow "whoo" call: the sheet lifts, stretches tall and the round mouth opens twice (one-shot, 0.9 s). */
+const meow: Sampler = (p, c) => {
+  const u = clamp(c.t / 0.9, 0, 1);
+  const a = pulse(u, 0.08, 0.2, 0.42, 0.52);
+  const b = pulse(u, 0.5, 0.6, 0.78, 0.9);
+  const k = Math.max(a, 0.8 * b);
+  p.offY = -HOVER - 4 * k * c.amp;
+  p.sy = 1 + 0.1 * k * c.amp;
+  p.sx = 1 - 0.04 * k * c.amp;
+  p.hemDrop = 3 * k * c.amp;
+  p.hemAmp = 2.2 + 1.5 * k;
+  p.armL = 0.4 + 0.7 * k;
+  p.armR = p.armL;
+  p.eyeSize = 1 + 0.12 * k;
+  p.mouthOpen = 0.95 * k;
+  p.mouthW = 0.8;
+  p.mouthSmile = 0;
+  p.glow = 0.3 * k * c.fx;
+  p.lookW = 0.4;
+};
+
+/** Batting at the look target with one sheet-arm, the body leaning into it (loop). */
+const pawAt: Sampler = (p, c) => {
+  const t = c.t;
+  const bat = sin(t * 9);
+  const lunge = 0.5 + 0.5 * sin(t * 2.3);
+  p.offY = -HOVER + sin(t * 2) * 1.5 * c.amp;
+  p.armR = 1.35 + 0.5 * bat * c.amp;
+  p.armL = 0.3;
+  p.lean = 4 + 2 * lunge;
+  p.rot = 0.07 + 0.02 * bat * c.amp;
+  p.eyeSize = 1.12;
+  p.mouthSmile = 0.9;
+  p.hemSway = 2.4;
+  p.hemAmp = 2.6;
+  p.lookW = 0.8;
+  p.faceX = 2;
+  p.cheek = 0.3;
+};
+
+/** One quick swipe: the arm winds up, slashes across, the sheet snaps after it (one-shot, 0.45 s). */
+const swat: Sampler = (p, c) => {
+  const u = clamp(c.t / 0.45, 0, 1);
+  const wind = pulse(u, 0, 0.25, 0.3, 0.4);
+  const hit = pulse(u, 0.3, 0.42, 0.52, 0.85);
+  p.armR = lerp(0.4, 2.5, wind) - 1.75 * hit + 0.35 * sseg(u, 0.4, 1);
+  p.armL = 0.35;
+  p.lean = -2 * wind + 6 * hit;
+  p.rot = -0.05 * wind + 0.12 * hit * c.amp;
+  p.sy = 1 + 0.06 * wind;
+  p.offY = -HOVER - 3 * wind * c.amp;
+  p.hemSway = 2 + 3 * hit;
+  p.hemAmp = 2.4 + 1.5 * hit;
+  p.eyeOpen = 0.85;
+  p.brow = 0.5 * hit;
+  p.mouthOpen = 0.35 * hit;
+  p.mouthSmile = 0.6;
+  p.lookW = 0.7;
+};
+
+/** Floating on its back: the sheet tips over to lie flat, arms and hem waving, then rights itself (loop). */
+const rollOver: Sampler = (p, c) => {
+  const t = c.t;
+  const u = (t % 3.6) / 3.6;
+  const lie = pulse(u, 0.1, 0.28, 0.76, 0.92);
+  const wave = sin(t * 5);
+  // Reduced motion tips the sheet only a little (a gentle lean) instead of laying it flat.
+  const tip = lerp(0.3, 1.48, clamp((c.amp - 0.38) / 0.62, 0, 1));
+  p.rot = tip * lie + 0.1 * lie * sin(t * 2.6) * c.amp;
+  p.offY = -HOVER - 6 * lie + sin(t * 2) * 1.6 * c.amp * lie;
+  p.armL = 0.4 + 1.5 * lie + 0.55 * wave * lie * c.amp;
+  p.armR = 0.4 + 1.5 * lie - 0.55 * wave * lie * c.amp;
+  p.hemAmp = 2.2 + 1.8 * lie;
+  p.hemSway = 1.3 + 2 * lie;
+  p.hemRate = 1 + 0.8 * lie;
+  p.eyeSmile = 0.9 * lie;
+  p.cheek = 0.7 * lie;
+  p.mouthOpen = 0.25 * lie;
+  p.mouthSmile = 1;
+  p.lookW = 0;
+  p.shadowK = 1 - 0.3 * lie;
+};
+
+/** Chasing its own hem: a quick continuous twirl with the hem flung out (loop). Reduced motion: a slow sway instead. */
+const tailChase: Sampler = (p, c) => {
+  const t = c.t;
+  p.spin = t * TAU * 1.15 * c.fx + (1 - c.fx) * sin(t * 2.4) * 0.45;
+  p.offY = -HOVER - 3 + sin(t * 6) * 1.6 * c.amp;
+  p.hemFlare = 1.1 * c.fx;
+  p.hemWide = 1 + 0.2 * c.fx;
+  p.hemSway = 3.2;
+  p.hemAmp = 3.2;
+  p.hemRate = 2.2;
+  p.lean = 3.5 * c.fx;
+  p.rot = 0.1 * c.fx;
+  p.armL = 1.25 + 0.2 * sin(t * 9) * c.amp;
+  p.armR = 1.25 + 0.2 * sin(t * 9 + 2) * c.amp;
+  p.eyeSmile = 0.7;
+  p.mouthOpen = 0.35;
+  p.mouthSmile = 1;
+  p.cheek = 0.7;
+  p.lookW = 0;
+};
+
+/** A hard landing: the sheet splats flat and wide with dizzy stars, then slowly puffs back up (one-shot, 0.45 s). */
+const impact: Sampler = (p, c) => {
+  const t = c.t;
+  const hard = 0.75 + 0.25 * c.impact;
+  const k = Math.exp(-5 * t) * Math.cos(t * 14);
+  const sq = 1 - sseg(t, 0.05, 0.45);
+  p.sy = 1 - 0.38 * hard * Math.max(k, 0) * (0.6 + 0.4 * sq) - 0.05 * Math.min(k, 0);
+  p.sx = 1 + 0.3 * hard * Math.max(k, 0);
+  p.hemWide = 1 + 0.45 * hard * Math.max(k, 0);
+  p.hemAmp = 3.2;
+  p.offY = -HOVER + 11 * Math.max(k, 0) * c.amp;
+  p.armL = 0.9 + 0.5 * k;
+  p.armR = p.armL;
+  p.eyeOpen = 0.35 + 0.65 * sseg(t, 0.15, 0.45);
+  p.mouthOpen = 0.45 * (1 - sseg(t, 0, 0.35));
+  p.mouthSmile = 0;
+  p.sparkle = 0.55 * pulse(t, 0.05, 0.12, 0.3, 0.45) * c.fx;
+  p.lookW = 0;
+};
+
 export const SAMPLERS: Readonly<Record<string, Sampler>> = {
   stand,
   sit,
@@ -518,4 +707,13 @@ export const SAMPLERS: Readonly<Record<string, Sampler>> = {
   annoyed,
   confused,
   shake,
+  stretch,
+  groom,
+  scratch,
+  meow,
+  pawAt,
+  swat,
+  rollOver,
+  tailChase,
+  impact,
 };

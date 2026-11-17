@@ -274,6 +274,17 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
     offlineNote.classList.toggle('warn', offline === 'update-ready' || offline === 'failed');
   }
 
+  /**
+   * A dialog hands focus back to the element that opened it. After a restart with the sheet restored open (a character or
+   * language change reloads the page) there was no opener, so focus would fall to <body>: land on the Settings button instead.
+   */
+  function returnFocusToToolbar(): void {
+    if (typeof document === 'undefined') return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected && !dialog.contains(active)) return;
+    document.getElementById('btn-settings')?.focus();
+  }
+
   function setOpen(open: boolean): void {
     if (isOpen === open) return;
     isOpen = open;
@@ -308,7 +319,10 @@ export function createSettingsPanel(deps: SettingsPanelDeps): SettingsPanel {
   }
 
   // Escape (native), Android back (Chrome closes modal dialogs) or close(): all end here.
-  dialog.addEventListener('close', () => setOpen(false));
+  dialog.addEventListener('close', () => {
+    setOpen(false);
+    returnFocusToToolbar();
+  });
   // A tap on the backdrop (outside the sheet's box) closes it.
   dialog.addEventListener('click', (e) => {
     if (e.target !== dialog) return;

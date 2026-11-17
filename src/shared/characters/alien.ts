@@ -35,9 +35,21 @@ const NATIVE_CLIPS: readonly AnimClip[] = [
   'confused',
   'shake',
   'rollOver',
+  // Authored for the alien (they used to be aliases of beam, scan, startle, land and rollOver, or had no pose of their own).
+  'meow',
+  'pawAt',
+  'swat',
+  'hiss',
+  'impact',
+  'edgeSit',
+  'tailChase',
 ];
 
-/** Gait, rare and physics clips drawn as the nearest native clip of the alien. */
+/**
+ * Clips drawn as the nearest native clip of the alien. walk/run/stalk/slink/sprint never reach the renderer from the
+ * sim (the glide locomotion restyles every gait to float), and bounce, swing and climb are not emitted for it; what is
+ * left are poses that genuinely suit a levitating visitor (a stretch is its recharge stretch, scratch tunes an antenna).
+ */
 const ALIASES: Readonly<Partial<Record<AnimClip, AnimClip>>> = {
   walk: 'float',
   run: 'float',
@@ -47,18 +59,11 @@ const ALIASES: Readonly<Partial<Record<AnimClip, AnimClip>>> = {
   climb: 'float',
   bounce: 'hop',
   swing: 'held',
-  pawAt: 'scan',
-  meow: 'beam',
-  tailChase: 'rollOver',
   pounce: 'jump',
-  swat: 'startle',
-  hiss: 'startle',
   grumpy: 'annoyed',
-  impact: 'land',
   landRecover: 'shake',
   slip: 'startle',
   balance: 'stand',
-  edgeSit: 'sit',
   stretch: 'yawn',
   scratch: 'groom',
 };
@@ -178,7 +183,7 @@ export const ALIEN_MODULE: CharacterModule = Object.freeze({
     widthDip: 76,
     heightDip: 80,
     gaitScale: 1.1,
-    hitFrontExtentDip: Object.freeze({ stand: 24, sit: 26, float: 34, hop: 28, jump: 30, fall: 28, scan: 28, beam: 28, dance: 30, peek: 28, startle: 30, petted: 28, held: 24, rollOver: 34, hide: 26, loaf: 44, sleep: 30 }),
+    hitFrontExtentDip: Object.freeze({ stand: 24, sit: 26, float: 34, hop: 28, jump: 30, fall: 28, scan: 28, beam: 28, dance: 30, peek: 28, startle: 30, petted: 28, held: 24, rollOver: 34, hide: 26, loaf: 44, sleep: 30, meow: 28, pawAt: 40, swat: 42, hiss: 34, impact: 36, edgeSit: 28, tailChase: 32 }),
   }),
   skins: Object.freeze(['green', 'blue', 'violet', 'silver']),
   clips: Object.freeze([...NATIVE_CLIPS]),

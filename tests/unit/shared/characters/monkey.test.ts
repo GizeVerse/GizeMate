@@ -9,7 +9,11 @@ import { monkeyEn, monkeyTr } from '../../../../src/shared/i18n/characters/monke
 describe('monkey module', () => {
   it('draws every clip: natively or through an alias onto a native clip', () => {
     for (const c of ANIM_CLIPS) expect(M.clips.includes(resolveForCharacter(M, c)), c).toBe(true);
-    for (const c of ['stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'walk', 'run', 'jump', 'fall', 'land', 'startle', 'petted', 'held', 'hide', 'peek', 'climb', 'swing', 'scratch', 'dance', 'groom', 'pawAt', 'scan', 'stretch', 'meow'] as const) expect(M.clips, c).toContain(c);
+    for (const c of ['stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'walk', 'run', 'jump', 'fall', 'land', 'startle', 'petted', 'held', 'hide', 'peek', 'climb', 'swing', 'scratch', 'dance', 'groom', 'pawAt', 'scan', 'stretch', 'meow', 'stalk', 'slink', 'sprint', 'pounce', 'slip', 'impact', 'landRecover', 'swat', 'hiss', 'grumpy', 'balance', 'edgeSit', 'tailChase', 'rollOver', 'confused'] as const) expect(M.clips, c).toContain(c);
+  });
+
+  it('keeps aliases only for the clips the simulation cannot emit for a walking monkey', () => {
+    expect(Object.keys(M.clipAlias).sort()).toEqual(['appear', 'beam', 'bounce', 'float', 'squish', 'vanish']);
   });
 
   it('has 5+ signatures within the cooldown band, each drawn natively and sensible', () => {

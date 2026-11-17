@@ -44,7 +44,7 @@ const REDUCE_RATE = 4;
 const DEPTH_RATE = 1.2;
 
 /** Clips whose tail motion is authored: mood only lightly modulates them. */
-const TAIL_AUTHORED: ReadonlySet<AnimClip> = new Set<AnimClip>(['startle', 'annoyed', 'held', 'jump', 'fall', 'run', 'sleep', 'wake', 'land', 'climb', 'stalk', 'slink', 'pounce', 'swat', 'stretch', 'tailChase', 'shake', 'dance', 'rollOver']);
+const TAIL_AUTHORED: ReadonlySet<AnimClip> = new Set<AnimClip>(['startle', 'annoyed', 'held', 'jump', 'fall', 'run', 'sleep', 'wake', 'land', 'climb', 'stalk', 'slink', 'pounce', 'swat', 'stretch', 'tailChase', 'shake', 'dance', 'rollOver', 'vanish', 'appear', 'scratch', 'meow', 'hop', 'squish']);
 
 export class FoxAnimator {
   readonly pose: Pose = createPose();

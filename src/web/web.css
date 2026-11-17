@@ -14,7 +14,7 @@
   --accent: #9a4f12;
   --accent-fg: #ffffff;
   --button-bg: #fffaf1;
-  --button-border: #b9a68e;
+  --button-border: #8f7b60;
   --sheet-bg: #fffaf1;
   --sheet-line: #e2d6c3;
   --danger: #a3271c;
@@ -31,7 +31,7 @@
     --accent: #f0a35c;
     --accent-fg: #1b1814;
     --button-bg: #2a251f;
-    --button-border: #6f6253;
+    --button-border: #8a7c6b;
     --sheet-bg: #24201b;
     --sheet-line: #463d33;
     --danger: #ff8a7a;
@@ -264,6 +264,8 @@ button:active {
 
 button:focus-visible,
 input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
 a:focus-visible,
 .card:focus-within {
   outline: 3px solid var(--focus);
@@ -478,10 +480,14 @@ input.switch {
   flex: none;
   position: relative;
   width: 3.1rem;
-  height: 1.8rem;
+  /* The drawn track stays 1.8rem tall; the control itself is 2.75rem (44 px touch target) via padding. */
+  height: 2.75rem;
+  padding: 0.475rem 0;
+  box-sizing: border-box;
+  background-clip: content-box;
   margin: 0;
-  border-radius: 1rem;
-  background: var(--button-border);
+  border-radius: 1.375rem;
+  background-color: var(--button-border);
   cursor: pointer;
   transition: background 0.15s;
   font-size: max(1rem, 16px);
@@ -490,7 +496,7 @@ input.switch {
 input.switch::after {
   content: '';
   position: absolute;
-  top: 0.2rem;
+  top: 0.675rem;
   left: 0.2rem;
   width: 1.4rem;
   height: 1.4rem;
@@ -500,7 +506,7 @@ input.switch::after {
 }
 
 input.switch:checked {
-  background: var(--accent);
+  background-color: var(--accent);
 }
 
 input.switch:checked::after {
@@ -1081,11 +1087,12 @@ button.danger {
   min-height: 3rem;
 }
 
-.panel details.events-list {
+.panel details.events-list,
+details.events-list {
   margin-top: 0.5rem;
 }
 
-.panel details.events-list > summary {
+details.events-list > summary {
   display: flex;
   align-items: center;
   min-height: 3rem;
@@ -1597,4 +1604,20 @@ html.gizecat-overlay body::before {
   .card.checked {
     outline: 2px solid Highlight;
   }
+}
+
+/* Reduced motion: the system preference, or the companion's own switch (html[data-calm], src/web/ui/motion.ts). Transitions only: the boot screen's timed
+   animations carry the load-failure message and must keep running. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}
+
+html[data-calm] *,
+html[data-calm] *::before,
+html[data-calm] *::after {
+  transition: none !important;
 }

@@ -591,6 +591,148 @@ export function sampleClip(p: Pose, clip: AnimClip, c: ClipCtx): void {
       p.shadow = 1 - 0.4 * tuck;
       break;
     }
+    case 'meow': {
+      // A "signal call" (one-shot, 0.9 s): both antennae flare and pulse twice, the little mouth opens with each.
+      const a = sseg(t, 0.08, 0.2) * (1 - sseg(t, 0.32, 0.42));
+      const b = sseg(t, 0.46, 0.56) * (1 - sseg(t, 0.68, 0.8));
+      const k = Math.max(a, 0.85 * b);
+      p.antSpike = 0.65 * k;
+      p.glow = 0.55 + 0.45 * k;
+      p.mouth = 0.65 * k;
+      p.eyeSize = 1 + 0.1 * k;
+      p.hover = 7 + 2 * k * A;
+      p.headY = -1.5 * k * A;
+      p.sy = 1 + 0.03 * k;
+      p.armLa = -0.2 - 0.25 * k;
+      p.armRa = 0.2 + 0.25 * k;
+      p.smile = 0.25;
+      p.lookW = 0.4;
+      break;
+    }
+    case 'pawAt': {
+      // Reaching toward the look target with the front hand, tapping at it (loop).
+      const tap = sin(TAU * 1.4 * t);
+      p.armRa = 1.5 + 0.28 * tap * A;
+      p.armRb = 0.35 + 0.35 * (0.5 + 0.5 * tap) * A;
+      p.armLa = -0.35;
+      p.lean = 0.14;
+      p.turn = 0.6;
+      p.headRot = 0.06;
+      p.eye = 0.92;
+      p.eyeSize = 1.08;
+      p.antR = -0.3 + 0.12 * tap * A;
+      p.glow = 0.7;
+      p.hover = 8 + 0.8 * tap * A;
+      p.lookW = 0.6;
+      p.smile = 0.3;
+      p.bob = 0.8;
+      break;
+    }
+    case 'swat': {
+      // One quick chop of the front hand: wind up overhead, slash down and forward, back (one-shot, 0.45 s).
+      const wind = sseg(t, 0, 0.14) * (1 - sseg(t, 0.18, 0.26));
+      const hit = sseg(t, 0.18, 0.26) * (1 - sseg(t, 0.34, 0.45));
+      p.armRa = 0.2 + 2.1 * wind + 1.35 * hit;
+      p.armRb = 0.12 + 0.4 * hit;
+      p.armLa = -0.2 - 0.3 * hit;
+      p.lean = -0.1 * wind + 0.2 * hit;
+      p.headRot = 0.05 * hit;
+      p.glow = 0.55 + 0.4 * hit;
+      p.antSpike = 0.3 * hit;
+      p.eye = 0.85;
+      p.slant = 0.25 * hit;
+      p.mouth = 0.2 * hit;
+      p.hover = 7 + 1.5 * wind * A;
+      p.bob = 0;
+      break;
+    }
+    case 'hiss': {
+      // A static burst (one-shot, 1.2 s): antennae splay and flicker white, arms flung wide, the body rears back.
+      const puff = sseg(t, 0, 0.1) * (1 - sseg(t, 0.8, 1.2));
+      p.antSpike = puff;
+      p.antL = -0.5 * puff;
+      p.antR = 0.5 * puff;
+      p.glow = 0.55 + 0.45 * puff * (0.7 + 0.3 * sin(TAU * 12 * t));
+      p.armLa = -0.2 - 1.1 * puff;
+      p.armRa = 0.2 + 1.1 * puff;
+      p.armLb = -0.25 * puff;
+      p.armRb = 0.25 * puff;
+      p.legLa = -0.08 - 0.3 * puff;
+      p.legRa = 0.08 + 0.3 * puff;
+      p.slant = 0.6 * puff;
+      p.eye = 1 - 0.35 * puff;
+      p.mouth = 0.7 * puff;
+      p.smile = -0.6 * puff;
+      p.lean = -0.12 * puff;
+      p.sx = 1 + 0.06 * puff;
+      p.hover = 7 + 2 * puff;
+      p.offX = 1.2 * sin(TAU * 25 * t) * puff * A;
+      p.bob = 0;
+      break;
+    }
+    case 'impact': {
+      // A hard landing (one-shot, 0.45 s): deep squash, legs splayed, arms out, antennae flattened, then dizzy.
+      const k = Math.exp(-5 * t) * cos(11 * t);
+      const kp = Math.max(0, k);
+      const d = 0.3 + 0.25 * clamp01(c.impact);
+      p.sy = 1 - d * kp;
+      p.sx = 1 + 0.8 * d * kp;
+      p.hover = clamp(7 - 7 * k, 0, 14);
+      p.hipDrop = 5 * kp;
+      p.legLa = -1.0 * kp;
+      p.legLb = -0.6 * kp;
+      p.legRa = 1.0 * kp;
+      p.legRb = 0.6 * kp;
+      p.armLa = -0.2 - 1.2 * kp;
+      p.armRa = 0.2 + 1.2 * kp;
+      p.antDroop = 0.7 * kp * (1 - sseg(t, 0.3, 0.45));
+      p.eye = 0.4 + 0.6 * sseg(t, 0.2, 0.45);
+      p.mouth = 0.4 * (1 - sseg(t, 0, 0.3));
+      p.glow = 0.3 + 0.25 * sseg(t, 0.2, 0.45);
+      p.bob = 0;
+      break;
+    }
+    case 'edgeSit': {
+      // Sitting on a ledge: legs dangle over it and swing, hands gripping the edge, looking down (loop).
+      const sw = sin(TAU * 0.7 * t) * A;
+      p.hover = 2.5;
+      p.hipDrop = 7;
+      p.legLa = -0.1 + 0.18 * sw;
+      p.legLb = 0.05 * sw;
+      p.legRa = 0.1 - 0.18 * sw;
+      p.legRb = -0.05 * sw;
+      p.armLa = -0.45;
+      p.armLb = 0.1;
+      p.armRa = 0.45;
+      p.armRb = -0.1;
+      p.antL = 0.07 * sin(TAU * 0.4 * t) * A;
+      p.antR = 0.07 * sin(TAU * 0.4 * t + 1.6) * A;
+      p.bob = 1.1;
+      p.bobHz = 2.6;
+      p.glow = 0.5;
+      break;
+    }
+    case 'tailChase': {
+      // Chasing its own antenna: head whipping round, the tip swinging wide, one hand grabbing at it (loop).
+      const ph = TAU * 1.4 * t;
+      p.turn = 1.2 * sin(ph);
+      p.headRot = 0.3 * sin(ph + 0.8) * A;
+      p.antR = 1.3 * sin(ph + 1.4) * A;
+      p.antL = 0.5 * sin(ph + 0.4) * A;
+      p.armRa = 2.6 + 0.3 * sin(2 * ph) * A;
+      p.armRb = 0.6 + 0.3 * sin(ph);
+      p.lean = 0.12 * sin(ph - 0.6) * A;
+      p.slant = 0.2;
+      p.eye = 0.9;
+      p.smile = 0.5;
+      p.legLa = -0.1 + 0.35 * sin(ph) * A;
+      p.legRa = 0.1 - 0.35 * sin(ph) * A;
+      p.glow = 0.6 + 0.3 * Math.abs(sin(ph));
+      p.hover = 8 + 2 * Math.abs(sin(ph)) * A;
+      p.lookW = 0;
+      p.bob = 0;
+      break;
+    }
     case 'stand':
     default: {
       const sw = TAU * 0.45 * t;

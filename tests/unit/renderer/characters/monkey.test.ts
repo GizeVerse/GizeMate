@@ -22,12 +22,13 @@ interface Bounds {
 
 function input(clip: AnimClip, extra: Partial<AnimInput> = {}): AnimInput {
   const walking = clip === 'walk' || clip === 'climb';
+  const speeds: Partial<Record<AnimClip, number>> = { run: 2.6, sprint: 3.4, stalk: 0.25, slink: 0.45 };
   return {
     clip,
     clipStartedAt: 0,
     sleeping: clip === 'sleep',
-    speed: walking ? 0.7 : clip === 'run' ? 2.6 : 0,
-    vy: clip === 'fall' ? 400 : clip === 'jump' ? -400 : 0,
+    speed: walking ? 0.7 : (speeds[clip] ?? 0),
+    vy: clip === 'fall' ? 400 : clip === 'jump' || clip === 'pounce' ? -400 : 0,
     lookX: 60,
     lookY: -20,
     hasLook: true,
@@ -70,7 +71,7 @@ function collector(): { g: GeometryCollector; b: Bounds; hits: Array<Bounds | nu
 
 function play(r: MonkeyRenderer, clip: AnimClip, ms: number, extra: Partial<AnimInput> = {}, t0 = 0): void {
   const dt = 1000 / 60;
-  for (let t = 0; t <= ms; t += dt) r.advance(input(clip, extra), t0 + t, t === 0 ? 0 : dt, clip === 'walk' ? 1.2 : 0, 0);
+  for (let t = 0; t <= ms; t += dt) r.advance(input(clip, extra), t0 + t, t === 0 ? 0 : dt, clip === 'walk' || clip === 'stalk' || clip === 'slink' || clip === 'sprint' ? 1.2 : 0, 0);
 }
 
 const inside = (p: { x: number; y: number }, h: Bounds | null): boolean => h !== null && p.x >= h.x0 && p.x <= h.x1 && p.y >= h.y0 && p.y <= h.y1;
@@ -278,5 +279,104 @@ describe('monkey renderer', () => {
     };
     expect(flipped('leap')).toBeGreaterThan(1.5);
     expect(flipped('hop')).toBeLessThan(0.01);
+  });
+
+  it('draws the simulation-emitted clips natively with their own motion (not an alias onto another clip)', () => {
+    const own: AnimClip[] = ['stalk', 'slink', 'sprint', 'pounce', 'slip', 'impact', 'landRecover', 'swat', 'hiss', 'grumpy', 'balance', 'edgeSit', 'tailChase', 'rollOver', 'confused'];
+    const posture = (clip: AnimClip): string => {
+      const r = new MonkeyRenderer(seededRandom(21));
+      play(r, clip, 520, { impact: 0.8 });
+      return [r.pose.hipY, r.pose.lean, r.pose.handNx, r.pose.handNy, r.pose.footNx, r.pose.rot, r.pose.mouth].map((v) => v.toFixed(2)).join(',');
+    };
+    const seen = new Map<string, AnimClip>();
+    for (const clip of own) {
+      expect(MONKEY_MODULE.clips, clip).toContain(clip);
+      expect(MONKEY_MODULE.clipAlias[clip], clip).toBeUndefined();
+      const key = posture(clip);
+      expect(seen.get(key), `${clip} duplicates ${seen.get(key)}`).toBeUndefined();
+      seen.set(key, clip);
+    }
+    for (const [a, b] of [['stalk', 'walk'], ['sprint', 'run'], ['hiss', 'startle'], ['grumpy', 'annoyed'], ['confused', 'scratch'], ['rollOver', 'dance'], ['pounce', 'jump'], ['swat', 'pawAt'], ['edgeSit', 'sit'], ['balance', 'crouch']] as Array<[AnimClip, AnimClip]>) expect(posture(a), `${a} differs from ${b}`).not.toBe(posture(b));
+  });
+
+  it('screeches with bared teeth, arms flung up and the head thrown back', () => {
+    const r = new MonkeyRenderer(seededRandom(22));
+    play(r, 'hiss', 450);
+    expect(r.pose.teeth).toBeGreaterThan(0.8);
+    expect(r.pose.mouth).toBeGreaterThan(0.7);
+    expect(r.pose.brow).toBeLessThan(-0.6);
+    expect(r.pose.handNy).toBeLessThan(r.pose.hipY - 40);
+    expect(r.pose.handFy).toBeLessThan(r.pose.hipY - 40);
+  });
+
+  it('pounce reaches forward and closes its hands on the catch while falling', () => {
+    const r = new MonkeyRenderer(seededRandom(23));
+    play(r, 'pounce', 300, { vy: -300 });
+    const rising = r.pose.gripN;
+    play(r, 'pounce', 300, { vy: 500 }, 400);
+    expect(rising).toBeLessThan(0.2);
+    expect(r.pose.gripN).toBeGreaterThan(0.8);
+    expect(r.pose.handNx).toBeGreaterThan(r.pose.hipX + 25);
+  });
+
+  it('the creeping stalk keeps the head lower than the walk and the sprint reaches further than the run', () => {
+    const headTop = (clip: AnimClip): number => {
+      const r = new MonkeyRenderer(seededRandom(24));
+      let lo = Infinity;
+      for (let t = 0; t < 1500; t += 16) {
+        r.advance(input(clip), t, 16, 1.2, 0);
+        lo = Math.min(lo, r.rig.headY);
+      }
+      return lo;
+    };
+    expect(headTop('stalk')).toBeGreaterThan(headTop('walk') + 6);
+    const handSpan = (clip: AnimClip): number => {
+      const r = new MonkeyRenderer(seededRandom(25));
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let t = 0; t < 1500; t += 16) {
+        r.advance(input(clip), t, 16, 1.2, 0);
+        lo = Math.min(lo, r.rig.hand[0]!);
+        hi = Math.max(hi, r.rig.hand[0]!);
+      }
+      return hi - lo;
+    };
+    expect(handSpan('sprint')).toBeGreaterThan(handSpan('run'));
+  });
+
+  it('the rolls stay above the floor, and the tuck-and-roll calms under reduced motion', () => {
+    for (const clip of ['impact', 'rollOver'] as AnimClip[]) {
+      const r = new MonkeyRenderer(seededRandom(26));
+      let worst = -Infinity;
+      for (let t = 0; t < 4000; t += 16) {
+        r.advance(input(clip, { impact: 0.9 }), t, 16, 0, 0);
+        const c = collector();
+        r.measure(c.g);
+        // The settled part: after the impact roll is over, and while it lies on its back (before the roll up).
+        if (clip === 'impact' ? t > 1000 : t > 1200 && t < 2500) worst = Math.max(worst, c.b.y1);
+      }
+      expect(worst, clip).toBeLessThan(14);
+    }
+    const rot = (reduced: boolean): number => {
+      const r = new MonkeyRenderer(seededRandom(27));
+      let w = 0;
+      for (let t = 0; t < 600; t += 16) {
+        r.advance(input('impact', { impact: 0.9, reducedMotion: reduced }), t, 16, 0, 0);
+        w = Math.max(w, Math.abs(r.pose.rot));
+      }
+      return w;
+    };
+    expect(rot(false)).toBeGreaterThan(3);
+    expect(rot(true)).toBeLessThan(0.5);
+  });
+
+  it('a salute keeps the forearm behind the head while the hand stays in front (scan)', () => {
+    const r = new MonkeyRenderer(seededRandom(28));
+    play(r, 'scan', 800);
+    expect(r.pose.armBack).toBe(1);
+    const a = createMockCtx();
+    r.draw(a.ctx, { outline: 1.6, shadow: false, pixelsPerUnit: 1, skin: 'brown' });
+    expect(a.nonFinite).toEqual([]);
+    expect(a.depth()).toBe(0);
   });
 });

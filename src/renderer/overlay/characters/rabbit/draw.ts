@@ -10,6 +10,8 @@ import type { RPose } from './pose';
 import { EAR_SAMPLES, FOOT_RX, FOOT_RY, HEAD_N, HEAD_SHAPE, PAW_RX, PAW_RY, type LegGeom, type RabbitRig } from './rig';
 
 const NO_DASH: number[] = [];
+/** Ground clip line of the burrow (local y, down). */
+const BURROW_LINE = 3;
 const EYE = '#fff';
 const MOUTH_IN = '#5a2a38';
 const TONGUE = '#ec8aa0';
@@ -47,6 +49,14 @@ export function drawRabbit(ctx: Ctx2D, an: RabbitAnimator, rig: RabbitRig, pal: 
   if (o.shadow) drawRabbitShadow(ctx, rig, p);
 
   ctx.save();
+  // Burrowing: nothing below the ground line (a few units under the feet, so a standing foot is never cut) is
+  // drawn, so the body sinks into the earth; and the body fades with its own alpha.
+  if (p.burrow > 0.5) {
+    ctx.beginPath();
+    ctx.rect(-400, -400, 800, 400 + BURROW_LINE);
+    ctx.clip();
+  }
+  ctx.globalAlpha *= clamp01(p.alpha);
   const m = rig.m;
   ctx.transform(m[0]!, m[1]!, m[2]!, m[3]!, m[4]!, m[5]!);
   ctx.lineCap = 'round';
