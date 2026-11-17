@@ -2,9 +2,9 @@
 
 GizeCat (formerly Desktop Cat). Versions follow semantic versioning. 1.3.0 is the first public release; earlier versions were built and tested locally but not published.
 
-## 1.6.0 (GizeMate; UNRELEASED, work in progress on branch `feature/gizemate`)
+## 1.6.0 (GizeMate; release candidate on branch `feature/gizemate`)
 
-**Not released, not tagged, not versioned yet:** `package.json` and the Android version files are still 1.5.0; the owner bumps them when this ships. **No test, build, installer or application launch has been run for this work by the documentation pass; nothing here has been run in the real app.** Every item is IMPLEMENTED and, where a unit test or a character preview sheet exists, that is the only evidence (see [docs/characters/README.md](docs/characters/README.md)). GizeMate is the provisional display name of the product; the Windows installer, shortcuts, folders and other identifiers keep their existing names.
+**Release candidate, not yet released or tagged** (branch `feature/gizemate`; tagging, signing and publishing are the owner's actions). Desktop and web version 1.6.0 (`package.json`); Android source 1.6.0, versionCode 10600 (`android/version.properties`), no Android 1.6.0 artifact built. Verified on Windows: typecheck, lint and the unit suite pass; the desktop and web E2E suites and the packaged-app launches are recorded in [docs/releases/1.6.0-validation-record.md](docs/releases/1.6.0-validation-record.md) and [docs/TEST_REPORT.md](docs/TEST_REPORT.md). Not verified: installers never run, ARM64 never run, sound never heard, no screen-reader session, Android and other platforms not run. See [docs/releases/1.6.0-known-limitations.md](docs/releases/1.6.0-known-limitations.md). GizeMate is the provisional display name of the product; the Windows installer, shortcuts, folders and other identifiers keep their existing names.
 
 ### Added
 - **Six new characters** besides the cat: Monkey, Fox, Rabbit (animals), Ghost, Slime and Alien (fantasy creatures). Each has its own drawing, way of moving (walk, hop, float, bounce or glide), palettes, personality, signature behaviours, reactions to the world events and the laser, and voice. One character lives on the desktop at a time. Pages: [docs/characters/](docs/characters/README.md).
@@ -28,7 +28,7 @@ GizeCat (formerly Desktop Cat). Versions follow semantic versioning. 1.3.0 is th
 ### Limitations
 - Only one character at a time.
 - A saved profile (move your companion to another device) still carries the cat only.
-- Android and macOS sources were only inspected, not run, for this work; non-Windows platforms were not validated. The Windows installers remain unsigned. The web and Android host reloads the page when you switch characters.
+- Android and macOS sources were not run; non-Windows platforms were not validated. The Windows installers remain unsigned. The web and Android host reloads the page when you switch characters.
 - Turkish text has had no native-speaker review.
 
 ## 1.5.0 (Living Companion; Windows released 2026-11-14, Android on hold)
