@@ -18,16 +18,22 @@ interface Stop {
 
 async function prepare(userData: string): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await launchApp(userData);
-  await waitForCat(app);
-  expect((await hook(app, 'patchSettings', { general: { language: 'en', firstRunCompleted: true } })).ok).toBe(true);
-  const page = await settingsPage(app);
-  await expect(page.locator('#root, body').first()).toBeVisible();
-  await page.waitForFunction('!!document.querySelector(".rail .nav-item")');
-  // On first run the settings window may already be open, drawn in the system language (Turkish on a Turkish PC);
-  // the patch above re-renders it in place a moment later. Wait for that before anything reads labels.
-  await page.waitForFunction('document.documentElement.lang === "en"');
-  await page.emulateMedia({ reducedMotion: null });
-  return { app, page };
+  try {
+    await waitForCat(app);
+    expect((await hook(app, 'patchSettings', { general: { language: 'en', firstRunCompleted: true } })).ok).toBe(true);
+    const page = await settingsPage(app);
+    await expect(page.locator('#root, body').first()).toBeVisible();
+    await expect(page.locator('.rail .nav-item').first()).toBeVisible();
+    // On first run the settings window may already be open, drawn in the system language (Turkish on a Turkish PC);
+    // the patch above re-renders it in place a moment later. Wait for that before anything reads labels.
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await page.emulateMedia({ reducedMotion: null });
+    return { app, page };
+  } catch (error) {
+    // Do not leave the launched app running (and its temp folder locked) when setup fails.
+    await quitApp(app).catch(() => undefined);
+    throw error;
+  }
 }
 
 /** A window nobody has touched yet: nothing focused and the sequential-focus start point at the top of the document (a click at x=1,y=1 would start inside the rail). */

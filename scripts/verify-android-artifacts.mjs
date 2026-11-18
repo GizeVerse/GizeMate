@@ -75,7 +75,7 @@ if (!failures.length) {
     versionName: pkg?.[3] ?? null,
     label: /application-label:'([^']*)'/.exec(b.out)?.[1] ?? null,
     labelTr: /application-label-tr:'([^']*)'/.exec(b.out)?.[1] ?? null,
-    minSdk: /sdkVersion:'(\d+)'/.exec(b.out)?.[1] ?? null,
+    minSdk: /minSdkVersion:'(\d+)'/.exec(b.out)?.[1] ?? null,
     targetSdk: /targetSdkVersion:'(\d+)'/.exec(b.out)?.[1] ?? null,
     permissions: [...b.out.matchAll(/uses-permission: name='([^']+)'/g)].map((m) => m[1]).sort(),
     debuggable: /application-debuggable/.test(b.out),
