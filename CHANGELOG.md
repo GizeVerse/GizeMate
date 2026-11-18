@@ -2,9 +2,9 @@
 
 GizeCat (formerly Desktop Cat). Versions follow semantic versioning. 1.3.0 is the first public release; earlier versions were built and tested locally but not published.
 
-## 1.6.0 (GizeMate; release candidate on branch `feature/gizemate`)
+## 1.6.0 (GizeMate; GitHub release v1.6.0)
 
-**Release candidate, not yet released or tagged** (branch `feature/gizemate`; tagging, signing and publishing are the owner's actions). Desktop and web version 1.6.0 (`package.json`); Android source 1.6.0, versionCode 10600 (`android/version.properties`), no Android 1.6.0 artifact built. Verified on Windows: typecheck, lint and the unit suite pass; the desktop and web E2E suites and the packaged-app launches are recorded in [docs/releases/1.6.0-validation-record.md](docs/releases/1.6.0-validation-record.md) and [docs/TEST_REPORT.md](docs/TEST_REPORT.md). Not verified: installers never run, ARM64 never run, sound never heard, no screen-reader session, Android and other platforms not run. See [docs/releases/1.6.0-known-limitations.md](docs/releases/1.6.0-known-limitations.md). GizeMate is the provisional display name of the product; the Windows installer, shortcuts, folders and other identifiers keep their existing names.
+**Released as GitHub release v1.6.0 (2026-11-18): Windows x64 and ARM64 installers (unsigned) and a release-signed Android APK and AAB.** Desktop and web version 1.6.0 (`package.json`); Android 1.6.0, versionCode 10600. GizeMate is now the product name (final, no longer provisional); the Windows installer, shortcuts and exe description, and the Android app carry it, while the persistent identifiers (application id, install and data folders, executable name, Android `applicationId`) are unchanged so existing installs update in place. **How it was verified:** `verify fast`, the desktop, accessibility and web suites, packaged x64 launches of all seven characters and static installer and APK/AAB inspection; see [docs/releases/1.6.0-validation-record.md](docs/releases/1.6.0-validation-record.md) and [docs/TEST_REPORT.md](docs/TEST_REPORT.md). **Not verified:** the installers were never executed, ARM64 never ran, the Android build was not run on a device or emulator, sound was measured but not heard. See [docs/releases/1.6.0-known-limitations.md](docs/releases/1.6.0-known-limitations.md); release notes: [docs/releases/1.6.0-release-notes.md](docs/releases/1.6.0-release-notes.md).
 
 ### Added
 - **Six new characters** besides the cat: Monkey, Fox, Rabbit (animals), Ghost, Slime and Alien (fantasy creatures). Each has its own drawing, way of moving (walk, hop, float, bounce or glide), palettes, personality, signature behaviours, reactions to the world events and the laser, and voice. One character lives on the desktop at a time. Pages: [docs/characters/](docs/characters/README.md).
@@ -15,7 +15,7 @@ GizeCat (formerly Desktop Cat). Versions follow semantic versioning. 1.3.0 is th
 - **Preview tool** for contributors: `npm run preview:characters`.
 
 ### Changed
-- The product display name is GizeMate (provisional). Persistent identifiers, the data folder name and the installer names are unchanged.
+- The product name is GizeMate. The installer file names (`GizeMate-Setup-<version>-<arch>.exe`), the Start menu and desktop shortcuts, the Apps entry, the exe description and the Android file names follow it. Persistent identifiers, the data folder name and the program file name are unchanged.
 - The Android and web home panel gains the same Home, Characters, Customize and Settings structure and language choice. Switching characters there restarts the page.
 
 ### Upgrade compatibility

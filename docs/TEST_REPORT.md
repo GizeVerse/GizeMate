@@ -2,7 +2,7 @@
 
 Labels: **REAL** = executed and observed on the machine below; **MOCKED** = executed against fakes/mock servers; **SIMULATED** = real code driven with synthetic geometry/events; **UNVERIFIED** = not executed.
 
-# v1.6.0 (GizeMate, release candidate, 2026-11-15): multi-character engine, localisation, new interface
+# v1.6.0 (GizeMate, released 2026-11-18): multi-character engine, localisation, new interface
 
 Code: branch `feature/gizemate`, cut from release v1.5.0 (`3d247af`). Machine: this Windows 11 PC (Turkish system language), shared with other projects (their jobs held the machine lock for minutes at a time, which is why heavy runs took longer than the figures in earlier entries). Nothing in this entry was run on macOS, Android devices or emulators.
 
@@ -31,16 +31,18 @@ The 13 baseline failures were each root-caused: five code defects (Laser Mode co
 - Android native notification text follows the device language, not the in-app setting.
 - Installers are unsigned (Windows SmartScreen warns).
 
-## Packaging (built, not installed, not published)
+## Packaging and release artifacts (GitHub release v1.6.0)
 
-Built from a clean tree at `25a884d` (supersedes the 57f7e83 build) with `npm run package:win` (own run under the machine lock). **Nothing was installed or launched from the installers** (the owner's real installation lives on this PC; no install or upgrade test was run).
+Windows installers built from a clean tree at `94f7e72`, Android APK and AAB at `3e950f9`; later commits changed tests, documentation and verification scripts only. **The installers were never installed or executed**; the x64 app was launched in isolation from the unpacked build.
 
 | File | Size | SHA-256 | Signing |
 |---|---|---|---|
-| `release/Desktop-Cat-Setup-1.6.0-x64.exe` | 121,728,972 bytes | `f875f7c1e5bd59881862b4a40458dedd40d3c4fe6b0a32052a8829f5330e5c88` | unsigned (`Get-AuthenticodeSignature`: NotSigned) |
-| `release/Desktop-Cat-Setup-1.6.0-arm64.exe` | 116,224,086 bytes | `3a4b07eb55efacb420e978bc9419fc1b00af380dd847ee43ebacf8f06e0eb959` | unsigned (NotSigned) |
+| `GizeMate-Setup-1.6.0-x64.exe` | 121,728,939 bytes | `df61d2b54b45b529c898521f5d2a4f3e6b7d9af40c307a61668772da134e5b93` | unsigned (NotSigned) |
+| `GizeMate-Setup-1.6.0-arm64.exe` | 116,224,051 bytes | `c33310ff07a20ed2847ea9c6f95572f9ca56760cbdbf91b6b62d50bf80d06264` | unsigned (NotSigned); never run on ARM hardware |
+| `GizeMate-1.6.0-android.apk` | 871,277 bytes | `0748d4c4b88caa963c632386c164ea9d60719209c4e899996e16aea8cbe7d33b` | release key, scheme v2; same certificate as 1.5.0 |
+| `GizeMate-1.6.0-android.aab` | 865,112 bytes | `3ebf2b1dc6cc972dac0396d2769da7fc34d17bdf8af14b9610d16e72a3b3bf03` | release key (jarsigner) |
 
-Static payload checks (`scripts/check-win-payload.mjs --strict`) pass for both architectures. The Windows on Arm installer has never been run on ARM hardware. Details: [1.6.0 artifact inventory](releases/1.6.0-artifact-inventory.md).
+Test results for this release: `verify fast` pass; desktop E2E 79 passed with one test race fixed and the accessibility spec 50 of 50 over five repetitions; web E2E 133 passed and the touch tests 55 of 55 over five repetitions; the traversal test 6 of 6. Details and the evidence: [1.6.0 validation record](releases/1.6.0-validation-record.md); inventory: [1.6.0 artifact inventory](releases/1.6.0-artifact-inventory.md).
 
 # v1.3.0 (2026-11-07): first public release; clicks, drags and throws over long runs
 
