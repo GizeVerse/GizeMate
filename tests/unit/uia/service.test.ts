@@ -527,7 +527,9 @@ describe('TabStripService: helper failures', () => {
     expect(r.svc.debugInfo()).toMatchObject({ stalled: 2, helper: { recentFailures: 1, nextStartInMs: 1000, lastFailure: 'request timed out (browser windows keep stalling the helper)' } });
   });
 
-  it('a helper that crashes on start is retried with backoff, then reported unavailable', async () => {
+  // retry: this test spawns real Node child processes; on a PC under memory pressure one can abort with a fast-fail
+  // exit code (0xC0000409) instead of the scripted code 2, which is not the behaviour under test.
+  it('a helper that crashes on start is retried with backoff, then reported unavailable', { retry: 2 }, async () => {
     const r = rig({ exitOnStart: 2 });
     r.svc.start();
     r.wins.set(A);
