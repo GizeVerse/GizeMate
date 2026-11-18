@@ -2,6 +2,8 @@
 
 Desktop Cat is a local desktop companion. It has **no accounts, no telemetry, no analytics, no crash upload and no update pings**. With default settings it makes **no network requests at all**.
 
+The sections below describe the Windows app. The 1.4.0 release candidate adds macOS, an installable web app for tablets and browsers, an Android app and a portable profile file: see [Other devices (1.4.0 release candidate)](#other-devices-140-release-candidate) and the comparison in [docs/platforms/privacy-and-permissions.md](platforms/privacy-and-permissions.md).
+
 ## What the cat observes (always on, stays on this PC)
 
 | Signal | How | What is kept |
@@ -23,14 +25,17 @@ Two more things stay on your PC and never reach the logs (v1.2):
 - **Click guard.** The rectangles of all visible top-level windows, private ones included, are used only inside the main process to keep the overlay click-through while the cat clings to a screen edge or hops off a covered surface. They are never passed to the behaviour engine, logged or exported.
 - **Behaviour profile.** Settings → Diagnostics → Behaviour and the diagnostics export show counts and durations for this session (time calm and active, trips up, stays and how they ended, hunts, falls, reactions, time spent typing-like or with a maximized window in front), never which windows or apps. The log lines (`stay ended`, `behavior summary`) carry the same kind of numbers, without typing time.
 
-**Sound (v1.2).** Off by default. When you turn it on, the cat's sounds are synthesized in the overlay; there are no recordings and no microphone access.
+**Sound (v1.2).** Off by default. When you turn it on, the cat's sounds are synthesized in the overlay; there are no recordings and no microphone access. Since 1.5.0 the cat's sounds and the world's sounds have separate switches (see [Living Companion](#living-companion-150-release-candidate)).
+
+The Living Companion of 1.5.0 (world events, the Cat Journal, Laser Mode, world sounds) adds no new signal to this table and no network request. What it stores and does is listed in [Living Companion (1.5.0 release candidate)](#living-companion-150-release-candidate).
 
 ## What is stored on disk
 
 All in `%APPDATA%\Desktop Cat\` (removed by deleting that folder; kept on uninstall unless you delete it):
 
 - `settings.json` (+ `settings.json.bak`, the previous version) — your preferences, including the launch-at-sign-in state (preference, who decided it, and the program path last registered — which contains your Windows user folder; the diagnostics export replaces that path, and any other path inside your user profile, with `%USERPROFILE%`).
-- `cat-state.json` (+ `cat-state.json.bak`) — the cat's personality numbers (e.g. curiosity 0.62), mood numbers, counters (how often it was petted), learned favourite resting spots (display + horizontal position) and a short list of recent cat events ("nap", "pet"). **No window titles, app names, screenshots or text.**
+- `cat-state.json` (+ `cat-state.json.bak`) — the cat's personality numbers (e.g. curiosity 0.62), mood numbers, counters (how often it was petted), learned favourite resting spots (display + horizontal position) and a short list of recent cat events ("nap", "pet"). **No window titles, app names, screenshots or text.** Since 1.5.0 the file also holds the cat's world memory (a bounded event history, per-event counters and the Cat Journal; see below).
+- `characters\<id>.json` (UNRELEASED 1.6.0, one per non-cat character you have used: `monkey`, `fox`, `rabbit`, `ghost`, `slime`, `alien`) — the same kind of content as `cat-state.json`, for that character's own companion, inside a small envelope with its own version number. Created the first time you switch to that character. **Nothing about the privacy defaults changes:** no new data kind, no window titles, no screenshots, no text, no network use. Deleting the `characters` folder forgets those companions and never affects the cat. `settings.json` also gains `general.activeCharacter`, `general.language` (`auto`, `en` or `tr`; the detected system language is never stored), `general.characterNames` (names you give the non-cat characters) and `appearance.characterSkins` (their chosen palettes). See [docs/characters/README.md](characters/README.md).
 - Up to 3 `*.corrupt-<time>.json` copies per file, kept only if a file was unreadable, for inspection.
 - `secrets.json` — only if you enter an AI API key: the key encrypted with Windows DPAPI via Electron `safeStorage` (readable only by your Windows account). **No backup or quarantine copy of this file is ever kept; removing a key deletes it from disk.**
 - `relaunch-history.json` — timestamps of automatic restarts after crashes (bounded).
@@ -55,6 +60,37 @@ Screen analysis only runs after you explicitly opt in from the Privacy page; the
 
 Screenshots are never written to disk.
 
+## Living Companion (1.5.0 release candidate)
+
+1.5.0 is a release candidate, not a release. Nothing in it has been run: this section describes what the code does (IMPLEMENTED, statically verified), not something observed on a device or a PC. Sources: `src/shared/companion.ts`, `src/shared/catState.ts`, `src/core/behavior/worldMemory.ts`, `src/shared/settings.ts`.
+
+**What it stores.** Only in the cat file (`cat-state.json` on Windows; the cat's localStorage key on the web and Android hosts), in a `world` section:
+
+- **Event history:** the last 16 world events that ended, each as an event id from the fixed catalogue (20 normal and 6 rare events), the wall-clock time it ended and a short outcome word (lower-case letters, digits and underscores, at most 24 characters).
+- **Counters:** how many times each event has played (whole numbers, capped at 1,000,000).
+- **The Cat Journal:** at most the newest 60 entries of the same kind (event id, time, outcome word). The text you read in the journal is built from those three fields by the app when it is shown; no sentence is stored.
+- **When the last event ended** (one time stamp).
+
+All of it is local and bounded. It holds no window title, app name, file name, screenshot, cursor position, typed text or free text. On load, every entry is checked one by one: an unknown id, a bad time or an outcome word that does not fit is dropped, lists are capped, and a damaged or hand-edited `world` section can only lose its diary, never change anything else.
+
+**What you can do about it.** *Settings → Journal* has a switch (on by default): when it is off nothing new is written to the journal, and what is there stays until you clear it. **Clear** (with a confirmation on Android) empties the journal, the event history behind it and the counters, and saves at once. **Clear history** in Personality forgets the world memory as well. Loading a different cat from a profile file replaces the world memory with an empty one. Deleting the cat file (or, on the web and Android, using Start over) removes everything. With *World events* off, no event is started and nothing new enters the history.
+
+**What is never exported.** A profile file never contains the event history, the counters or the journal: they are one device's diary of one cat. It carries only your choices: the personality, which events the cat meets and how often, reduced motion, whether a journal is kept, and the sound switches. Importing a profile never touches the stored journal of the same cat and never turns on screen analysis, AI or consent.
+
+**What is not stored at all.**
+
+- **Mood.** The cat's mood (happy, curious, sleepy, startled…) is worked out again from its stats, drives and recent events and fades within seconds or minutes. It is never written to disk (the cat's needs and drives, which the file has held since 1.2, are unchanged). The settings pages show it live only.
+- **The event schedule and any event in progress.** A restart starts a fresh random wait (5 to 30 minutes at the default pace, counted from the end of the previous event).
+- **Laser Mode and "pause events".** Both are session choices: off at every start, not part of the settings, never in a profile.
+
+**Laser Mode.** Off by default and only for the session. On Windows the red dot is drawn on the overlay at the pointer position the app already reads while it runs (`GetCursorPos`, see the table above); it reads nothing more, does not move or change the system cursor, and the position is used for the next frame only: never stored, never logged (the log records only that the mode went on or off), never sent. No dot is drawn over a display with a full-screen app in front unless you told the cat to ignore full-screen apps. On Android the dot follows only what Android hands GizeCat: touches and mouse hover on the cat's own small touch window, and touches inside GizeCat's own app window, for about 1.8 seconds after the last one. There is no global pointer tracking and no new permission. On Android a two-value record (`laser`, `eventsPaused`: two booleans, no position, no cat) in the app's private storage passes the two session switches from the app's screen to the floating cat's page; the app clears it every time it starts.
+
+**Sound.** Still **off by default** (`sound.enabled`). Sounds are synthesized in the overlay; there are no recordings and no microphone access. 1.5.0 adds two categories with their own switches, both on once sound is on: the **cat's** sounds (meow, chirp, trill, purr, hiss, growl, thud) and the **world's** sounds (squeak, rumble, chime, splash). With sound off, neither category plays.
+
+**Props.** The things world events show (a mouse, a butterfly, a paper plane, rain, a small UFO…) are drawn by the app as small pictures made of shapes, never as downloaded images, and are not read from the screen. They are never part of the region that takes clicks, so they cannot make the overlay block your desktop. Nothing about them is stored except the event id, time and outcome word above.
+
+**Network and telemetry.** None. The Living Companion code makes no request and sends nothing; there is still no telemetry or analytics. The event engine runs entirely in the app on your device. The AI vision feature (if you turned it on) is unchanged: a model may still only pick from the reaction allow-list.
+
 ## Network access
 
 | Feature | When | Destination |
@@ -69,3 +105,58 @@ There is no automatic update check. Installing a new version is a manual action.
 ## Your controls
 
 Hide the cat (tray / `Ctrl+Alt+Shift+C`), pause it, turn off interactions (fully click-through), privacy-pause or disable screen analysis, revoke consent, clear history, reset personality, turn off *Walk on browser tabs*, *Play with the taskbar* or *Climb windows* (Settings → Behavior), turn off launch at sign-in (Settings → General, or Task Manager → Startup apps — the app never overrides a Task Manager disable), export diagnostics (a JSON file you can inspect before sharing), uninstall (also removes the startup entry).
+
+## Other devices (1.4.0 release candidate)
+
+1.4.0 is not released, and none of it has run on a device. This section describes what the code and its configuration do.
+
+### Windows on Arm
+
+The ARM64 installer is the same app with the ARM64 build of its native library. It collects, stores and sends exactly what the x64 app does. The npm registry is contacted only on the build machine, to fetch that library; the app never contacts it.
+
+### macOS
+
+- **No permission prompts.** 1.4.0 never asks for Accessibility, Screen Recording, Input Monitoring, camera, microphone or Bluetooth. Electron's built-in reasons for camera, microphone, audio capture and Bluetooth are replaced with "GizeCat never uses …; choose Don't Allow".
+- **No screen analysis.** Perception is not available on macOS and fails closed: no capture code runs, and no Screen Recording prompt can appear. Window titles and window positions of other apps are not read (the cat stays on the floor).
+- **Files:** the same files as on Windows, in `~/Library/Application Support/Desktop Cat`. API keys, if any, are protected by the macOS Keychain (item "Desktop Cat Safe Storage"). With no key saved, GizeCat does not ask the Keychain for its status. Saving a key is what first needs it. Chromium's own cookie store may still ask (not checked on a Mac).
+- **Exclusion list:** the Apps exclusion list has no effect on macOS, because screen analysis is unavailable there.
+- **Hide from screenshots** is a request to the system. Newer capture tools may still show the cat.
+- **Open at login** is off by default and written only when you turn it on, for the app in /Applications. The app writes nothing at startup.
+- **Diagnostics** add `os.arm64Translation`: true when an x64 build runs under Rosetta (or under emulation on Windows on Arm). It is a boolean, not personal data.
+
+### The web app (iPad, Android Chrome, desktop browsers)
+
+- **Permissions:** none. No camera, microphone, location or notifications. The installed web app asks the browser to keep its storage (`navigator.storage.persist()`); the browser decides by itself.
+- **Network:** the page itself cannot make requests (CSP `connect-src 'none'`). The only traffic is the browser loading the app's own files from the site that hosts it: on first load, once per version when the service worker keeps an offline copy, and the browser's own update checks of `sw.js` and the manifest. No page data is ever sent. The host's server may log those file requests, like any website; GizeCat has no control over that.
+- **Storage keys:** localStorage `gizecat.web.cat.v1` (the cat), `gizecat.web.characters.v1` (UNRELEASED 1.6.0: the other characters' companions, one entry each, same kind of content as the cat's) and `gizecat.web.settings.v1` (its settings, including personality and the chosen character and language). The service-worker cache `gizecat-shell-<scope hash>-<version>-<hash>` holds only the app's own files.
+- **Deleting:** Settings → Start again → **Start over with a new cat** (the cat and its settings), removing the Home Screen app or uninstalling the installed app, or clearing the site's data in the browser. Safari may delete a Safari tab's data after 7 days without a visit; a Home Screen app keeps its own storage.
+- **Shared origin:** on a GitHub project site, the web app shares its browser storage and caches with every other GitHub Pages site of the same owner. The expected address, `https://gizeverse.github.io/GizeCat/`, would be such a site; it is not deployed. GizeCat deletes only older caches of its own copy (`gizecat-shell-<scope hash>-*`). A custom domain avoids the sharing.
+- **No keyboard listening.** The build fails if the web files contain key-listener code. The name field reads its value when you finish editing it, like any form field; Escape closing the sheet is the browser's own dialog behaviour.
+- **Licences page:** `licenses.html` shows the third-party notices. It is static: no script, no form, and its own strict Content Security Policy. It is one more of the app's own files, kept for offline use. It sends and stores nothing.
+
+### The Android app
+
+- **Four permissions, only for the optional floating cat (1.4.1),** and only when you start it: "Display over other apps" (you turn it on yourself, in Android's own settings page), a foreground service with a small private, silent notification, and on Android 13 and later the notification permission (asked once; declining changes nothing else). The floating cat is a small transparent window that only draws the cat. It cannot see what is under it: no screen capture, no accessibility service, no usage access, no window titles. It reads only touches that land inside its own window, to move the cat; nothing about them is stored or sent. It never starts by itself, not even after a reboot. Without these permissions the cat lives inside the app. ([Details](platforms/android-overlay.md).)
+- **No internet permission,** so Android blocks every network request. No storage, location, camera or microphone permission. Every web permission request in the WebView is denied.
+- **No network:** three layers (no internet permission; a native layer that answers every request outside the app's own files with an empty "not found"; CSP `connect-src 'none'`).
+- **No telemetry:** WebView usage metrics are opted out.
+- **Data:** the cat and its settings live in the WebView's storage inside the app's private storage, with the same two keys as the web app. Nothing syncs.
+- **Backup policy:** no cloud backup (`allowBackup="false"`). On Android 12 and later, a device-to-device transfer may copy the cat's data (`app_webview/`). Uninstalling offers to keep the data.
+- **Files:** the app writes a file only through the system "save as" screen, at a place you choose, and reads one only from the system file picker. There is no storage permission.
+- **No DevTools** in release or trial builds.
+- **Licences page:** the same static page as in the web app, served from the app's own files. Links on it are plain text, so it leads nowhere.
+
+### Build and signing secrets (not your data)
+
+Signing a release needs the project owner's keys: an Android upload keystore, an Apple Developer ID certificate and notarization key, a Windows code-signing certificate. None of them exists in any GizeCat app, installer or web bundle, and no app ever reads them. They have nothing to do with your data. The owner keeps them outside the repository, and in CI they live only in protected GitHub Environments (`android-signing`, `macos-signing`, `windows-signing`). The workflows that use them are manual and have never been started ([threat model](THREAT_MODEL.md), T22).
+
+### The profile file
+
+1.4.0 adds a portable file to move a cat to another device (format: `src/shared/profileTransfer.ts`; [how to use it](platforms/profile-transfer.md)). **Take your cat to another device** saves and loads it: Settings → Personality on Windows and macOS, and the settings sheet in the web app and the Android app. On the desktop the file is chosen in the system's own save and open dialogs; in the web app it is a download, the share sheet (installed iPad app) or a picked file; in the Android app it is the system "save as" screen or file picker. Before anything changes you see what the file would change and choose what to load.
+
+- **It contains:** the cat's name, its identity (`catId`) and birth time, its 7 personality traits, its look (coat, style, size, opacity, animation speed, shadow, emotes), and the carried behaviour, handling and sound preferences. Its counters, learned habits and bond are included only if you choose "what it has learned".
+- **It never contains:** API keys, screen-analysis or AI settings, exclusion lists, window titles, display ids or positions, folder paths, startup or shortcut settings, or diagnostics.
+- It is plain, unencrypted JSON, at most 64 KiB, written only where you choose. No network and no account are involved. It is a copy, not a sync.
+- **An import never weakens privacy:** it never turns on screen analysis, AI or consent; it never touches startup, shortcuts or diagnostics; it never switches tab-strip reading back on (`tabStrips`, `explorerTabs`, `terminalTabs`) when it is off on the device; and device-only settings stay as they are.
+- Loading a different cat replaces the current one: its stats, drives and memory reset, and its place on screen stays. Loading the same cat updates its personality and keeps its memory unless you choose "what it has learned".
+- A file from a newer major format version is refused ("update GizeCat"); a newer minor version loads, and a few details may not.

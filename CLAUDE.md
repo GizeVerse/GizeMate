@@ -1,6 +1,6 @@
-# GizeCat (formerly Desktop Cat)
+# GizeMate (provisional name; formerly GizeCat, Desktop Cat)
 
-GizeCat, the first GizeVerse character: one animated, persistent cat in transparent, always-on-top, click-through Electron overlays, with optional opt-in screen perception. Windows 10/11 is the supported platform (validated on Windows 11, see docs/TEST_REPORT.md and docs/gizeverse/); a web host and macOS/Linux foundations exist (docs/gizeverse/capability-matrix.md); installer unsigned. Display strings say GizeCat; persistent identifiers stay frozen (src/shared/identity.ts).
+GizeMate: a universe of independent companions (cat, monkey, fox, rabbit, ghost, slime, alien; one active at a time, docs/characters/) in transparent, always-on-top, click-through Electron overlays, with optional opt-in screen perception. The cat is the original companion and the default; the multi-character work (ADR 0005) is unreleased and has not been run in the real app. Windows 10/11 is the supported platform (validated on Windows 11, see docs/TEST_REPORT.md and docs/gizeverse/); a web host and macOS/Linux foundations exist (docs/gizeverse/capability-matrix.md); installer unsigned. Display strings come from src/shared/brand.ts; persistent identifiers stay frozen (src/shared/identity.ts).
 
 ## Invariants
 Never violate these. If a task seems to require changing one, stop and ask.
@@ -19,10 +19,11 @@ Never violate these. If a task seems to require changing one, stop and ask.
 - Shared machine: wrap any other heavy command in `node scripts/with-lock.mjs <label> -- <cmd>`
 
 ## Layout
-- `src/shared/`: contracts and zod schemas (settings, cat state, IPC, sim, perception)
+- `src/shared/`: contracts and zod schemas (settings, cat state, IPC, sim, perception), `characters/` (one data module per character), `i18n/` (English and Turkish catalogue)
 - `src/core/`: pure logic — behavior (state machine, personality, memory), movement, interaction (gestures, click-through), perception (analysis, privacy gate, limits, AI output), display math
 - `src/main/`: Electron main — app/catHost composition, overlay/, win32/ (koffi), perception/ (capture, adapters), store/, diagnostics/, ipc/, lifecycle/
-- `src/renderer/overlay/`: procedural cat rig and animator · `src/renderer/settings/`: settings UI · `src/preload/`: typed bridges
+- `src/renderer/overlay/`: procedural cat rig and animator, `characters/<id>/` renderers for the other characters · `src/renderer/settings/`: settings UI · `src/preload/`: typed bridges
+- Preview a character's drawing: `npm run preview:characters` (docs/characters/README.md).
 - `tests/unit`, `tests/integration` (vitest), `tests/e2e` (Playwright, real app) · `scripts/`: build, QA, bench, packaging checks · `docs/`: ADR, privacy, threat model, guides, test report
 
 ## Project notes

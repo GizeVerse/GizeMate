@@ -1,12 +1,15 @@
 import type { AppStatus, LoginItemStatus } from '../../../shared/ipc';
 import type { RuntimeCapability } from '../../../shared/platform';
-import { MAX_CAT_NAME_LENGTH, MAX_SHORTCUT_LENGTH, STARTUP_STATES } from '../catalog';
+import { MAX_SHORTCUT_LENGTH, STARTUP_STATES } from '../catalog';
 import type { PageContext, PageView } from '../context';
-import { button, group, page, row, runAction, segmentedRow, setButtonLabel, setNote, textRow, toggleRow, toggleSwitch, type NoteTone } from '../controls';
+import { button, group, page, row, runAction, segmentedRow, setNote, textRow, toggleRow, toggleSwitch, type NoteTone } from '../controls';
 import { h, icon } from '../dom';
+import { displayAccelerator } from '../format';
+import { actionMessage } from '../actionText';
+import { loginReason } from '../loginText';
 import { errorText } from '../store';
-import { S } from '../strings';
-import { validateCatName, validateShortcut } from '../validate';
+import { platformWording, S, type PlatformWording } from '../strings';
+import { validateShortcut } from '../validate';
 
 const G = S.general;
 
@@ -19,70 +22,68 @@ const G = S.general;
 export function launchStatusView(s: LoginItemStatus): { text: string; tone: NoteTone } {
   const L = G.launchStatus;
   // Main says why this build may not manage it (dev/portable build, path too long, switched off).
-  if (!s.writable) return { text: s.reason ?? L.notAvailable, tone: 'info' };
+  if (!s.writable) return { text: loginReason(s) ?? L.notAvailable, tone: 'info' };
   if (s.enabled && s.active) return { text: L.active, tone: 'ok' };
   // Only while Windows really does not start it: what the registry shows wins over the recorded reason.
   if (s.disabledBy === 'windows' && !s.active) return { text: L.windowsDisabled, tone: 'warn' };
   if (!s.enabled && !s.active) return { text: s.disabledBy === 'external' ? L.removedOutside : L.off, tone: 'info' };
-  return { text: s.reason ?? (s.enabled ? L.pending : L.off), tone: 'warn' };
+  return { text: loginReason(s) ?? (s.enabled ? L.pending : L.off), tone: 'warn' };
 }
 
-export type LaunchRowView = { showSwitch: true } | { showSwitch: false; title: string; reason: string };
+/**
+ * macOS (1.4.0): the status line under "Open at login". Main's reason covers the macOS states
+ * (waiting for approval, not registered, not found, on outside the app); `openSettings` asks for
+ * the "Open Login Items settings" button while the user wants it on and macOS does not open the app.
+ */
+export function launchStatusViewMac(s: LoginItemStatus): { text: string; tone: NoteTone; openSettings: boolean } {
+  const L = G.launchStatusMac;
+  if (!s.writable) return { text: loginReason(s) ?? L.notAvailable, tone: 'info', openSettings: false };
+  if (s.enabled && s.active) return { text: loginReason(s) ?? L.active, tone: 'ok', openSettings: false };
+  if (!s.enabled && !s.active) return { text: L.off, tone: 'info', openSettings: false };
+  return { text: loginReason(s) ?? L.pending, tone: 'warn', openSettings: s.enabled && !s.active };
+}
+
+export type LaunchRowView = { showSwitch: true; title?: string } | { showSwitch: false; title: string; reason: string };
 
 /**
  * Whether the launch-at-sign-in row offers its switch (GizeVerse, ADR 0004 §7). Off Windows, when
  * main reports the loginItem capability unavailable, the switch is hidden and main's reason is
  * shown instead. On Windows the row stays exactly as it was, also in development builds (where
- * the capability is unavailable too), and so it does without a platform report.
+ * the capability is unavailable too), and so it does without a platform report. macOS (1.4.0)
+ * titles the row "Open at login", its own term.
  */
 export function launchRowView(status: Pick<AppStatus, 'platform'>): LaunchRowView {
   const platform = status.platform;
   if (!platform || platform.id === 'win32') return { showSwitch: true };
+  const mac = platform.id === 'darwin';
   const cap = platform.capabilities.loginItem as RuntimeCapability | undefined;
-  if (!cap || cap.available) return { showSwitch: true };
-  return { showSwitch: false, title: G.launchTitleElsewhere, reason: cap.reason ?? G.launchStatus.unsupported };
+  if (!cap || cap.available) return mac ? { showSwitch: true, title: G.launchTitleMac } : { showSwitch: true };
+  return { showSwitch: false, title: mac ? G.launchTitleMac : G.launchTitleElsewhere, reason: cap.reason ?? G.launchStatus.unsupported };
 }
 
-/**
- * The simulation ignores a call while the cat is paused (main still reports success),
- * so the button is off then, as in the tray and the cat's menu, and says why. It is
- * also off while the cat is hidden; the visibility row explains that case.
- */
-export function callButtonState(status: Pick<AppStatus, 'visible' | 'paused'>): { disabled: boolean; note: string | null } {
-  if (!status.visible) return { disabled: true, note: null };
-  if (status.paused) return { disabled: true, note: G.callPaused };
-  return { disabled: false, note: null };
+/** macOS only (1.4.0): the "Show GizeCat in the Dock" row (general.showDockIcon); hidden elsewhere. */
+export function dockRowVisible(status: Pick<AppStatus, 'platform'>): boolean {
+  return status.platform?.id === 'darwin';
 }
+
+/** The description of "When GizeCat starts" (1.4.0): Windows keeps its text; macOS says "at login". */
+export function startupStateDesc(wording: PlatformWording): string {
+  if (wording === 'mac') return G.startupStateDescMac;
+  return wording === 'elsewhere' ? G.startupStateDescElsewhere : G.startupStateDesc;
+}
+
+/** The shortcut row's hint and placeholder (1.4.0): macOS names Option and Command. */
+export function shortcutFieldText(wording: PlatformWording): { hint: string; placeholder: string } {
+  return wording === 'mac'
+    ? { hint: S.validation.shortcutHintMac, placeholder: G.shortcutPlaceholderMac }
+    : { hint: S.validation.shortcutHint, placeholder: G.shortcutPlaceholder };
+}
+
+// Moved to the Companion page with the other rows that act on the running cat; re-exported for callers.
+export { callButtonState } from '../companionControls';
 
 export function generalPage(ctx: PageContext): PageView {
-  const name = textRow(ctx, 'general', 'catName', {
-    title: G.nameTitle,
-    desc: G.nameDesc,
-    icon: 'rename',
-    validate: validateCatName,
-    toValue: (v) => v,
-    maxLength: MAX_CAT_NAME_LENGTH + 8,
-    spellcheck: false,
-  });
-
-  const call = row({ title: G.callTitle, desc: G.callDesc, icon: 'people' });
-  const callBtn = button(G.callButton(ctx.store.settings.general.catName));
-  call.control.append(callBtn);
-  callBtn.addEventListener('click', () => void runAction(ctx, 'callCat', callBtn, call.note));
-
-  const visibility = row({ title: G.visibilityTitle, desc: G.visibilityDesc, icon: 'view' });
-  const visBtn = button(G.hide);
-  visibility.control.append(visBtn);
-  visBtn.addEventListener('click', () => {
-    void runAction(ctx, ctx.store.view.status.visible ? 'hide' : 'show', visBtn, visibility.note);
-  });
-
-  const pause = row({ title: G.pauseTitle, desc: G.pauseDesc, icon: 'pause' });
-  const pauseBtn = button(G.pause);
-  pause.control.append(pauseBtn);
-  pauseBtn.addEventListener('click', () => {
-    void runAction(ctx, ctx.store.view.status.paused ? 'resume' : 'pause', pauseBtn, pause.note);
-  });
+  const wording = platformWording(ctx.store.view.status.platform);
 
   // Launch at sign-in is main-owned: the switch runs the enable/disableLaunchAtLogin actions
   // instead of patching settings, and always shows what main reports afterwards.
@@ -91,12 +92,23 @@ export function generalPage(ctx: PageContext): PageView {
   launch.control.append(launchSwitch.root);
   launch.note.setAttribute('aria-live', 'polite');
   const launchTitle = launch.row.querySelector<HTMLElement>('.row-title');
+  // macOS (1.4.0): opens System Settings › General › Login Items (main uses a constant URL).
+  const loginItemsBtn = button(G.launchOpenLoginItems);
+  const launchActions = h('div', { class: 'callout-actions', hidden: true }, [loginItemsBtn]);
+  launch.row.insertBefore(launchActions, launch.note);
+  loginItemsBtn.addEventListener('click', () => void runAction(ctx, 'openLoginItemsSettings', loginItemsBtn, launch.error));
   let launchBusy = false;
   let unavailableShown: string | null = null;
-  const syncLaunch = (s: LoginItemStatus): void => {
+  const syncLaunch = (s: LoginItemStatus, mac: boolean): void => {
     if (!launchBusy) {
       launchSwitch.input.checked = s.enabled;
       launchSwitch.refresh();
+    }
+    if (mac) {
+      const line = launchStatusViewMac(s);
+      setNote(launch.note, line.text, line.tone);
+      launchActions.hidden = !line.openSettings;
+      return;
     }
     const line = launchStatusView(s);
     setNote(launch.note, line.text, line.tone);
@@ -104,16 +116,19 @@ export function generalPage(ctx: PageContext): PageView {
   /** Shows the switch with main's state, or (off Windows, unavailable) only the reason. */
   const syncLaunchRow = (status: AppStatus): void => {
     const view = launchRowView(status);
-    const title = view.showSwitch ? G.launchTitle : view.title;
+    const title = view.showSwitch ? (view.title ?? G.launchTitle) : view.title;
     if (launchTitle && launchTitle.textContent !== title) launchTitle.textContent = title;
     launchSwitch.root.hidden = !view.showSwitch;
     if (view.showSwitch) {
       unavailableShown = null;
-      syncLaunch(status.loginItem);
-    } else if (unavailableShown !== view.reason) {
-      // Only a changed sentence is announced (main broadcasts on every state change).
-      unavailableShown = view.reason;
-      setNote(launch.note, view.reason, 'info');
+      syncLaunch(status.loginItem, status.platform?.id === 'darwin');
+    } else {
+      launchActions.hidden = true;
+      if (unavailableShown !== view.reason) {
+        // Only a changed sentence is announced (main broadcasts on every state change).
+        unavailableShown = view.reason;
+        setNote(launch.note, view.reason, 'info');
+      }
     }
   };
   launchSwitch.input.addEventListener('change', () => {
@@ -125,7 +140,7 @@ export function generalPage(ctx: PageContext): PageView {
     void (async () => {
       try {
         const res = await ctx.api.action(on ? 'enableLaunchAtLogin' : 'disableLaunchAtLogin');
-        if (!res.ok) setNote(launch.error, S.errors.actionFailed(res.message ?? S.errors.unexpected), 'error');
+        if (!res.ok) setNote(launch.error, S.errors.actionFailed(actionMessage(res) ?? S.errors.unexpected), 'error');
       } catch (e) {
         setNote(launch.error, S.errors.actionFailed(errorText(e)), 'error');
       }
@@ -137,7 +152,7 @@ export function generalPage(ctx: PageContext): PageView {
       } catch {
         // The next broadcast from main brings the switch up to date.
       }
-      syncLaunch(ctx.store.view.status.loginItem);
+      syncLaunch(ctx.store.view.status.loginItem, ctx.store.view.status.platform?.id === 'darwin');
     })();
   });
 
@@ -157,21 +172,26 @@ export function generalPage(ctx: PageContext): PageView {
     'general',
     'startupState',
     STARTUP_STATES.map((v) => ({ value: v, label: G.startupStates[v] })),
-    { title: G.startupStateTitle, desc: G.startupStateDesc, icon: 'play' },
+    { title: G.startupStateTitle, desc: startupStateDesc(wording), icon: 'play' },
   );
   const shortcuts = toggleRow(ctx, 'general', 'shortcutsEnabled', { title: G.shortcutsTitle, desc: G.shortcutsDesc, icon: 'keyboard' });
   const shortcut = textRow(ctx, 'general', 'toggleShortcut', {
     title: G.shortcutTitle,
     desc: G.shortcutDesc,
     icon: 'hide',
-    hint: S.validation.shortcutHint,
-    validate: validateShortcut,
+    hint: shortcutFieldText(wording).hint,
+    validate: (text) => validateShortcut(text, wording),
     toValue: (v) => v,
+    display: (stored) => displayAccelerator(stored, wording),
     maxLength: MAX_SHORTCUT_LENGTH,
-    placeholder: G.shortcutPlaceholder,
+    placeholder: shortcutFieldText(wording).placeholder,
   });
   const registration = h('div', { class: 'row-note', 'aria-live': 'polite', hidden: true });
   shortcut.parts.row.insertBefore(registration, shortcut.parts.note);
+
+  // macOS only (1.4.0, D4): the Dock icon (activation policy in main); hidden on every other platform.
+  const dock = toggleRow(ctx, 'general', 'showDockIcon', { title: G.dockTitle, desc: G.dockDesc, icon: 'pin' });
+  dock.parts.row.hidden = !dockRowVisible(ctx.store.view.status);
 
   const quit = row({ title: G.quitTitle, desc: G.quitDesc, icon: 'power' });
   const quitBtn = button(G.quit);
@@ -179,28 +199,16 @@ export function generalPage(ctx: PageContext): PageView {
   quitBtn.addEventListener('click', () => void runAction(ctx, 'quit', quitBtn, quit.note));
 
   const element = page(G.title, [
-    group(G.groupCat, [name.parts.row, call.row, visibility.row, pause.row]),
     group(G.groupStartup, [notice, launch.row, startState.parts.row]),
     group(G.groupShortcuts, [shortcuts.parts.row, shortcut.parts.row]),
-    group(G.groupApp, [quit.row]),
+    group(G.groupApp, [dock.parts.row, quit.row]),
   ]);
 
   ctx.store.subscribe((view) => {
-    const { status, settings } = view;
-    setButtonLabel(callBtn, G.callButton(settings.general.catName));
-    setButtonLabel(visBtn, status.visible ? G.hide : G.show);
-    setButtonLabel(pauseBtn, status.paused ? G.resume : G.pause);
-    const callState = callButtonState(status);
-    callBtn.disabled = callState.disabled;
-    if (callState.note) setNote(call.note, callState.note, 'info');
-    else if (call.note.classList.contains('tone-info')) setNote(call.note, null);
-    if (!status.visible) setNote(visibility.note, G.hiddenNow, 'info');
-    else if (visibility.note.classList.contains('tone-info')) setNote(visibility.note, null);
-    if (status.paused) setNote(pause.note, G.pausedNow, 'info');
-    else if (pause.note.classList.contains('tone-info')) setNote(pause.note, null);
-
+    const { status } = view;
     syncLaunchRow(status);
     notice.hidden = !status.loginItem.showNotice;
+    dock.parts.row.hidden = !dockRowVisible(status);
 
     const enabled = ctx.store.intended('general', 'shortcutsEnabled');
     shortcut.input.disabled = !enabled;

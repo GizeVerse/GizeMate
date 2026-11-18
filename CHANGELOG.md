@@ -2,6 +2,194 @@
 
 GizeCat (formerly Desktop Cat). Versions follow semantic versioning. 1.3.0 is the first public release; earlier versions were built and tested locally but not published.
 
+## 1.6.0 (GizeMate; GitHub release v1.6.0)
+
+**Released as GitHub release v1.6.0 (2026-11-18): Windows x64 and ARM64 installers (unsigned) and a release-signed Android APK and AAB.** Desktop and web version 1.6.0 (`package.json`); Android 1.6.0, versionCode 10600. GizeMate is now the product name (final, no longer provisional); the Windows installer, shortcuts and exe description, and the Android app carry it, while the persistent identifiers (application id, install and data folders, executable name, Android `applicationId`) are unchanged so existing installs update in place. **How it was verified:** `verify fast`, the desktop, accessibility and web suites, packaged x64 launches of all seven characters and static installer and APK/AAB inspection; see [docs/releases/1.6.0-validation-record.md](docs/releases/1.6.0-validation-record.md) and [docs/TEST_REPORT.md](docs/TEST_REPORT.md). **Not verified:** the installers were never executed, ARM64 never ran, the Android build was not run on a device or emulator, sound was measured but not heard. See [docs/releases/1.6.0-known-limitations.md](docs/releases/1.6.0-known-limitations.md); release notes: [docs/releases/1.6.0-release-notes.md](docs/releases/1.6.0-release-notes.md).
+
+### Added
+- **Six new characters** besides the cat: Monkey, Fox, Rabbit (animals), Ghost, Slime and Alien (fantasy creatures). Each has its own drawing, way of moving (walk, hop, float, bounce or glide), palettes, personality, signature behaviours, reactions to the world events and the laser, and voice. One character lives on the desktop at a time. Pages: [docs/characters/](docs/characters/README.md).
+- **Languages: English and Turkish.** The interface, the character texts, the menus and the world-event text. Settings, Language offers Automatic (the default), English and Turkish; Automatic shows Turkish when the system language is Turkish and English otherwise, without ever overwriting a language you chose.
+- **A new settings interface** with four areas: Home, Characters, Customize and Settings. Characters shows every companion drawn small by its own renderer and selects it; Customize holds the active character's appearance, personality, behaviour, animation and interaction; Settings holds Language, Sound, Privacy, Data & memory, Performance, Accessibility, Desktop, Advanced and About. Older page links still open the right place.
+- **Each character has its own companion**: its own personality numbers, memory and journal, stored beside the cat's. You can give each non-cat character its own name and choose its palette.
+- **Voices.** Each character has its own pitch and kind of voice and its own cues. Sound is still off by default.
+- **Preview tool** for contributors: `npm run preview:characters`.
+
+### Changed
+- The product name is GizeMate. The installer file names (`GizeMate-Setup-<version>-<arch>.exe`), the Start menu and desktop shortcuts, the Apps entry, the exe description and the Android file names follow it. Persistent identifiers, the data folder name and the program file name are unchanged.
+- The Android and web home panel gains the same Home, Characters, Customize and Settings structure and language choice. Switching characters there restarts the page.
+
+### Upgrade compatibility
+- **An existing cat is kept**: its name, coat, personality, memory and journal are read exactly as before, from the same file (`cat-state.json`, or the browser slot `gizecat.web.cat.v1`). A v1.5.0 settings file loads unchanged and you start as the cat. The other characters are born fresh, the first time you choose them.
+- Downgrading to 1.5.0 has not been tried.
+
+### Privacy and permission changes
+- **None.** Screen analysis and cloud egress are still off by default; no telemetry, no keyboard hook, no clipboard capture; no new Android permission. New files on disk: `characters/<id>.json` (same kind of content as the cat's file); see [docs/PRIVACY.md](docs/PRIVACY.md).
+
+### Limitations
+- Only one character at a time.
+- A saved profile (move your companion to another device) still carries the cat only.
+- Android and macOS sources were not run; non-Windows platforms were not validated. The Windows installers remain unsigned. The web and Android host reloads the page when you switch characters.
+- Turkish text has had no native-speaker review.
+
+## 1.5.0 (Living Companion; Windows released 2026-11-14, Android on hold)
+
+**Published as release v1.5.0 (2026-11-14): Windows x64 and ARM64 installers, unsigned.** The Android 1.5.0 build is on hold until a production-signed package exists; the current Android download remains 1.4.2. Windows and Android only (macOS and iPad are not part of this release; the 1.4.0 Preview notes about them stay as they were). Desktop and web version 1.5.0 (`package.json`), Android 1.5.0, versionCode 10500 (`android/version.properties`). **How it was verified:** the project owner installed and used the x64 installer and the Android build by hand. The unit suite was first run against this code in the 1.6.0 cycle: 13 of 4,766 tests failed at first; each was root-caused (five code defects, the rest stale expectations) and fixed in that cycle (see 1.6.0). The ARM64 installer has not been run on ARM hardware. Overview: [docs/living-companion/README.md](docs/living-companion/README.md); draft notes: [docs/releases/1.5.0-release-candidate.md](docs/releases/1.5.0-release-candidate.md).
+
+### Added
+- **Seven selectable personalities plus Auto** (Curious, Playful, Energetic, Lazy, Shy, Mischievous, Calm; `src/core/behavior/personalityProfiles.ts`). Auto keeps the traits the cat was born with; the cat never changes the choice.
+- **Mood and sleep depth** (`mood.ts`): eight moods derived from the cat's state, shown in its expression, and a sleep that deepens over time.
+- **Bounded local world memory and the Cat Journal** in the persisted cat (`catState.ts`, `worldMemory.ts`): the last 16 events and the newest 60 journal entries, on this device only, clearable.
+- **World events** (`src/core/events`, props in `src/renderer/overlay/props.ts`): a pure, deterministic engine with 20 everyday and 6 rare events, a random wait of 5 to 30 minutes counted from the end of the previous event, repetition control, interruption and recovery. Props are pictures: never clickable, never part of the click-through region. Wired into the simulation by `simCompanion.ts`.
+- **Laser Mode** (`simLaser.ts`): a red dot the cat chases and never catches; session-only and off at every start.
+- **Reduced motion**, also following the system setting (Windows and Android "remove animations").
+- **New clips:** scratch, shake and confused; deep sleep; mood expression layers.
+- **Sound cues** with separate Cat sounds and World sounds switches. Audio stays off by default.
+- **Desktop settings:** new Companion, Audio, Accessibility & Focus and Journal pages; Personality gains the seven-profile chooser; Behaviour gains world-event settings; Interaction explains Laser mode; the tray menu and the cat's menu gain **Laser mode** / **Stop laser mode**.
+- **Windows host wiring** (`src/main`): the laser dot at the real pointer position (the system cursor is untouched; not drawn over a full-screen display), the events pause, and the new actions.
+- **Web and Android host** (`src/web`): the Android home panel's Companion, Personality, Behavior (world events), Interactions (Laser mode), Audio, Accessibility and Journal sections (`androidPanel.ts`), and the "stage" window that widens the floating cat's visual window while event props or the laser dot exist (`stageWindow.ts`).
+- Release files named by the build: `release/1.5.0/windows/Desktop-Cat-Setup-1.5.0-x64.exe` and `-arm64.exe` (NSIS, unsigned); `release/1.5.0/android/GizeCat-1.5.0-android-trial-debugsigned.apk`, `GizeCat-1.5.0-android-unsigned.apk`, `GizeCat-1.5.0-android-unsigned.aab`; `release/1.5.0/SHA256SUMS.txt`.
+
+### Changed
+- **Companion choices travel with a saved profile** (personality, which events, pace, reduced motion, whether a journal is kept); the journal and event history themselves do not (`src/shared/profileTransfer.ts`).
+- **Android panel rebuilt** around the Companion sections. The Android app version is again released together with the desktop and web version.
+- Settings pages and the Android panel show live mood, activity, personality and the current or next event.
+- **Shy and Lazy now do something.** The two personality flags are read by the event engine: a shy cat watches a new event for 6 to 12 seconds before coming closer and keeps a wider stand-off; a lazy cat lets minor events (falling leaf, paper plane, sparkles, bubbles, falling star) pass 60 % of the time (outcome `unnoticed`, never journalled). Auto cats and the other profiles are unaffected.
+- **Per-event counters have a purpose:** novelty. Events the cat has rarely met are picked slightly more often and noticed slightly sooner than very familiar ones.
+- **Clear journal wording** (Windows page and Android panel) now says it also deletes the short event history and the event counters. The behaviour was already so; only the words were incomplete.
+- **Mischievous is documented as a temperament** (a personality profile), not a mood, in the animation catalogue note and the docs.
+- Documentation updated: README, user guide, platform pages, release checklist.
+
+### Privacy and permission changes
+- **None new.** Screen analysis and cloud egress are still off by default; no telemetry, no keyboard hook, no clipboard capture. The laser pointer position is used only to draw the dot and is never stored, logged or sent. The journal never leaves the device. **Android still declares exactly four permissions** (`SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE`, `POST_NOTIFICATIONS`) and no network permission.
+
+### Platform limitations
+- **Android Laser Mode** follows only touches and mouse or trackpad hover that Android delivers to the cat's small touch window, plus position hints from GizeCat's own app window. No global tracking; over other apps it cannot follow a finger. It needs Hunt and pounce on.
+- The Android touch-window limit from 1.4.2 remains (a small area around the cat consumes touches).
+- Windows: the 1.4.0 limits remain (exclusive-fullscreen games, the lock screen and administrator windows).
+- Signing: the Windows installers are unsigned (SmartScreen warns, Smart App Control may block). The Android trial APK is signed with the Android **Debug** certificate and is not a Google Play package; the release APK and AAB are unsigned. No verified publisher, Play approval or malware-free claim is made.
+
+### Known issues
+- Everything is untested at runtime, so unknown defects are likely, in drawing the props and the dot, in the Android stage window, in event timing and in the new settings pages.
+- Tablets and phones other than the one the owner used for 1.4.2 are not individually verified; vendor battery and overlay rules may differ.
+
+### Not done
+- At the time of the 1.5.0 build no test, emulator or application launch had been run; the owner then tested it by hand and the unit suite was run in the 1.6.0 cycle (see above). Windows on Arm has never run.
+- Published as release v1.5.0 (Windows); the release page lists the installers and their SHA-256 hashes. Android 1.5.0 is not published.
+- No macOS or iPad work in this release.
+
+## 1.4.2 (Android Floating Desktop Pet; stable Android release, 2026-11-10)
+
+**An Android-only stable release** ([v1.4.2](https://github.com/GizeVerse/GizeMate/releases/tag/v1.4.2), tag at commit `fb0c920`; first published as a pre-release and promoted to stable and latest the same day with the same APK). Windows, macOS and the desktop/web version (`package.json`, 1.4.0) are not touched. Android 1.4.2, versionCode 10403 (`android/version.properties`), same application id and the same debug-signing identity as 1.4.1, so it installs over it. **The owner used this exact APK on one physical Android phone and reports that overlay visibility, dragging and throwing, screen-edge movement and climbing, touch interaction, interacting with apps underneath, rotation and landscape, the control panel, and app switching with persistence all worked.** That is one phone, owner-reported: other phones and tablets are not individually verified, and no automated test, emulator or simulator was used. The APK is still signed with the Android Debug certificate (not a Google Play package) and Play Protect may warn; static review is not proof of safety.
+
+Prompted by the owner's real-phone report on 1.4.1 (overlay, landscape, rotation and taps worked; drag and throw did not, a small area around the cat ate touches, the cat never walked the screen edges, the panel was poor, and Play Protect blocked the install).
+
+### Fixed
+- **Dragging and throwing** (static diagnosis, [details](docs/platforms/android-overlay.md#why-141s-drag-and-throw-failed-static-diagnosis-142)): a touch that moved before a 350 ms still hold was read as petting, so a finger could not pick the cat up; the target was the exact footprint; and throw speed was measured from event arrival times. In the Android overlay a touch that moves now drags at once, the hit area is padded, and the gesture's own `MotionEvent` times travel to the page. The desktop and browser input paths are unchanged.
+- **The touch dead zone**: the 172 × 196 dp window no longer takes touches. The cat is drawn in a non-touchable window (0.8 opacity on Android 12+, Android's pass-through rule) and a tight invisible touch window (cat + 12 dp) takes touches, and exists only while the cat takes any. Android has no input region, so that small area still consumes touches (BLOCKED_BY_PLATFORM to remove).
+
+### Added
+- **Screen-edge walking**: the cat climbs the left and right edges and meets the corners, using the shared v1.2 screen-edge engine through a new surface provider (`src/web/screenEdgeSurfaces.ts`); new optional host fields are inert on Windows. No ceiling pose; other apps' windows are not surfaces.
+- **Interaction hunting from legitimate sources only**: touches on the cat, mouse/trackpad hover over it, and position hints from GizeCat's own app window. Android does not allow observing other apps' touches or pointer; no AccessibilityService, capture or listener was added.
+- **A new Android home panel** (`src/web/androidPanel.ts`): status, start/stop, pause, hide, permission checklist, cat name and size, movement and behavior settings, interaction and edge switches; two columns from 720 px; the floating cat is independent of it.
+- **Play Protect review** ([report](docs/platforms/android-play-protect.md)): static findings, appeal evidence and a distribution recommendation. No appeal was filed.
+
+### Not done
+- No test, emulator, simulator or device run; no publish, no tag, no appeal. No permission was added.
+- The cause of the Play Protect block is unknown; nothing says the debug signature alone caused it, and no signature or store release is promised to be warning-free.
+
+## 1.4.1 (Android-focused Preview)
+
+**An Android-only update.** Windows and macOS are **not** updated: the Windows installers stay the 1.4.0 Preview files, macOS and iPadOS are not part of it, and `package.json` (the desktop and web version) stays 1.4.0. The Android app has its own version, 1.4.1 (`android/version.properties`, versionCode 10402). The APK is a **debug-signed preview**, not a production release and not a Google Play build. **Nothing in 1.4.1 has run on a device, an emulator or a simulator.** A build is not a test.
+
+### Added
+- **The floating cat on Android (owner-requested)** ([guide](docs/platforms/android-overlay.md)): an optional, user-started foreground service draws the cat in a small transparent overlay window that follows it over the launcher and other apps, running the same web bundle and shared cat engine. Touch, pet, drag and throw work through raw touches read natively; Pause, Hide, Stop and Settings are on the app screen and in a minimal notification; the app asks for "Display over other apps" only after an in-app explanation, only when you tap Float over apps, and works fully without it. It adds four permissions (`SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE`, `POST_NOTIFICATIONS`), pinned by tests, and it never starts by itself. The 1.4.1 APK is collected into `release/1.4.1/android/`, never into `release/1.4.0/`. Exact click-through is BLOCKED_BY_PLATFORM (touches in the window's margin around the cat are consumed). **Compiled and packaged, never run on a device, emulator or simulator.** Windows, macOS and the browser web host are unchanged.
+
+### Changed
+- **The Android app's manifest** declares four permissions for the floating cat (it declared none); the privacy page, the privacy policy, the threat model (T23), the Play permission drafts and the capability matrix say so. The web privacy page's Permissions section now separates the browser (asks for nothing) from the Android app.
+- **The Android version** is its own: `android/version.properties` (1.4.1, versionCode 10402) feeds Gradle, the Android build script and the bundled web app's About line. The desktop installers, the hosted web app and `package.json` keep 1.4.0.
+- **Start over and loading a profile** are refused while the floating cat runs (stop it first): it owns the stored cat.
+
+### Not done
+- No test, emulator, simulator or device run. The floating cat is IMPLEMENTED and COMPILED_OR_PACKAGED only.
+- Touch pass-through is limited by Android: the window is only the cat and a margin, and touches in the margin are consumed.
+- Floor-only movement: other apps' windows are invisible to an app.
+- Some secure or system screens hide overlays or block touches while one is above them.
+- No Google Play approval is assumed or claimed; the permission and foreground-service declarations are drafted, not filed.
+- The tail's inertia and the held cat's swing are reduced in the floating window.
+
+## 1.4.0 (published 2026-11-10 as a Preview: Windows x64 and ARM64 installers and an Android trial APK)
+
+**Not released.** 1.3.0 stays the current release until the owner publishes 1.4.0. **Nothing in 1.4.0 has run on any device.** A build is not a test. Statuses use the release vocabulary: IMPLEMENTED, COMPILED_OR_PACKAGED, THEORETICALLY_COMPATIBLE_NOT_EXECUTED, REQUIRES_OWNER_CREDENTIALS, BLOCKED_BY_PLATFORM, NOT_IMPLEMENTED. Every target and artifact: [docs/platforms/](docs/platforms/README.md).
+
+### Added
+- **Windows on Arm.** One installer per architecture: `Desktop-Cat-Setup-1.4.0-x64.exe` and `Desktop-Cat-Setup-1.4.0-arm64.exe`. Each carries only its own native library. The ARM64 installer stops with a clear message on a PC that is not Windows on Arm. A static payload check (`scripts/check-win-payload.mjs`) reads both builds without running them, and fails on any file outside the app's allow-list. Both installers are unsigned. The ARM64 build is cross-built on x64 and has never run (THEORETICALLY_COMPATIBLE_NOT_EXECUTED).
+- **macOS as a desktop target** for Intel and Apple Silicon ([guide](docs/platforms/macos.md)):
+  - a template menu-bar icon whose click opens the menu;
+  - a Dock icon, on by default, with a "Show GizeCat in the Dock" switch;
+  - an opt-in "Open at login" through macOS's login-item service, off by default;
+  - an application menu without Hide, and a quick save at logout or shutdown;
+  - no permission prompts: Electron's camera, microphone and Bluetooth reasons now say GizeCat never uses them;
+  - Settings in macOS terms: "this Mac", "menu bar", "Open at login", Option and Command, the macOS Keychain in the API-key messages, and a note that the fullscreen setting has no effect;
+  - the shortcut field accepts Command and Cmd;
+  - plain Unicode icons in Settings, because the Windows icon font does not exist on a Mac;
+  - rows for taskbar, tab-strip and window-hop behaviour left out where those capabilities are unavailable;
+  - status checks that do not touch the Keychain while no API key is stored.
+
+  It is floor-only (no window climbing), and it has never run on a Mac.
+- **macOS packages:**
+  - ad-hoc signed, **not notarized** zips for Intel and Apple Silicon: `GizeCat-1.4.0-mac-x64-adhoc.zip` and `GizeCat-1.4.0-mac-arm64-adhoc.zip`. They are built with `electron-builder --mac dir` in a disposable WSL 2 distro on Windows (`npm run package:mac:adhoc-wsl`) or in a Linux container (`npm run package:mac:adhoc-docker`). `scripts/check-mac-payload.mjs` inspects them statically. COMPILED_OR_PACKAGED, never run;
+  - DMG and zip for x64, arm64 and universal, from the manual `macos-packages.yml` workflow on a Mac runner: ad-hoc signed without secrets, with `-adhoc` names, or Developer ID signed and notarized with the owner's secrets (REQUIRES_OWNER_CREDENTIALS). DMG and universal builds need a Mac. The workflow has never been started.
+- **An installable web app (PWA) for tablets** ([iPad](docs/platforms/ipados.md), [Android](docs/platforms/android.md#the-web-app-in-chrome)):
+  - a manifest with a stable `id`, and icons;
+  - an offline service worker with a versioned cache, and one line in Settings that says where the offline copy stands;
+  - a CSS-only loading screen, and a failure message after 15 seconds if the app cannot start;
+  - a tablet layout with a toolbar and safe areas, a compact toolbar in narrow windows, and a Home Screen look that runs under the status bar;
+  - a settings sheet (name, coat, style, size, shadow, emotes, personality, sound, storage status, Reset settings, Start over);
+  - a static third-party notices page, `licenses.html`, under Settings → About. It opens offline;
+  - sound that starts from a tap;
+  - `npm run package:web`, which writes a self-hostable zip.
+
+  It is prepared for the GitHub project site `https://gizeverse.github.io/GizeCat/`. That address is the expected one and **it is not deployed** (REQUIRES_OWNER_CREDENTIALS). It has never run on an iPad, an Android tablet or in a browser.
+- **A native Android tablet app** ([guide](docs/platforms/android.md), [decision record](docs/gizeverse/14-android-app.md)):
+  - a Kotlin WebView app around the same web bundle;
+  - no internet permission, so there is no network access; no alarm, job or wake lock (as published in the 1.4.0 trial APK it had no permissions at all; preview 2 adds four for the optional floating cat, below);
+  - no cloud backup, and a hardened WebView;
+  - one narrow file bridge for saving profile files;
+  - Back closes an open sheet first, then moves the app to the background;
+  - the same third-party notices page, in the app's own files;
+  - a signing pipeline: the key comes from the `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` environment variables, or else from `android/keystore.properties`. `npm run android:release` builds both outputs. A partial set stops the build and names what is missing, never a value. IMPLEMENTED; never run, because no key exists;
+  - draft Google Play texts and a readiness list for the owner ([docs/store/google-play/](docs/store/google-play/release-readiness.md)). No listing exists.
+
+  The release APK and AAB are unsigned until the owner's key exists (REQUIRES_OWNER_CREDENTIALS), and an unsigned APK cannot be installed. A debug-signed trial APK exists for sideload trials only and is never a production release. It has been compiled and packaged, never run on a device or emulator.
+- **A portable profile format** (`src/shared/profileTransfer.ts`, `gizeverse-character-profile` format 1.0): the cat's identity, traits, look and preferences, and its memory only on request; never secrets, AI or perception settings, paths or device-only settings. A newer major version is refused, and an import never re-enables an opt-out. **Take your cat to another device** saves and loads it: Settings → Personality on Windows and macOS (the system's own save and open dialogs), and the settings sheet in the web app and the Android app. A preview shows what a file would change, and nothing changes until you confirm. It is a copy, not a sync ([guide](docs/platforms/profile-transfer.md)). Never run on a device.
+- **Release automation** ([guide](docs/platforms/release-automation.md)). Four workflows, each manual only: `macos-packages.yml`, `android-release.yml`, `release.yml` (now with a `signpath` path that signs through SignPath, verifies every signature and compares each signed file with its unsigned input, and draft attachment) and `pages.yml`. Signing secrets live in the protected GitHub Environments `macos-signing`, `android-signing` and `windows-signing`. **None has ever been started.** `macos-packages.yml`, `pages.yml` and `android-release.yml` are not on `main`, so they cannot be started until the owner brings them there.
+- **Documentation:** [troubleshooting by device](docs/platforms/troubleshooting.md), [moving a cat to another device](docs/platforms/profile-transfer.md), [Android signing](docs/platforms/android-signing.md).
+- **Diagnostics:** `os.arm64Translation` (true when an x64 build runs under Rosetta or Windows on Arm emulation).
+- **Signing readiness** ([overview](docs/platforms/signing-overview.md)), all never run because no credential exists:
+  - Windows: SignPath CI signing in `release.yml` and a local token or cloud-HSM script (`scripts/sign-windows.ps1`), with SHA-256 and RFC 3161 timestamps. Two check tools read files without running them: `scripts/verify-windows-signature.ps1` and `scripts/compare-signed-pe.mjs`.
+  - macOS: the Developer ID job checks the identity, hardened runtime, timestamp, notarization and stapling, also inside the shipped zips. It signs, notarizes (blocking) and staples each DMG. `scripts/check-mac-payload.mjs --expect-signature adhoc|cms` tells ad-hoc from real signatures.
+  - Android: the signed CI path refuses debug keys and APK/AAB certificate mismatches. An owner script creates the upload key outside the repository (`scripts/android-create-upload-key.ps1`).
+  - Owner steps: [release-owner-actions.md](docs/platforms/release-owner-actions.md).
+
+### Changed
+- **Windows installer file names** gain the architecture: `-x64` / `-arm64`. Shortcuts, the Apps entry and the install folder still say "Desktop Cat". The same appId means installing over 1.3.0 is an upgrade that keeps your cat (the upgrade to 1.4.0 has not been run).
+- **macOS overlay level** is `floating` instead of `screen-saver`, so menus, the menu bar, the Dock and system alerts draw over the cat.
+- **Web host CSP:** no `data:` images; `manifest-src` and `worker-src 'self'` added. The 1.3.0 wording "no network after load" is replaced by a precise one: the page itself can make no requests, and the only traffic is the browser loading the app's own files.
+- The untrusted-text helpers moved to `src/shared/text.ts` (the old path re-exports them).
+- The [capability matrix](docs/gizeverse/capability-matrix.md) marks the macOS login item as implemented and never run on a Mac, and notes which web and Android evidence is from 1.3.0.
+- **Android configuration:** the Activity also handles `touchscreen` and `colorMode`, so a move to another display keeps the live page. Changes of dark mode, language, layout direction and text size still rebuild the page on purpose. The release build no longer writes version-control info into the APK.
+- `THIRD_PARTY_NOTICES.md` names the product GizeCat, adds rcodesign as a build tool, and no longer says the Android app does not show the notices.
+
+### Security
+- New threat-model entries for the profile file as untrusted input, the service worker, static hosting with a meta-tag CSP and the shared `github.io` origin, the Android WebView file bridge, the static licences page, and the signing secrets of the release automation ([THREAT_MODEL.md](docs/THREAT_MODEL.md), T17–T22).
+- New frozen identifiers, pinned by tests: `io.github.gizeverse.gizecat` (Android application id), `https://appassets.androidplatform.net` (Android web origin) and `gizeverse-character-profile` (profile tag).
+
+### Not done
+- No test was executed for 1.4.0. The new unit, Playwright and static tests are written and wait for the owner's run.
+- No workflow in the release automation has been started.
+- Authenticode signing, Developer ID signing, notarization, Android release signing, store listings, public web hosting and Android developer verification all need the owner's credentials. No store listing exists.
+- Some Settings texts are still written for Windows when shown on a Mac ([limits](docs/platforms/macos.md#limitations)).
+
 ## 1.3.0 — first public release
 
 ### Fixed

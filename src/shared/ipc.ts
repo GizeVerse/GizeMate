@@ -6,12 +6,15 @@ import type { BehaviorProfileSnapshot } from './behaviorProfile';
 import type { PlatformReport } from './platform';
 import type { BehaviorState, CatRenderState, HitRegion } from './cat';
 import type { CatSummary } from './catState';
+import type { AnyEventId, JournalEntry, Mood, PersonalityId } from './companion';
+import type { Locale } from './i18n/locale';
 import { IDENTITY } from './identity';
 import type { PerceptionStatus, SceneReport, VisualEventKind, VisualFeatures } from './perception';
+import type { ProfilePart, ProfileParts, ProfilePreview, ProfileRejectReason } from './profileTransfer';
 import type { SurfaceDiagnostics } from './surfaceDiagnostics';
 import type { SurfaceLinesPayload } from './surfaceDiagnosticsSchema';
 import type { SurfaceStatus } from './surfaces';
-import type { PatchResult, Settings, SettingsPatch } from './settings';
+import type { BehaviorId, PatchResult, Settings, SettingsPatch } from './settings';
 
 /** Custom privileged scheme serving bundled renderer files (never file://). Frozen (identity.ts). */
 export const APP_SCHEME = IDENTITY.scheme;
@@ -40,6 +43,16 @@ export const IPC = {
   settingsGetSurfaceDiagnostics: 'settings:get-surface-diagnostics',
   /** v1.2 behaviour profile for Diagnostics -> Behaviour (validated in main; kinds, counts and durations only). */
   settingsGetBehaviorProfile: 'settings:get-behavior-profile',
+  /**
+   * 1.4.0 profile transfer ("Take your cat to another device"). Main builds, parses, previews and
+   * applies the profile; files come only from main's own save/open dialogs, and the renderer never
+   * sends file content or a path (only the export option, a token and the chosen parts).
+   */
+  settingsExportProfile: 'settings:export-profile',
+  settingsOpenProfile: 'settings:open-profile',
+  settingsApplyProfile: 'settings:apply-profile',
+  /** Living Companion: the cat journal for the Journal page (validated in main; event ids, outcome tokens and dates only). */
+  settingsGetJournal: 'settings:get-journal',
   // main -> settings
   settingsStateChanged: 'settings:state-changed',
 } as const;
@@ -108,6 +121,19 @@ export const SETTINGS_ACTIONS = [
   /** v1.1.1 on-desktop surface outlines: session-only, never persisted (off after a restart). */
   'showSurfaceOutlines',
   'hideSurfaceOutlines',
+  /** 1.4.0, macOS only: main opens System Settings › General › Login Items (a constant URL); elsewhere it fails. */
+  'openLoginItemsSettings',
+  /**
+   * Living Companion. Laser Mode is session-only (off after every start, never persisted): the red
+   * dot follows the real pointer and the cat chases it without ever catching it. Event pause is also
+   * session-only: it holds the world-event schedule until resumed or restarted.
+   */
+  'startLaserMode',
+  'stopLaserMode',
+  'pauseEvents',
+  'resumeEvents',
+  /** Clears the cat journal (and the event history it was written from); nothing else. */
+  'clearJournal',
   'quit',
 ] as const;
 export type SettingsAction = (typeof SETTINGS_ACTIONS)[number];
@@ -122,9 +148,64 @@ export const SetApiKeySchema = z
   })
   .strict();
 
+// ---- 1.4.0 profile transfer (src/shared/profileTransfer.ts holds the file format)
+
+/** A pending import's token: 128 random bits in hex, issued by main for a file picked in its own dialog. */
+export const PROFILE_TOKEN_PATTERN = /^[0-9a-f]{32}$/;
+
+export const ExportProfileRequestSchema = z.object({ includeMemory: z.boolean() }).strict();
+
+export const ProfilePartsSchema = z
+  .object({ cat: z.boolean(), appearance: z.boolean(), preferences: z.boolean(), memory: z.boolean() })
+  .strict();
+// Compile-time pin: the schema's keys are exactly the profile parts.
+const _profilePartsSchemaMatches: [keyof z.infer<typeof ProfilePartsSchema>] extends [ProfilePart]
+  ? [ProfilePart] extends [keyof z.infer<typeof ProfilePartsSchema>]
+    ? true
+    : false
+  : false = true;
+
+export const ApplyProfileRequestSchema = z.object({ token: z.string().regex(PROFILE_TOKEN_PATTERN), parts: ProfilePartsSchema }).strict();
+
+/** Export outcome. Reason codes only; the renderer words them (strings.ts S.profile). */
+export type ProfileExportResponse =
+  | { status: 'saved'; fileName: string }
+  | { status: 'cancelled' }
+  | { status: 'busy' }
+  | { status: 'failed' }
+  | { status: 'unavailable' };
+
+/** Open outcome: a preview (plain data) and the token that applies it, or why not. */
+export type ProfileOpenResponse =
+  | { status: 'ready'; token: string; preview: ProfilePreview }
+  | { status: 'rejected'; reason: ProfileRejectReason | 'unreadable'; formatMajor?: number }
+  | { status: 'cancelled' }
+  | { status: 'busy' }
+  | { status: 'unavailable' };
+
+export type ProfileApplyFailureReason = 'expired' | 'nothing-selected' | 'invalid-request' | 'unavailable' | 'failed';
+export type ProfileApplyResponse =
+  | { ok: true; name: string; catReplaced: boolean; keptOff: BehaviorId[] }
+  | { ok: false; reason: ProfileApplyFailureReason };
+
 export const SettingsPatchSchema = z.record(z.string().max(32), z.record(z.string().max(64), z.unknown()));
 
 /** Launch at Windows sign-in, as main sees it right now. */
+/**
+ * Why startup at sign-in is (not) in the state shown, or what a change did, as a code: main states the
+ * fact, the settings window words it in the interface language (strings.loginText). The English
+ * `reason` / `message` beside it stay for diagnostics and older readers.
+ */
+export const LOGIN_CODES = [
+  'unsupportedPlatform', 'envOff', 'pathTooLong', 'devOtherCopy', 'devPortable', 'unreadable', 'registersNextStart',
+  'windowsDisabled', 'wrongLocation', 'noEntry', 'stillStarts',
+  'startsOn', 'startsOff', 'notWritable', 'registryUnreadable', 'windowsDisabledSaved', 'windowsDisabledRestored',
+  'saveFailed', 'writeFailed',
+  'macUnpackaged', 'macEnvOff', 'macNotInApplications', 'macRequiresApproval', 'macNotRegistered', 'macNotFound', 'macUnknown', 'macOnOutside',
+  'macOn', 'macOff', 'macApproval', 'macNotWritable', 'macFailed',
+] as const;
+export type LoginCode = (typeof LOGIN_CODES)[number];
+
 export interface LoginItemStatus {
   /** Effective preference: 'unset' resolves to the product default (on). */
   enabled: boolean;
@@ -136,6 +217,8 @@ export interface LoginItemStatus {
   writable: boolean;
   /** Short explanation when active differs from enabled (e.g. 'Disabled in Windows Startup apps'), or null. */
   reason: string | null;
+  /** The same explanation as a code (the window words it in its language); absent when `reason` is null. */
+  reasonCode?: LoginCode;
   /** Show the one-time 'startup was turned on' notice. */
   showNotice: boolean;
 }
@@ -167,10 +250,37 @@ export interface ResourceSample {
   workingSetMB: number;
 }
 
+/**
+ * What the Companion page shows live (Living Companion). Derived by main from the sim each time the view
+ * state is built; never persisted and content-free (ids and numbers only).
+ */
+export interface CompanionStatus {
+  /** The cat's temporary mood. */
+  mood: Mood;
+  /** What the cat is doing (its behaviour state). */
+  activity: BehaviorState;
+  /** The chosen personality, or the nearest profile of a cat that keeps its born traits ('auto'). */
+  personality: PersonalityId;
+  /** True when `personality` is the nearest profile of an 'auto' cat rather than the user's choice. */
+  personalityIsAuto: boolean;
+  /** The world event that is running, or null. */
+  event: AnyEventId | null;
+  /** ms until the next world event, or null when one is running, events are off or the schedule is frozen. */
+  nextEventInMs: number | null;
+  /** The user paused events for this session. */
+  eventsPaused: boolean;
+  /** Laser Mode is on. */
+  laserActive: boolean;
+}
+
 export interface SettingsViewState {
   settings: Settings;
   status: AppStatus;
   cat: CatSummary;
+  /** Living Companion live status; absent from older builds' snapshots. */
+  companion?: CompanionStatus;
+  /** GizeMate: the effective interface language (main resolves settings.general.language against the system language). Absent = English. */
+  locale?: Locale;
   apiKeys: { anthropic: boolean; openaiCompatible: boolean };
   resources: ResourceSample[];
   versions: { app: string; electron: string; chrome: string; node: string; os: string };
@@ -180,6 +290,8 @@ export interface SettingsViewState {
 export interface ActionResult {
   ok: boolean;
   message?: string;
+  /** Login-item outcomes also carry a code; the window words it in its language and falls back to `message`. */
+  code?: LoginCode;
 }
 
 export interface AiTestResult {
@@ -229,5 +341,13 @@ export interface SettingsApi {
   getSurfaceDiagnostics(): Promise<SurfaceDiagnostics>;
   /** v1.2: what the cat did this session (validated in main against BehaviorProfileSchema; no ids, titles or positions). */
   getBehaviorProfile(): Promise<BehaviorProfileSnapshot>;
+  /** 1.4.0: saves this cat to a file the user picks in main's save dialog. */
+  exportProfile(opts: { includeMemory: boolean }): Promise<ProfileExportResponse>;
+  /** 1.4.0: main's open dialog; returns a preview and a token, never the file's content or path. */
+  openProfile(): Promise<ProfileOpenResponse>;
+  /** 1.4.0: applies the chosen parts of the file behind `token` (after the user confirmed the preview). */
+  applyProfile(token: string, parts: ProfileParts): Promise<ProfileApplyResponse>;
+  /** Living Companion: the journal, newest last (bounded, content-free tokens; sentences are built in the UI from src/shared/worldText.ts). */
+  getJournal(): Promise<JournalEntry[]>;
   onStateChanged(cb: (state: SettingsViewState) => void): () => void;
 }

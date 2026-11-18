@@ -1,12 +1,16 @@
 // IPC entry points. Every message is checked against the sender's window (kind,
 // main frame, our page URL), rate limited, and validated with the shared zod
 // schemas before anything acts on it. Secrets never travel back to renderers.
+import { ACTION_MESSAGES } from '../../shared/i18n/actionMessages';
 import type { IpcMain, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import type { z } from 'zod';
 import type { BehaviorProfileSnapshot } from '../../shared/behaviorProfile';
 import { parseBehaviorProfile } from '../../shared/behaviorProfileSchema';
 import type { HitRegion } from '../../shared/cat';
+import type { JournalEntry } from '../../shared/companion';
 import {
+  ApplyProfileRequestSchema,
+  ExportProfileRequestSchema,
   HitRegionSchema,
   IPC,
   OverlayErrorSchema,
@@ -19,6 +23,9 @@ import {
   type ModelListResult,
   type OverlayPointerEvent,
   type PerceptionPreview,
+  type ProfileApplyResponse,
+  type ProfileExportResponse,
+  type ProfileOpenResponse,
   type SettingsViewState,
 } from '../../shared/ipc';
 import { rejectConsentBypass, rejectMainOwnedPatch, type PatchResult } from '../../shared/settings';
@@ -26,13 +33,14 @@ import type { SurfaceDiagnostics } from '../../shared/surfaceDiagnostics';
 import { parseSurfaceDiagnostics } from '../../shared/surfaceDiagnosticsSchema';
 import type { Logger, PerceptionService } from '../contracts';
 import { redactString } from '../diagnostics/redact';
+import type { ProfileTransferService } from '../profile/profileService';
 import { verifyIpcSender, type WindowRegistry } from '../security';
-import { ENCRYPTION_UNAVAILABLE_MESSAGE, type ManagedSecretStore } from '../store/secretStore';
+import { apiKeySavedMessage, ENCRYPTION_UNAVAILABLE_MESSAGE, type ManagedSecretStore } from '../store/secretStore';
 import type { SettingsStore } from '../store/settingsStore';
 import type { ActionRunner } from './actions';
 import { createRateLimiter } from './rateLimit';
 import { rejectMainOwnedFields } from './startupState';
-import { toPerceptionPreview } from './viewState';
+import { sanitizeJournal, toPerceptionPreview } from './viewState';
 
 /** Shared overlay budget: pointer moves (the renderer caps them per time), hit regions, errors. */
 export const OVERLAY_MESSAGES_PER_SECOND = 240;
@@ -74,6 +82,10 @@ export interface IpcDeps {
   getSurfaceDiagnostics?: () => SurfaceDiagnostics;
   /** v1.2 behaviour profile for Diagnostics -> Behaviour (the sim's session snapshot; validated here). */
   getBehaviorProfile?: () => BehaviorProfileSnapshot;
+  /** Living Companion journal (the sim's own list; validated here before it leaves main). Absent: the channel answers an empty list. */
+  getJournal?: () => readonly JournalEntry[];
+  /** 1.4.0 profile transfer (export, open with preview, apply); absent: the channels answer 'unavailable'. */
+  profiles?: ProfileTransferService;
   clock: () => number;
 }
 
@@ -141,7 +153,8 @@ export function registerIpcHandlers(deps: IpcDeps): IpcRegistration {
     onChannels.push(channel);
   }
 
-  function onSettings<R>(channel: string, fn: (payload: unknown) => R | Promise<R>): void {
+  /** `senderId` (the verified settings webContents) binds a 1.4.0 profile import to the window that opened it. */
+  function onSettings<R>(channel: string, fn: (payload: unknown, senderId: number) => R | Promise<R>): void {
     deps.ipcMain.handle(channel, async (event: IpcMainInvokeEvent, payload: unknown) => {
       if (!verifyIpcSender(event, deps.registry, 'settings')) {
         warnThrottled(`sender:${channel}`, 'rejected settings call from an untrusted sender', { channel });
@@ -151,7 +164,7 @@ export function registerIpcHandlers(deps: IpcDeps): IpcRegistration {
         warnThrottled(`rate-settings:${channel}`, 'settings call rate limit exceeded', { channel });
         throw new Error('Too many requests');
       }
-      return fn(payload);
+      return fn(payload, event.sender.id);
     });
     handleChannels.push(channel);
   }
@@ -188,22 +201,23 @@ export function registerIpcHandlers(deps: IpcDeps): IpcRegistration {
 
   onSettings(IPC.settingsAction, async (payload): Promise<ActionResult> => {
     const parsed = SettingsActionSchema.safeParse(payload);
-    if (!parsed.success) return { ok: false, message: 'Unknown action.' };
+    if (!parsed.success) return { ok: false, message: ACTION_MESSAGES.unknownAction };
     return deps.actions.run(parsed.data);
   });
 
   onSettings(IPC.settingsSetApiKey, (payload): ActionResult => {
     const parsed = SetApiKeySchema.safeParse(payload);
-    if (!parsed.success) return { ok: false, message: 'That does not look like a valid API key.' };
+    if (!parsed.success) return { ok: false, message: ACTION_MESSAGES.invalidApiKey };
     const { provider, key } = parsed.data;
     if (key !== null && !deps.secrets.encryptionAvailable) return { ok: false, message: ENCRYPTION_UNAVAILABLE_MESSAGE };
     const ok = deps.secrets.set(provider, key);
     if (ok) {
       log.info(key === null ? 'API key removed' : 'API key stored (encrypted)', { provider });
       deps.onSecretsChanged();
-      return { ok: true, message: key === null ? 'API key removed.' : 'API key saved (encrypted with Windows DPAPI).' };
+      // 1.4.0: each platform names its own store (Windows DPAPI as before; the Keychain on macOS).
+      return { ok: true, message: key === null ? ACTION_MESSAGES.apiKeyRemoved : apiKeySavedMessage(process.platform) };
     }
-    return { ok: false, message: 'Could not save the API key; see the log for details.' };
+    return { ok: false, message: ACTION_MESSAGES.apiKeySaveFailed };
   });
 
   onSettings(IPC.settingsTestAi, async (): Promise<AiTestResult> => {
@@ -271,6 +285,54 @@ export function registerIpcHandlers(deps: IpcDeps): IpcRegistration {
       throw new Error(behaviorUnavailable);
     }
     return parsed;
+  });
+
+  // Living Companion: the journal goes through the same kind of gate (known event ids, outcome tokens,
+  // finite times, bounded). A failing source answers an empty list, so the Journal page still renders.
+  onSettings(IPC.settingsGetJournal, (): JournalEntry[] => {
+    if (!deps.getJournal) return [];
+    try {
+      return sanitizeJournal(deps.getJournal());
+    } catch (err) {
+      warnThrottled('journal:failed', 'reading the journal failed', { error: err });
+      return [];
+    }
+  });
+
+  // 1.4.0 profile transfer. Strict payloads (no extra keys); the renderer sends no file content and
+  // no path. Failures come back as reason codes; the error itself goes to the log by code only.
+  onSettings(IPC.settingsExportProfile, async (payload): Promise<ProfileExportResponse> => {
+    const parsed = ExportProfileRequestSchema.safeParse(payload);
+    if (!parsed.success) return { status: 'failed' };
+    if (!deps.profiles) return { status: 'unavailable' };
+    try {
+      return await deps.profiles.exportToFile(parsed.data);
+    } catch (err) {
+      log.warn('profile export failed', { error: err instanceof Error ? err.name : 'Error' });
+      return { status: 'failed' };
+    }
+  });
+
+  onSettings(IPC.settingsOpenProfile, async (_payload, senderId): Promise<ProfileOpenResponse> => {
+    if (!deps.profiles) return { status: 'unavailable' };
+    try {
+      return await deps.profiles.openForImport(senderId);
+    } catch (err) {
+      log.warn('opening a profile failed', { error: err instanceof Error ? err.name : 'Error' });
+      return { status: 'rejected', reason: 'unreadable' };
+    }
+  });
+
+  onSettings(IPC.settingsApplyProfile, (payload, senderId): ProfileApplyResponse => {
+    const parsed = ApplyProfileRequestSchema.safeParse(payload);
+    if (!parsed.success) return { ok: false, reason: 'invalid-request' };
+    if (!deps.profiles) return { ok: false, reason: 'unavailable' };
+    try {
+      return deps.profiles.applyImport(senderId, parsed.data);
+    } catch (err) {
+      log.error('applying a profile failed', { error: err instanceof Error ? err.name : 'Error' });
+      return { ok: false, reason: 'failed' };
+    }
   });
 
   return {

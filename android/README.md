@@ -1,0 +1,218 @@
+# GizeCat for Android (tablet-first)
+
+A native Kotlin app with one Activity and one WebView. The WebView serves the **same production web
+bundle as the browser/PWA version** (`out/web`, built by `node scripts/build.mjs --web-only`) from
+the APK's assets, so the cat, its simulation, renderer and gesture rules are the web host's, unchanged.
+The page recognises the Android host by its origin and skips the service worker there.
+
+Not Capacitor, by design (decision D1 of the 1.4.0 design pass): no npm dependencies, two AndroidX
+libraries, no JavaScript interface object. **1.4.1 adds an optional floating cat**: a
+foreground service (`FloatingCatService`) with one small transparent overlay window
+(`OverlayWindow`) that runs the same web bundle (`index.html?surface=overlay`) and follows the cat
+over other apps. It needs four permissions, only for it, and the app is fully usable without them.
+Design, permissions, touch limits and install steps: [docs/platforms/android-overlay.md](../docs/platforms/android-overlay.md).
+It has compiled and packaged; it has never run on a device or emulator.
+
+## Frozen identifiers
+
+| What | Value | Why it never changes |
+| --- | --- | --- |
+| applicationId and namespace | `io.github.gizeverse.gizecat` | Permanent once published on a store. Different from the desktop appId. |
+| WebView origin | `https://appassets.androidplatform.net` | WebViewAssetLoader's reserved domain. The cat's localStorage is keyed by it; a new origin loses every Android cat. |
+| Start page | `https://appassets.androidplatform.net/assets/index.html` | Built from the origin above. |
+
+Both are pinned in `src/shared/identity.ts` (`androidApplicationId`, `androidWebOrigin`) and checked
+against this project by `tests/unit/android/androidProject.test.ts`.
+
+## What the app does and does not do
+
+- **Permissions: four, all for the optional floating cat** (`SYSTEM_ALERT_WINDOW`, `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_SPECIAL_USE`, `POST_NOTIFICATIONS`), requested only when the user taps Float over
+  apps. No `INTERNET`, so Android itself forbids network access. That is the third
+  layer, after the page's CSP (`connect-src 'none'`) and the native layer, which answers every request
+  outside `https://appassets.androidplatform.net/assets/` with an empty 404 (in the floating window
+  too). There is no storage permission either: files go through the Storage Access Framework, which
+  needs none. No accessibility service, no screen capture, no boot receiver. The androidx.core
+  receiver permission is removed from the merged manifest.
+- **WebView settings:** JavaScript and DOM storage on. File and content URL access, geolocation,
+  automatic or multiple windows, zoom and media autoplay off. Mixed content is never allowed.
+  WebView usage metrics are opted out. DevTools exist only in debuggable (developer `debug`) builds.
+- **Navigation** never leaves the app's own pages and no link opens another app.
+- **Backup:** `allowBackup="false"`, so there is no cloud backup. Android 12+ device-to-device
+  transfer copies the WebView storage (`app_webview/`), so a new device keeps the cat.
+  `hasFragileUserData="true"`, so uninstalling offers to keep the cat's data.
+- **Tablet-first:** no forced orientation, `resizeableActivity="true"` (split screen, freeform
+  windows), `singleTask` (one cat per device). Rotation, split screen, resizing, display-size
+  (density) changes, keyboards and moves to another display are handled in `android:configChanges`,
+  so they keep the live page. A night-mode, dock, language or font-scale change recreates the
+  Activity on purpose, and the cat comes back from localStorage. Edge to edge, with the page padded
+  to the safe area. The system bars use the page colours.
+- **No background work except the user-started floating cat:** one foreground service
+  (`FloatingCatService`) that never starts by itself or restarts; no alarm, job, wake lock or
+  battery-optimisation request. Out of sight the app's WebView is paused and its timers stop (except
+  while the floating cat runs: the timers are process-wide).
+- **Lifecycle:** backgrounding pauses the WebView, so the page sees `visibilitychange: hidden`,
+  saves the cat and naps. A lost renderer is replaced, at once while the app is in front and
+  otherwise when it comes back, so a backgrounded app never starts a renderer the system would
+  reclaim again. Only crashes count, not renderers the system killed for memory: after 3 crashes
+  within 60 s a static message is shown instead, and reopening the app (the launcher icon,
+  Recents, or switching back) clears the count and tries again.
+- **Back:** on a page other than the cat's (the notices pages), Back returns to the cat, through the
+  WebView's history or, when it has none, by loading the start page, and runs no script. On the
+  cat's page the app first asks the page to close its open dialog (the settings sheet, which also
+  holds the profile-import preview; nothing is applied), by running one fixed script with
+  `evaluateJavascript` that never carries page or native data. The sheet updates exactly as for
+  Escape. With no dialog open, Back moves the app to the background instead of closing it, as
+  Android 12+ does for launcher apps. Android 13+ receives Back through an `OnBackInvokedCallback`
+  (the manifest opts in to predictive back), so the system's back-to-home preview animation is not
+  shown; Android 10-12 through `onBackPressed`.
+- **Lowest version:** Android 10 (API 29), with an updated Android System WebView.
+
+## Native file bridge (profile export and import)
+
+This is the bridge for files (`app/src/main/java/io/github/gizeverse/gizecat/FileBridge.kt`, the
+page global `gizecatNative`). It is deliberately narrow, like the other two, which belong to the
+floating cat: `gizecatFloating` (`FloatingBridge.kt`: a fixed set of operations from the app screen)
+and `gizecatOverlay` (`OverlayWindow.kt`, only inside the floating window). Each is one web message
+listener for the exact app origin, main frame only, with strict JSON shapes.
+
+1. **Import:** an `<input type="file">` in the page opens the system file picker
+   (`ACTION_OPEN_DOCUMENT`, JSON and plain-text documents, one file). The user picks the file; the
+   WebView reads it and the page validates the contents. The picker answers "nothing picked" when
+   it is cancelled.
+2. **Export:** in main frames of the app's own origin, and only there, the page has a
+   `gizecatNative` object (`WebViewCompat.addWebMessageListener`). It accepts exactly one message
+   shape, as a JSON string:
+
+   ```js
+   gizecatNative.postMessage(JSON.stringify({ type: 'saveFile', name: 'gizecat-profile.json', mime: 'application/json', text }));
+   gizecatNative.onmessage = (event) => {
+     const result = JSON.parse(event.data); // { type: 'saveResult', ok: true } or { type: 'saveResult', ok: false, reason }
+   };
+   ```
+
+   - Rules: `mime` is `application/json` or `text/plain`, and `text` is at most 256 KB in UTF-8.
+     The four keys are required and no others are allowed. `name` is cleaned: path parts, control
+     and invisible formatting characters, reserved characters and leading dots are dropped, the name
+     is cut to 100 characters, and the extension follows `mime`.
+   - The user chooses the location in the system "save as" screen (`ACTION_CREATE_DOCUMENT`).
+     The text is then written through the ContentResolver.
+   - Possible `reason` values: `cancelled`, `busy` (another save is waiting for the user),
+     `invalid`, `too-large`, `unavailable` (no document app) and `write-failed`.
+   - Feature detection: `typeof gizecatNative !== 'undefined'`. The object is missing in browsers,
+     and on Android System WebView versions without `WEB_MESSAGE_LISTENER`.
+3. There is nothing else: no other message types, no `addJavascriptInterface`, no download
+   listener, and no storage permission. Camera, microphone and other web permission requests, and
+   geolocation, are always denied.
+
+## Build
+
+Prerequisites: a JDK 17 or newer (Android Studio's bundled JBR works) and the Android SDK with
+platform `android-36` and build-tools 36.0.0. On first use the Gradle wrapper downloads Gradle 9.1.0
+(a sha256-pinned distribution), and Gradle then downloads the Android Gradle Plugin 9.0.1 with its
+built-in Kotlin from Google Maven and Maven Central.
+
+`scripts/android-gradle.mjs` sets `JAVA_HOME` and `ANDROID_HOME` for the Gradle process only. It uses
+the environment's values when they are valid; otherwise Android Studio's JBR and the default SDK
+folder. It runs `scripts/build-web-app.mjs` first, which rebuilds `out/web` and copies it into
+`app/src/main/assets/` (generated and gitignored). After the build it copies the outputs to
+`release/<version>/android/` and writes `SHA256SUMS-android.txt`. Each file's name reports what it
+is: `GizeCat-<version>-android.apk/.aab` is signed with the release key,
+`GizeCat-<version>-android-unsigned.apk/.aab` is unsigned, and
+`GizeCat-<version>-android-trial-debugsigned.apk` is the trial.
+
+What is copied follows the tasks you asked for (`assembleRelease`, `bundleRelease`, `assembleTrial`),
+so a run Gradle found up to date still copies its outputs, and a requested output that is missing
+stops the script with an error. Copying a release APK or AAB first removes both the signed and the
+unsigned copy of that kind from the folder, so the two never sit side by side in one checksum file.
+Other Gradle tasks copy nothing.
+
+| Output | Command | Gradle output |
+| --- | --- | --- |
+| Release APK and AAB together | `npm run android:release` | both rows below |
+| Release APK (unsigned without a key) | `npm run android:apk` | `app/build/outputs/apk/release/app-release-unsigned.apk` (`app-release.apk` when signed) |
+| Release AAB for Google Play (unsigned without a key) | `npm run android:aab` | `app/build/outputs/bundle/release/app-release.aab` |
+| Trial APK (sideload trials only) | `npm run android:trial` | `app/build/outputs/apk/trial/app-trial.apk` |
+| Web bundle into the app only | `npm run android:web` | `app/src/main/assets/` |
+
+The npm scripts run under `scripts/with-lock.mjs`, so builds on a shared machine take turns. You can
+also call it directly: `node scripts/android-gradle.mjs :app:assembleRelease [--no-web] [--no-collect]`.
+Plain Gradle works too, once `app/src/main/assets/` is filled. In PowerShell (the `$env:` values
+last for that process only):
+
+```powershell
+& { $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'; $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"; android\gradlew.bat -p android --no-daemon :app:assembleRelease }
+```
+
+**Preview builds.** `node scripts/with-lock.mjs android -- node scripts/android-gradle.mjs :app:assembleRelease
+:app:bundleRelease :app:assembleTrial --preview=1` builds a preview: `versionName` becomes
+`<version>-overlay.1`, the trial's `versionCode` becomes the release's plus 1 (so it installs over an
+earlier trial APK of the same key; the release `versionCode` is left alone, so a real release is never
+older than a preview), and the outputs go to `release/<version>-overlay.1/android/` with names
+carrying `overlay.1` and their own `SHA256SUMS-android.txt`. They never enter, replace or delete a
+file of `release/<version>/android/`.
+
+Version: the Android app has **its own version**, `android/version.properties` (`versionName=1.4.1`,
+`versionCode=10402`), so an Android-only release does not claim that the unchanged Windows and macOS
+builds are new; `package.json` stays the desktop and web version (1.4.0). The build fails if the
+versionCode is below package.json's formula (MAJOR×10000 + MINOR×100 + PATCH, so 1.4.0 gives 10400;
+MINOR and PATCH must stay below 100). Never lower the versionCode or reuse a value: Android refuses
+a downgrade, and an earlier trial APK of the same signing key only updates to a higher code (10400
+was the 1.4.0 trial, 10401 the unpublished 1.4.0-overlay.1 build). The same file's versionName is
+the bundled web app's About version (`scripts/build-web-app.mjs` sets `GIZECAT_WEB_APP_VERSION` for
+that build only). The outputs carry no version control information (`vcsInfo { include = false }`), so the build machine's git state is not in them.
+
+### Build types
+
+- `release`: R8 minify and resource shrinking. APK and AAB use the same applicationId and the same
+  signing configuration: the four `ANDROID_KEY*` environment variables if any is set, otherwise
+  `android/keystore.properties`; otherwise the outputs are unsigned. An unsigned APK cannot be
+  installed and an unsigned AAB cannot be uploaded.
+- `trial`: the release code signed with the Android SDK **debug** keystore (`~/.android/debug.keystore`,
+  which Gradle creates if it is missing). It has applicationId `io.github.gizeverse.gizecat.trial`,
+  versionName `1.4.0-trial` and the label "GizeCat (trial)". It is not debuggable, and it installs
+  next to the release app with its own, separate cat. Use it for sideload trials only and never
+  distribute it: anyone with a debug keystore can sign an "update" for it.
+- `debug`: developers only (WebView DevTools on).
+
+## Signing (owner only)
+
+Agents never create or handle the release keystore. The full procedure is in
+[docs/platforms/android-signing.md](../docs/platforms/android-signing.md): generating the upload key,
+storing and backing it up, `keystore.properties`, GitHub secrets, Play App Signing and the exact
+build commands.
+
+The release build takes its key from, in this order:
+
+1. The environment: `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
+   `ANDROID_KEY_PASSWORD`. Setting only some of them stops the Gradle configuration with a message
+   naming the missing ones. It never prints a value.
+2. `android/keystore.properties` (gitignored; copy `keystore.properties.example`). An incomplete file
+   also stops the build.
+3. Nothing: the outputs are unsigned.
+
+You can also build unsigned and sign afterwards:
+`apksigner sign --ks <keystore> --out GizeCat.apk app-release-unsigned.apk` (build-tools) for the
+APK, and `jarsigner -keystore <keystore> app-release.aab <alias>` (JDK) for the AAB.
+
+## Install (trial APK, sideloading)
+
+On the tablet, allow installing from the source you use (Files app or browser), open
+`GizeCat-<version>-android-trial-debugsigned.apk`, and confirm. With a computer:
+`adb install GizeCat-<version>-android-trial-debugsigned.apk`. Android developer verification rules
+for sideloaded apps apply on certified devices; ADB installs are exempt.
+
+## Status
+
+The project compiles and packages with Gradle on Windows (`:app:assembleRelease`, `:app:bundleRelease`
+and `:app:assembleTrial` for 1.4.1, `--preview=1`, with AGP's lint-vital check passing; the
+release outputs unsigned).
+No release key exists, so the signed paths and the partial-key errors have never run. The app has
+never run on a device or emulator, so every runtime behaviour described above is
+THEORETICALLY_COMPATIBLE_NOT_EXECUTED until it runs on a real tablet.
+
+The merged manifest also contains two components from AndroidX libraries: the
+`androidx.startup.InitializationProvider` (not exported) and the
+`androidx.profileinstaller.ProfileInstallReceiver`. The receiver is exported but guarded by
+`android.permission.DUMP`, so only the system or `adb shell` can call it. Together they install the
+app's baseline profile for faster start-up. Neither needs a permission or the network.

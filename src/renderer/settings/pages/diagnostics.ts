@@ -1,5 +1,5 @@
 import type { BehaviorProfileSnapshot } from '../../../shared/behaviorProfile';
-import type { LoginItemStatus, ResourceSample, SettingsAction, SettingsApi, SettingsViewState } from '../../../shared/ipc';
+import type { AppStatus, LoginItemStatus, ResourceSample, SettingsAction, SettingsApi, SettingsViewState } from '../../../shared/ipc';
 import { CAPABILITY_IDS, type PlatformReport, type RuntimeCapability } from '../../../shared/platform';
 import type { SurfaceDiagnostics } from '../../../shared/surfaceDiagnostics';
 import { huntEntries, moodEntries, physicsEntries, reactionSummary, stayEntries, summaryEntries, timeRows } from '../behaviorView';
@@ -11,7 +11,8 @@ import { livePoll, pagePoll, type LivePoll } from '../livePoll';
 import { pauseModel } from '../privacyView';
 import { niceCeil, sparkline } from '../sparkline';
 import { errorText, type Timers } from '../store';
-import { S } from '../strings';
+import { actionMessage } from '../actionText';
+import { deviceWords, platformWording, S } from '../strings';
 import { catEntries, coordinateEntries, countRows, errorItems, seenEntries, tabStripEntries } from '../surfacesView';
 
 const D = S.diagnostics;
@@ -94,10 +95,30 @@ export function loginItemLabel(s: LoginItemStatus): string {
   return s.enabled ? D.inactive : D.loginOff;
 }
 
+/**
+ * The login row's name in the status list (1.4.0): "Start with Windows" on Windows (and without a
+ * platform report, as before), "Open at login" on macOS, "Start when you sign in" elsewhere; the
+ * same terms as the General page's launch row.
+ */
+export function loginItemRowLabel(platform: AppStatus['platform']): string {
+  if (!platform || platform.id === 'win32') return D.launchAtLogin;
+  return platform.id === 'darwin' ? D.launchAtLoginMac : D.launchAtLoginElsewhere;
+}
+
+/**
+ * The OS row's name under Versions (1.4.0): "Windows" on Windows (and without a platform report, as
+ * before), "Operating system" elsewhere, where the value is os.type() and os.release() (on a Mac the
+ * Darwin version, so "macOS" would misname it).
+ */
+export function osVersionLabel(platform: AppStatus['platform']): string {
+  return platformWording(platform) === 'windows' ? D.versions.os : D.versionsOsElsewhere;
+}
+
 export function statusEntries(view: SettingsViewState, now: number): Array<readonly [string, string]> {
   const { status, settings } = view;
   const p = status.perception;
   const pause = pauseModel(view);
+  const wording = platformWording(status.platform);
   let perception: string = D.modes[p.mode];
   if (pause.suspended) {
     // Main's blocked reason is the generic "paused" text here; the suspension reason replaces it.
@@ -110,14 +131,14 @@ export function statusEntries(view: SettingsViewState, now: number): Array<reado
     [D.catState, behaviorStateLabel(status.catState)],
     [D.windowAwareness, D.awareness[status.windowAwareness]],
     [D.displays, formatCount(status.displayCount)],
-    [D.perception, perception],
+    [D.perception, deviceWords(perception, wording)],
     [D.capturesThisHour, formatCount(p.capturesThisHour)],
     [D.lastCapture, p.lastCaptureAt === null ? S.common.never : formatRelativeTime(p.lastCaptureAt, now)],
   ];
-  if (p.lastError) entries.push([D.lastError, p.lastError]);
+  if (p.lastError) entries.push([D.lastError, deviceWords(p.lastError, wording)]);
   entries.push(
     [D.shortcut, !settings.general.shortcutsEnabled ? D.shortcutsOff : status.shortcutRegistered ? D.registered : D.notRegistered],
-    [D.launchAtLogin, loginItemLabel(status.loginItem)],
+    [loginItemRowLabel(status.platform), loginItemLabel(status.loginItem)],
     [D.uptime, formatElapsed(status.startedAt, now)],
   );
   return entries;
@@ -271,7 +292,7 @@ function surfacesSection(ctx: PageContext): SurfacesSection {
     void ctx.api
       .action(outlineAction(on))
       .then((res) => {
-        if (!res.ok) fail(res.message ?? S.errors.unexpected);
+        if (!res.ok) fail(actionMessage(res) ?? S.errors.unexpected);
       })
       .catch((e: unknown) => fail(errorText(e)))
       .finally(() => {
@@ -408,7 +429,7 @@ export function diagnosticsPage(ctx: PageContext): PageView {
         [D.versions.electron, v.electron],
         [D.versions.chrome, v.chrome],
         [D.versions.node, v.node],
-        [D.versions.os, v.os],
+        [osVersionLabel(view.status.platform), v.os],
         [D.dataFolder, view.paths.userData],
       ]),
     );

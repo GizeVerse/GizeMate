@@ -1,5 +1,7 @@
 // Shared vocabulary for the single cat: behaviour states, animation clips, emotes,
 // skins and the render snapshot the main process sends to overlay renderers.
+import type { CharacterId } from './characters/types';
+import type { Mood, RenderProp } from './companion';
 
 /** Behaviour states of the cat's state machine (src/core/behavior). */
 export const BEHAVIOR_STATES = [
@@ -78,6 +80,24 @@ export const ANIM_CLIPS = [
   'balance', // narrow ledge or top corner: crouched stance, tail out as a counterweight, small sway (loop; `balance` scales it)
   'tailChase', // spinning after its own tail (loop)
   'edgeSit', // sitting at a ledge's edge looking down past its paws (`look` below the ledge) (loop)
+  // Living Companion: the body-care and expression clips the catalogue found missing.
+  'scratch', // sitting, hind leg scratching behind the ear (loop)
+  'shake', // standing full-body shake-off, as after getting wet (~1.1 s, one-shot)
+  'confused', // sitting, head tilting side to side, one ear up (loop)
+  // GizeMate: shared performance clips for the other characters' signature behaviours. The cat does
+  // not select them (its renderer draws them as a stand); each character's renderer draws the ones it
+  // lists in its module (src/shared/characters/) and the rest resolve through the clip fallbacks.
+  'hop', // discrete hops as locomotion: crouch, spring, land, repeat (loop; rate scales with speed)
+  'bounce', // springy bouncing as locomotion or play: continuous squash and stretch (loop)
+  'float', // hovering in the air, drifting; the body does not touch the ground (loop; rate scales with speed)
+  'vanish', // fade and shrink out of sight (~0.9 s, one-shot; the brain relocates the character while hidden)
+  'appear', // fade and grow into sight (~0.9 s, one-shot)
+  'swing', // hanging by the hands from a ledge, swinging (loop)
+  'squish', // compress flat, then spring back (~0.6 s, one-shot)
+  'scan', // looking around methodically, head sweeping (loop)
+  'beam', // emitting a light or energy effect (~1.4 s, one-shot)
+  'peek', // peeking out from hiding, ducking back (loop)
+  'dance', // a playful rhythmic dance (loop)
 ] as const;
 export type AnimClip = (typeof ANIM_CLIPS)[number];
 
@@ -94,6 +114,11 @@ export const ONE_SHOT_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>([
   'swat',
   'hiss',
   'stretch',
+  'shake',
+  'vanish',
+  'appear',
+  'squish',
+  'beam',
 ]);
 
 /**
@@ -109,8 +134,14 @@ export const LANDING_IMPACTS = ['soft', 'medium', 'hard'] as const;
 export type LandingImpact = (typeof LANDING_IMPACTS)[number];
 
 /** v1.2: optional procedural sounds (ADR 0003 §10). Off unless settings.sound.enabled. */
-export const SOUND_CUES = ['meow', 'chirp', 'trill', 'purr', 'hiss', 'growl', 'thud'] as const;
+export const SOUND_CUES = ['meow', 'chirp', 'trill', 'purr', 'hiss', 'growl', 'thud', 'squeak', 'rumble', 'chime', 'splash', 'chatter', 'yip', 'boing', 'whoo', 'bleep', 'squelch'] as const;
 export type SoundCue = (typeof SOUND_CUES)[number];
+/**
+ * Living Companion: the cues that belong to the world (world events), not to the cat. Their own
+ * switch (settings.sound categories) so a user can keep the cat's voice and mute the world, or the
+ * reverse. Everything stays off unless settings.sound.enabled.
+ */
+export const WORLD_SOUND_CUES: ReadonlySet<SoundCue> = new Set<SoundCue>(['squeak', 'rumble', 'chime', 'splash']);
 /**
  * A one-off sound; the renderer plays it once per distinct `at` (sim time, ms) and never a cue
  * older than ~500 ms against the snapshot's `t` (a recreated overlay must not replay it).
@@ -205,7 +236,8 @@ export interface CatRenderState {
   /** 0..1 overall opacity (fade-in/out, user transparency). */
   opacity: number;
   visible: boolean;
-  skin: SkinId;
+  /** Palette id: a SkinId for the cat, a free string local to the character otherwise (the renderer resolves unknown ids to its first palette). */
+  skin: SkinId | (string & {});
   style: RenderStyle;
   shadow: boolean;
   /** Animation playback speed multiplier (settings.appearance.animationSpeed). */
@@ -226,7 +258,25 @@ export interface CatRenderState {
   balance?: number;
   /** v1.2: one-off sound, sent to exactly one overlay (the one holding the anchor); absent/null = none. */
   sound?: CatSoundCue | null;
+  // ---- Living Companion (all optional; absent = none / the stated default) --------------------
+  /** World-event props, overlay-local DIP; drawn behind the cat, never part of the hit region. At most MAX_PROPS. */
+  props?: readonly RenderProp[];
+  /** Temporary mood: tunes ears, tail, pupils and eyelids on top of the clip. */
+  mood?: Mood;
+  /** 0..1 sleep depth (deep sleep breathes slower and quieter); absent = 0. */
+  sleepDepth?: number;
+  /** The laser dot, overlay-local DIP, only on the overlay whose display holds the cursor; null/absent = no dot. */
+  laser?: { x: number; y: number } | null;
+  /** Reduced motion: softer pose swings, no particle-like effects, props at half speed. */
+  reducedMotion?: boolean;
+  /** Worn accessory drawn by the renderer; absent = none. */
+  accessory?: CatAccessory;
+  /** GizeMate: the character this snapshot draws; absent (or unknown) = the cat. */
+  character?: CharacterId;
 }
+
+/** Accessories the renderer can draw on the cat. */
+export type CatAccessory = 'heartPendant';
 
 /** Hit region reported by a renderer for its current pose, overlay-local DIP. */
 export interface HitRegion {

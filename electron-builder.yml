@@ -1,43 +1,67 @@
 appId: io.github.enesiltas.desktopcat
 productName: Desktop Cat
 copyright: Copyright © 2026 enesiltas
+afterSign: build/afterSign.cjs
 electronVersion: 44.9.3
 npmRebuild: false
 directories:
   output: release
   buildResources: build
-files:
-  - out/**/*
-  - "!out/preview/**"
-  - "!out/native/**"
-  # The web host is its own static build, not part of the desktop app (review H1).
-  - "!out/web/**"
-  - "!out/web-test/**"
-  - assets/**/*
-  - package.json
-  - LICENSE
-  - THIRD_PARTY_NOTICES.md
-  - "!**/*.map"
+# 1.4.0: there is deliberately NO top-level `files` list. Each platform section below carries the
+# complete list. electron-builder 26 turns a top-level list into its own matcher and adds "**/*" to a
+# platform list that holds only exclusions, which packed the whole project tree (old installers,
+# local state, sources) into app.asar (1.4.0 review WINREG-1). One explicit list per platform means
+# one matcher, never exclusions-only; its "!" patterns also filter node_modules. Keep the three
+# lists identical apart from their marked platform lines; scripts/check-win-payload.mjs fails on
+# any app.asar entry outside the allowed set.
 asar: true
 extraMetadata:
   main: out/main/index.js
 # GizeVerse (ADR 0004 §11): every platform section lists its own native files. The Windows
 # section carries exactly the entries that were top-level up to v1.2 (payload unchanged).
 win:
+  # 1.4.0: one installer per architecture (x64, and ARM64 for Windows on Arm PCs). The CLI ignores
+  # this list unless --x64/--arm64 are passed, so the package scripts pass them explicitly.
   target:
     - target: nsis
-      arch: [x64]
+      arch: [x64, arm64]
   icon: build/icon.ico
   executableName: DesktopCat
   requestedExecutionLevel: asInvoker
+  # 1.4.0 signing readiness (docs/platforms/windows-signing.md). Used only when a certificate is
+  # configured (scripts/sign-windows.ps1 -Mode Rebuild passes certificateSha1); without one,
+  # electron-builder logs "no code signing certificate configured, signing is skipped" and these
+  # keys change nothing. SHA-256 only: electron-builder's default is a SHA-1 pass plus a SHA-256
+  # pass, and SHA-1 Authenticode is obsolete. RFC 3161 timestamp with a SHA-256 digest (/tr, /td
+  # sha256) from DigiCert's public timestamp service, electron-builder's own default made explicit.
+  # ELECTRON_BUILDER_OFFLINE=true would drop the timestamp; the signing routes refuse it.
+  signtoolOptions:
+    signingHashAlgorithms: [sha256]
+    rfc3161TimeStampServer: http://timestamp.digicert.com
   # UI Automation helper (browser tab strips), spawned from <resources>/native; absent when the
   # build machine has no csc.exe (the feature then reports itself unavailable).
   extraResources:
     - from: out/native/DesktopCatUia.exe
       to: native/DesktopCatUia.exe
+  # Each installer carries only its own koffi binary (scripts/stage-koffi-arch.mjs puts the ARM64
+  # package on an x64 build host; scripts/check-win-payload.mjs inspects the result statically).
   asarUnpack:
     - node_modules/koffi/**
-    - node_modules/@koromix/koffi-win32-x64/**
+    - node_modules/@koromix/koffi-win32-${arch}/**
+  files:
+    - out/**/*
+    - "!out/preview/**"
+    - "!out/native/**"
+    # The web host is its own static build, not part of the desktop app (review H1).
+    - "!out/web/**"
+    - "!out/web-test/**"
+    - assets/**/*
+    - package.json
+    - LICENSE
+    - THIRD_PARTY_NOTICES.md
+    - "!**/*.map"
+    # Windows only: the other architecture's koffi binary stays out of this installer.
+    - "!node_modules/@koromix/koffi-win32-!(${arch})/**"
 # Linux (ADR 0004 §11): IMPLEMENTED_BUT_NOT_PLATFORM_VERIFIED; built in a container only.
 # deb/rpm need a homepage and a maintainer e-mail, which the owner has not chosen yet.
 linux:
@@ -50,25 +74,82 @@ linux:
   icon: build/icon.png
   # Frozen with the other identifiers (ADR 0004 §9): launchers and later autostart entries use it.
   executableName: desktop-cat
-  synopsis: GizeCat, a desktop cat (GizeVerse)
+  synopsis: GizeMate, desktop companions (GizeVerse)
   description: An animated cat in a transparent, click-through overlay. Shown only on X11 sessions with a compositing window manager.
   artifactName: GizeCat-${version}-linux-${arch}.${ext}
   # koffi binds libX11 for the compositor check (src/main/linux/x11Compositor.ts).
   asarUnpack:
     - node_modules/koffi/**
     - node_modules/@koromix/koffi-linux-x64/**
-# macOS (ADR 0004 §11): IMPLEMENTED_BUT_NOT_PLATFORM_VERIFIED; needs a Mac to build, and a
-# Developer ID plus notarization to distribute. koffi is not used on macOS, so it is not shipped.
+  files:
+    - out/**/*
+    - "!out/preview/**"
+    - "!out/native/**"
+    - "!out/web/**"
+    - "!out/web-test/**"
+    - assets/**/*
+    - package.json
+    - LICENSE
+    - THIRD_PARTY_NOTICES.md
+    - "!**/*.map"
+# macOS (ADR 0004 §11; 1.4.0): THEORETICALLY_COMPATIBLE_NOT_EXECUTED (never run on a Mac).
+# - Floor-only (decision D1): no window climbing and no FFI, so koffi is not shipped and the payload
+#   has no native module; universal builds only need lipo for Electron's own binaries.
+# - Bundle 'Desktop Cat.app' with the frozen appId (D15: Keychain items and login items are keyed
+#   by bundle); artifacts are named GizeCat-*. mac.artifactName also names the DMGs (the dmg target
+#   falls back to it: app-builder-lib 26.18.1 platformPackager.artifactPatternConfig).
+# - Targets (D11): dmg and zip for x64, arm64 and universal. DMG and universal need a macOS host
+#   (dmgbuild, lipo); the Linux container route (scripts/package-mac-docker.mjs) builds `--mac dir`
+#   for x64 and arm64 only and re-signs ad hoc (GizeCat-<v>-mac-<arch>-adhoc.zip).
+# - Signing and notarization: REQUIRES_OWNER_CREDENTIALS (Developer ID Application certificate,
+#   App Store Connect API key or Apple ID). `notarize` is deliberately unset: electron-builder 26
+#   then notarizes after it has signed with an identity (it does not check that the identity is a
+#   Developer ID Application certificate; Apple rejects other kinds), and only when a complete env set
+#   exists (APPLE_API_KEY + APPLE_API_KEY_ID + APPLE_API_ISSUER, or APPLE_ID +
+#   APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID, or APPLE_KEYCHAIN_PROFILE). With none it logs
+#   "skipped macOS notarization"; a partial set fails the build. A build without an identity
+#   (CSC_IDENTITY_AUTO_DISCOVERY=false) is unsigned and never reaches notarization
+#   (app-builder-lib/out/macPackager.js sign(), mac/MacTargetHelper.js notarizeIfProvided()).
+# - Entitlements (D10): com.apple.security.cs.allow-jit only, for the app and every helper. No
+#   device.* (no camera, microphone, USB, print or location use), no disable-library-validation
+#   (no third-party dylibs, one Team ID), no allow-unsigned-executable-memory (plugin helpers only).
+#   Documented fallback, UNVERIFIED until the first signed build runs: if it dies at launch with a
+#   code-signing crash in V8, add com.apple.security.cs.allow-unsigned-executable-memory to both files.
+# - Permissions (D9): 1.4.0 requests no Accessibility, Screen Recording or Input Monitoring and adds
+#   no screen-capture usage string. Electron's default camera, microphone, audio-capture and
+#   Bluetooth usage strings are replaced with honest text, so a prompt that should never appear
+#   would at least say what is true.
 mac:
   target:
     - target: dmg
-      arch: [x64, arm64]
+      arch: [x64, arm64, universal]
     - target: zip
-      arch: [x64, arm64]
+      arch: [x64, arm64, universal]
   category: public.app-category.utilities
   icon: build/icon.png
   artifactName: GizeCat-${version}-mac-${arch}.${ext}
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  extendInfo:
+    NSCameraUsageDescription: "GizeMate never uses the camera. If macOS asks, choose Don't Allow."
+    NSMicrophoneUsageDescription: "GizeMate never uses the microphone. If macOS asks, choose Don't Allow."
+    NSAudioCaptureUsageDescription: "GizeMate never records audio. If macOS asks, choose Don't Allow."
+    NSBluetoothAlwaysUsageDescription: "GizeMate never uses Bluetooth. If macOS asks, choose Don't Allow."
+    NSBluetoothPeripheralUsageDescription: "GizeMate never uses Bluetooth. If macOS asks, choose Don't Allow."
   files:
+    - out/**/*
+    - "!out/preview/**"
+    - "!out/native/**"
+    - "!out/web/**"
+    - "!out/web-test/**"
+    - assets/**/*
+    - package.json
+    - LICENSE
+    - THIRD_PARTY_NOTICES.md
+    - "!**/*.map"
+    # macOS only: koffi is not used on macOS (floor-only, no FFI), so it is not shipped.
     - "!node_modules/koffi/**"
     - "!node_modules/@koromix/**"
 nsis:
@@ -78,13 +159,16 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Desktop Cat
+  shortcutName: GizeMate
   runAfterFinish: true
   deleteAppDataOnUninstall: false
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
-  uninstallDisplayName: Desktop Cat
-  artifactName: Desktop-Cat-Setup-${version}.${ext}
+  uninstallDisplayName: GizeMate
+  # 1.4.0: per-architecture names (the NSIS GUID derives from appId, so upgrades are unaffected);
+  # no combined installer (it would carry both payloads, ~240 MB).
+  artifactName: GizeMate-Setup-${version}-${arch}.${ext}
+  buildUniversalInstaller: false
   license: LICENSE
   include: build/installer.nsh
 electronFuses:

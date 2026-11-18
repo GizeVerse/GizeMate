@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GizeMate</string>
+    <string name="webview_unavailable">GizeMate, Android System WebView gerektirir. Güncelleyin veya etkinleştirin, sonra GizeMate\'i yeniden açın.</string>
+    <string name="renderer_failed">GizeMate birkaç kez çizimi durdurdu. Uygulamayı kapatıp yeniden açın.</string>
+
+    <!-- Yüzen arkadaşın bildirimi (ön plan hizmeti bir bildirim göstermek zorundadır). Resmî "siz" hitabı kullanılır. Bu metinler Android'in cihaz diline uyar: uygulamanın kendi dil ayarı (Ayarlar > Dil) buraya ulaşmaz, çünkü köprüde ya da SharedPreferences'ta etkin dili taşıyan bir yol yoktur. -->
+    <string name="floating_channel_name">Yüzen arkadaş</string>
+    <string name="floating_channel_description">Arkadaşınız diğer uygulamaların üzerinde yüzerken gösterilir. Düğmeleriyle duraklatabilir, gizleyebilir veya durdurabilirsiniz.</string>
+    <string name="floating_notification_running">Arkadaşınız uygulamaların üzerinde yüzüyor. Ayarları açmak için dokunun.</string>
+    <string name="floating_notification_paused">Arkadaşınız durduğu yerde duraklatıldı.</string>
+    <string name="floating_notification_hidden">Arkadaşınız gizli.</string>
+    <string name="floating_action_pause">Duraklat</string>
+    <string name="floating_action_resume">Sürdür</string>
+    <string name="floating_action_hide">Gizle</string>
+    <string name="floating_action_show">Göster</string>
+    <string name="floating_action_stop">Durdur</string>
+</resources>

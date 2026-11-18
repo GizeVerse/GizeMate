@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GizeMate</string>
+    <string name="webview_unavailable">GizeMate needs Android System WebView. Update or enable it, then open GizeMate again.</string>
+    <string name="renderer_failed">GizeMate stopped drawing several times. Close the app and open it again.</string>
+
+    <!-- The floating companion's notification (a foreground service must show one). Minimal, with the controls.
+         These native texts follow the DEVICE language (values-tr), not the app's own language setting: no bridge or
+         SharedPreferences value carries the effective language to the service. Known limitation. -->
+    <string name="floating_channel_name">Floating companion</string>
+    <string name="floating_channel_description">Shown while your companion floats over other apps. Use its buttons to pause, hide or stop it.</string>
+    <string name="floating_notification_running">Your companion is floating over your apps. Tap to open the settings.</string>
+    <string name="floating_notification_paused">Your companion is paused where it stands.</string>
+    <string name="floating_notification_hidden">Your companion is hidden.</string>
+    <string name="floating_action_pause">Pause</string>
+    <string name="floating_action_resume">Resume</string>
+    <string name="floating_action_hide">Hide</string>
+    <string name="floating_action_show">Show</string>
+    <string name="floating_action_stop">Stop</string>
+</resources>

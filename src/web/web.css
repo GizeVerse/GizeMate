@@ -1,28 +1,51 @@
-/* GizeCat web host. The document itself never scrolls (the viewport is the cat's world and its
-   canvas covers it exactly); the page content scrolls inside .scroller when it does not fit. */
+/* GizeCat web host (1.4.0: the installable tablet app). The document never scrolls: the viewport is
+   the cat's room, its canvas covers it exactly, and the floor is the bottom of the screen (above the
+   home indicator or gesture bar: src/web/safeArea.ts). A fixed toolbar sits on top; settings,
+   privacy and About live in a sheet (a native <dialog>): a bottom sheet on narrow windows, a side
+   sheet from 700 CSS px, so the cat stays visible as a live preview. Sized for any tablet window:
+   full screen, portrait or landscape, Split View, Slide Over and Stage Manager. */
 :root {
   color-scheme: light dark;
+  /* Behind the status bar of the Home Screen app, whose text is always white (black-translucent). */
+  --status-scrim: rgb(35 29 22 / 0.62);
   --bg: #f6f1e7;
   --fg: #231d16;
   --muted: #5d5246;
   --accent: #9a4f12;
   --accent-fg: #ffffff;
   --button-bg: #fffaf1;
-  --button-border: #b9a68e;
+  --button-border: #8f7b60;
+  --sheet-bg: #fffaf1;
+  --sheet-line: #e2d6c3;
+  --danger: #a3271c;
   --focus: #1d5fd1;
+  --backdrop: rgb(35 29 22 / 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --status-scrim: transparent;
     --bg: #1b1814;
     --fg: #f1e9dc;
     --muted: #c2b5a2;
     --accent: #f0a35c;
     --accent-fg: #1b1814;
     --button-bg: #2a251f;
-    --button-border: #6f6253;
+    --button-border: #8a7c6b;
+    --sheet-bg: #24201b;
+    --sheet-line: #463d33;
+    --danger: #ff8a7a;
     --focus: #8ab4ff;
+    --backdrop: rgb(0 0 0 / 0.35);
   }
+}
+
+html {
+  /* No double-tap zoom (pinch zoom stays, for accessibility); no bounce or pull-to-refresh. */
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html,
@@ -33,48 +56,174 @@ body {
   overflow: hidden;
 }
 
+@supports (height: 100dvh) {
+  html,
+  body {
+    height: 100dvh;
+  }
+}
+
 body {
+  /* Fixed to the viewport: nothing for iPadOS to rubber-band, even where overscroll-behavior is ignored. */
+  position: fixed;
+  inset: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 1rem/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font: 1rem/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-.scroller {
-  box-sizing: border-box;
-  height: 100%;
-  overflow: auto;
-  /* Room at the bottom so the cat never sits on the last line of text. */
-  padding: 2.5rem 1.25rem 11rem;
+/* `hidden` wins over the display rules below (the sheet hides rows and notes with it). */
+[hidden] {
+  display: none !important;
 }
 
-.page {
-  max-width: 40rem;
-  margin: 0 auto;
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
-h1 {
-  margin: 0 0 0.25rem;
-  font-size: 2.25rem;
-  line-height: 1.15;
-  letter-spacing: 0.01em;
-}
-
-h2 {
-  margin: 1.75rem 0 0.5rem;
-  font-size: 1.15rem;
-}
-
-.tagline {
-  margin: 0;
+/* ---- the first screen, before main.js runs (index.html; CSS only, the page allows no inline script).
+   main.js removes it when the cat starts. If it is still here after the wait below, the script could
+   not load or the browser is too old to run it (no script of ours is running to say so), and the
+   waiting message gives way to the failure message on its own. */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem max(1.5rem, env(safe-area-inset-right)) 1.5rem max(1.5rem, env(safe-area-inset-left));
+  text-align: center;
   color: var(--muted);
-  font-size: 1.1rem;
+}
+
+.boot > * {
+  grid-area: 1 / 1;
+  margin: 0;
+  max-width: 28rem;
+}
+
+.boot-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  animation: boot-hide 0s linear 15s forwards;
+}
+
+.boot-wait p {
+  margin: 0;
+}
+
+.boot-spinner {
+  display: block;
+  box-sizing: border-box;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 3px solid var(--sheet-line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: boot-spin 0.9s linear infinite;
+}
+
+.boot-failed {
+  color: var(--fg);
+  visibility: hidden;
+  animation: boot-show 0s linear 15s forwards;
+}
+
+/* main.js reached the cat and the cat could not start: the message at once. */
+.boot.failed .boot-wait {
+  visibility: hidden;
+  animation: none;
+}
+
+.boot.failed .boot-failed {
+  visibility: visible;
+  animation: none;
+}
+
+/* The toolbar does nothing until main.js runs. If only the cat could not be drawn (.failed) the page
+   still works without it; if the page itself stopped (.crashed) the buttons would do nothing. */
+#boot:not(.failed) ~ .bar,
+#boot.crashed ~ .bar {
+  visibility: hidden;
+}
+
+@keyframes boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes boot-hide {
+  to {
+    visibility: hidden;
+  }
+}
+
+@keyframes boot-show {
+  to {
+    visibility: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-spinner {
+    animation: none;
+  }
+}
+
+/* With JavaScript off the <noscript> line says it all. */
+@media (scripting: none) {
+  .boot {
+    display: none;
+  }
+}
+
+/* ---- the Home Screen app's status bar (apple-mobile-web-app-status-bar-style: black-translucent):
+   the page runs under it, full screen, and its text is always white. The cream page would hide
+   white text, so a strip as tall as the status bar sits behind it in light mode. Its height is
+   env(safe-area-inset-top), zero everywhere there is no such bar (Safari tabs, Android, desktop). */
+@media (display-mode: standalone) {
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: env(safe-area-inset-top, 0px);
+    background: var(--status-scrim);
+    pointer-events: none;
+    z-index: 30;
+  }
+}
+
+/* ---- toolbar: above the canvas; only the buttons take the pointer (the rest of the strip is the cat's room) */
+.bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  box-sizing: border-box;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.5rem) max(0.75rem, env(safe-area-inset-right)) 0.5rem max(0.75rem, env(safe-area-inset-left));
+  pointer-events: none;
 }
 
 .controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-top: 1.75rem;
+  gap: 0.5rem;
+  width: fit-content;
+  max-width: 100%;
+  pointer-events: auto;
 }
 
 button {
@@ -82,14 +231,18 @@ button {
   color: var(--fg);
   background: var(--button-bg);
   border: 1px solid var(--button-border);
-  border-radius: 0.5rem;
-  padding: 0.5rem 1rem;
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.95rem;
   min-height: 2.75rem;
+  min-width: 2.75rem;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
-button:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  button:hover {
+    border-color: var(--accent);
+  }
 }
 
 button:active {
@@ -97,9 +250,31 @@ button:active {
   color: var(--accent-fg);
 }
 
-button:focus-visible {
+/* A narrow window (Slide Over, a small Stage Manager window): the five buttons take less of the room. */
+@media (max-width: 480px) {
+  .controls {
+    gap: 0.35rem;
+  }
+
+  .controls button {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.92rem;
+  }
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+a:focus-visible,
+.card:focus-within {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .visually-hidden {
@@ -113,6 +288,399 @@ button:focus-visible {
   clip-path: inset(50%);
   white-space: nowrap;
   border: 0;
+}
+
+.noscript {
+  position: fixed;
+  top: 40%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ---- the settings sheet */
+dialog.sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  max-height: 85vh;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 1rem 1rem 0 0;
+  padding: 0 max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: var(--sheet-bg);
+  color: var(--fg);
+  box-shadow: 0 -0.5rem 2rem rgb(0 0 0 / 0.18);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+@supports (height: 100dvh) {
+  dialog.sheet {
+    max-height: 85dvh;
+  }
+}
+
+@media (min-width: 700px) {
+  dialog.sheet {
+    inset: 0 0 0 auto;
+    width: min(26rem, 92vw);
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: -0.5rem 0 2rem rgb(0 0 0 / 0.18);
+  }
+
+  /* The side sheet reaches the top of the screen. The inset is the head's padding, not the sheet's:
+     the sticky head then covers the status bar's area and nothing scrolls under it. */
+  dialog.sheet .sheet-head {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  }
+
+  @supports (height: 100dvh) {
+    dialog.sheet {
+      max-height: none;
+      height: 100dvh;
+    }
+  }
+}
+
+/* Browsers without <dialog> support would show the element always. */
+dialog.sheet:not([open]) {
+  display: none;
+}
+
+dialog.sheet::backdrop {
+  background: var(--backdrop);
+}
+
+.sheet-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0 0.5rem;
+  background: var(--sheet-bg);
+  border-bottom: 1px solid var(--sheet-line);
+}
+
+.sheet-head h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.sheet section {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--sheet-line);
+}
+
+.sheet section:last-child {
+  border-bottom: 0;
+}
+
+.sheet h3 {
+  margin: 0.25rem 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.sheet p {
+  margin: 0.4rem 0;
+}
+
+.sheet a {
+  display: inline-block;
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: 0.55rem 0;
+  color: var(--accent);
+}
+
+/* The side sheet under the Home Screen app's status bar: the same strip, on the sheet and its head. */
+@media (display-mode: standalone) and (min-width: 700px) {
+  dialog.sheet,
+  dialog.sheet .sheet-head {
+    background: linear-gradient(var(--status-scrim), var(--status-scrim)) top / 100% env(safe-area-inset-top, 0px) no-repeat var(--sheet-bg);
+  }
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.note.warn {
+  color: var(--fg);
+  border-left: 3px solid var(--accent);
+  padding-left: 0.6rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.6rem 0;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.6rem 0;
+  min-height: 2.75rem;
+}
+
+.field label,
+.field-row label,
+.legend {
+  font-weight: 600;
+}
+
+.field .error {
+  color: var(--danger);
+  font-size: 0.95rem;
+  min-height: 1.2em;
+  margin: 0;
+}
+
+/* iOS zooms into inputs under 16 px on focus: never smaller. */
+input[type='text'] {
+  font: inherit;
+  font-size: max(1rem, 16px);
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--button-border);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  min-height: 2.75rem;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+input[type='range'] {
+  width: 100%;
+  min-height: 2.75rem;
+  accent-color: var(--accent);
+  font-size: max(1rem, 16px);
+}
+
+/* A checkbox drawn as a switch (role=switch). */
+input.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  position: relative;
+  width: 3.1rem;
+  /* The drawn track stays 1.8rem tall; the control itself is 2.75rem (44 px touch target) via padding. */
+  height: 2.75rem;
+  padding: 0.475rem 0;
+  box-sizing: border-box;
+  background-clip: content-box;
+  margin: 0;
+  border-radius: 1.375rem;
+  background-color: var(--button-border);
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: max(1rem, 16px);
+}
+
+input.switch::after {
+  content: '';
+  position: absolute;
+  top: 0.675rem;
+  left: 0.2rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.15s;
+}
+
+input.switch:checked {
+  background-color: var(--accent);
+}
+
+input.switch:checked::after {
+  transform: translateX(1.3rem);
+}
+
+/* Radio cards (coat, style, personality): the radio is visually hidden, the card shows the choice. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.2rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.8rem;
+  padding: 0;
+  border: 0;
+}
+
+.cards.wide {
+  grid-template-columns: 1fr;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--button-border);
+  border-radius: 0.6rem;
+  background: var(--button-bg);
+  cursor: pointer;
+  text-align: center;
+}
+
+.cards.wide .card {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.card input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.card:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.card.checked {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.card svg {
+  width: 3.2rem;
+  height: 3.2rem;
+}
+
+.card .title {
+  font-weight: 600;
+}
+
+.card .desc {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.coat-outline {
+  stroke: rgb(0 0 0 / 0.35);
+  stroke-width: 1;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+/* The profile export/import slot (profileUi.ts, src/shared/profileTransfer.ts). */
+.transfer-slot:empty {
+  display: none;
+}
+
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0.5rem 0;
+  min-height: 2.75rem;
+}
+
+/* Large enough to hit with a finger (44 CSS px row; the box itself 1.25rem). */
+.check-row input[type='checkbox'] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.1rem 0 0;
+  accent-color: var(--accent);
+}
+
+.check-row input[type='checkbox']:disabled + span {
+  opacity: 0.55;
+}
+
+.check-label {
+  display: block;
+}
+
+.check-hint {
+  display: block;
+  margin: 0.1rem 0 0;
+}
+
+.check-list {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.transfer-preview {
+  margin: 0.75rem 0 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 0.6rem;
+}
+
+.transfer-preview h4 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.transfer-preview h4:focus {
+  outline: none;
+}
+
+/* Padding, not flex: a flex summary loses its disclosure triangle in Safari and Chrome. */
+.transfer-changes summary {
+  cursor: pointer;
+  padding: 0.7rem 0;
+}
+
+.transfer-changes ul {
+  margin: 0.25rem 0;
+  padding-left: 1.2rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* Measures env(safe-area-inset-*) as padding (src/web/safeArea.ts). Never visible, never in the way. */
+#safe-area-probe {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
 }
 
 /* The cat's canvas covers the viewport and never takes the pointer: the pointer router decides
@@ -139,4 +707,917 @@ html.gizecat-hold * {
   cursor: grabbing !important;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* ---- licenses.html (scripts/web-licenses.mjs) and privacy.html: plain documents that scroll and can be selected */
+html.doc {
+  touch-action: auto;
+  overscroll-behavior: auto;
+}
+
+html.doc,
+html.doc body {
+  position: static;
+  height: auto;
+  overflow: visible;
+}
+
+html.doc body {
+  box-sizing: border-box;
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) max(1rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+.doc h1 {
+  font-size: 1.6rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.doc h2 {
+  font-size: 1.25rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.doc h3 {
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.4rem;
+}
+
+.doc a {
+  color: var(--accent);
+}
+
+.doc-back a {
+  display: inline-block;
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  padding: 0.55rem 0;
+}
+
+.doc-table {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0.6rem 0;
+}
+
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.doc th,
+.doc td {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--sheet-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc pre {
+  margin: 0.6rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 0.5rem;
+  background: var(--sheet-bg);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.doc code {
+  overflow-wrap: anywhere;
+}
+
+/* ---- the Android app's home panel (androidPanel.ts). Fixed over the in-app cat, scrolls by itself, theme
+   variables only (light and dark), 48 px touch targets, padded by the safe area. Phones: one column;
+   from 720 px: two. */
+.panel {
+  --pad-l: max(1rem, env(safe-area-inset-left));
+  --pad-r: max(1rem, env(safe-area-inset-right));
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) 0 0;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.panel-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 62rem;
+  margin: 0 auto 0.5rem;
+  padding: 0 var(--pad-r) 0 var(--pad-l);
+}
+
+.panel-logo {
+  flex: none;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.8rem;
+}
+
+.panel-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-title h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.panel-title p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.chip {
+  flex: none;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: var(--sheet-bg);
+  color: var(--muted);
+}
+
+.chip.chip-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.chip.chip-idle {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.panel-grid {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 62rem;
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 720px) {
+  .panel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .pcard.hero {
+    grid-column: 1 / -1;
+  }
+}
+
+.pcard {
+  box-sizing: border-box;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 1rem;
+  background: var(--sheet-bg);
+}
+
+.pcard h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.1rem;
+}
+
+.pcard h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.pcard p {
+  margin: 0.4rem 0;
+}
+
+.pcard .lead {
+  font-size: 1.02rem;
+}
+
+.pcard .field {
+  margin: 0.75rem 0;
+}
+
+.pcard .field input[type='text'] {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--button-border);
+  border-radius: 0.6rem;
+}
+
+.pcard .field input[type='range'] {
+  width: 100%;
+  min-height: 2.75rem;
+}
+
+.panel-row {
+  min-height: 3rem;
+  gap: 0.75rem;
+}
+
+.panel-row .row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.panel-row .row-desc {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+}
+
+.hero-actions button {
+  min-height: 3rem;
+}
+
+button.primary.big {
+  flex: 1 1 14rem;
+  min-height: 3.4rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.panel-status {
+  margin: 0.4rem 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--sheet-line);
+  font-size: 0.95rem;
+}
+
+.panel-ask {
+  margin: 0.8rem 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.8rem;
+  background: var(--bg);
+}
+
+.panel-ask .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.perm-list {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+}
+
+.perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.5rem;
+  padding: 0 0.1rem;
+  border-top: 1px solid var(--sheet-line);
+}
+
+.row-state {
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-align: right;
+}
+
+.row-state.ok {
+  color: var(--accent);
+}
+
+.row-state.needed {
+  color: var(--danger);
+}
+
+.row-state.optional {
+  color: var(--muted);
+}
+
+/* Companion status chips, section sub-headings, the events list and the journal (androidPanel.ts). */
+.pcard .subhead {
+  margin: 1.1rem 0 0.4rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--sheet-line);
+  font-size: 1rem;
+}
+
+.pcard .status-block .subhead {
+  margin-top: 0.8rem;
+}
+
+.status-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.3rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-height: 3rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 0.7rem;
+  background: var(--bg);
+}
+
+.status-chip[hidden] {
+  display: none;
+}
+
+.sc-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.sc-value {
+  font-weight: 600;
+  font-size: 0.98rem;
+  overflow-wrap: anywhere;
+}
+
+/* 48 px touch targets for the switches and the details toggle in the panel. */
+.panel .panel-row {
+  min-height: 3rem;
+}
+
+.panel details.events-list,
+details.events-list {
+  margin-top: 0.5rem;
+}
+
+details.events-list > summary {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.journal-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.journal-entry {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 0.7rem;
+  background: var(--bg);
+}
+
+.journal-date {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.journal-text {
+  line-height: 1.4;
+}
+
+.journal-empty {
+  color: var(--muted);
+}
+
+.panel button {
+  min-height: 3rem;
+}
+
+.panel-foot {
+  max-width: 62rem;
+  margin: 1rem auto 0;
+}
+
+.panel-foot .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* While the panel is up, the in-app cat's toolbar is behind it. */
+html.gizecat-panel-open .bar {
+  visibility: hidden;
+}
+
+/* While the cat floats over other apps the app's own cat is parked: no canvas, no cat buttons. */
+html.gizecat-floating-on #cat,
+html.gizecat-floating-on #btn-call,
+html.gizecat-floating-on #btn-sleep,
+html.gizecat-floating-on #btn-pause,
+html.gizecat-floating-on #btn-sound {
+  display: none;
+}
+
+/* The floating cat's window (?surface=overlay): the page is only the cat on a transparent window.
+   No toolbar, boot screen, sheet or status text; nothing but the canvas. */
+html.gizecat-overlay,
+html.gizecat-overlay body {
+  background: transparent;
+}
+
+html.gizecat-overlay .bar,
+html.gizecat-overlay #boot,
+html.gizecat-overlay #settings,
+html.gizecat-overlay .panel,
+html.gizecat-overlay .visually-hidden,
+html.gizecat-overlay .noscript,
+html.gizecat-overlay body::before {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pcard {
+    transition: border-color 0.15s ease;
+  }
+}
+
+/* ---- GizeMate panels: four areas (Home, Characters, Customize, Settings) shared by the Android panel and
+   the browser sheet (src/web/ui/*). Same tokens as above; no fixed widths (Turkish runs 15 to 30 percent
+   longer): rows wrap, labels break anywhere, min-width 0 on every flex and grid child. */
+
+/* Skip link: the first tab stop of the panel, visible only while focused. */
+.skip-link {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 5;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.6rem;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+  transform: translateY(-300%);
+}
+
+.skip-link:focus {
+  transform: none;
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The scrolling area of the panel; the tab bar below it never scrolls away. */
+.panel-content {
+  order: 2;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.5rem var(--pad-r) 1rem var(--pad-l);
+  -webkit-overflow-scrolling: touch;
+}
+
+.panel-content:focus {
+  outline: none;
+}
+
+.tab-page {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: minmax(0, 1fr);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 62rem;
+  margin: 0 auto;
+}
+
+.tab-page > * {
+  min-width: 0;
+}
+
+@media (min-width: 720px) {
+  .panel .tab-page {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .panel .tab-page > .characters-view,
+  .panel .tab-page > .customize-view,
+  .panel .tab-page > .home-actions,
+  .panel .tab-page > .active-card,
+  .panel .tab-page > .hero {
+    grid-column: 1 / -1;
+  }
+}
+
+/* The tab bar: one tablist, four equal tabs, 48 px tall. At the bottom of the phone panel (one-handed
+   reach, above the gesture bar) and at the top of the browser sheet. */
+.tabbar {
+  display: flex;
+  gap: 0.25rem;
+  box-sizing: border-box;
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.tab.selected,
+.tab:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--bg);
+  color: var(--accent);
+}
+
+.tab input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+.tab:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.tabbar-bottom {
+  order: 3;
+  flex: none;
+  padding: 0.4rem var(--pad-r) calc(env(safe-area-inset-bottom, 0px) + 0.4rem) var(--pad-l);
+  border-top: 1px solid var(--sheet-line);
+  background: var(--sheet-bg);
+}
+
+.tabbar-bottom .tab {
+  max-width: 14rem;
+}
+
+.tabbar-bottom {
+  justify-content: center;
+}
+
+.tabbar-top {
+  padding: 0.4rem 0 0.5rem;
+}
+
+/* The browser sheet: head and tab bar stay put, the content scrolls under them. */
+.sheet-top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--sheet-bg);
+  border-bottom: 1px solid var(--sheet-line);
+}
+
+.sheet-top .sheet-head {
+  position: static;
+  border-bottom: 0;
+}
+
+@media (min-width: 700px) {
+  dialog.sheet .sheet-top .sheet-head {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+  }
+}
+
+.sheet .sheet-content {
+  padding-top: 0.75rem;
+}
+
+.sheet .tab-page {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sheet section.pcard,
+.sheet section.pcard:last-child,
+.sheet details.pcard {
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 1rem;
+  background: var(--sheet-bg);
+}
+
+.sheet details.pcard {
+  padding: 0;
+}
+
+.sheet .pcard h2 {
+  font-size: 1.1rem;
+}
+
+.sheet .pcard p {
+  margin: 0.4rem 0;
+}
+
+.sheet .pcard .subhead {
+  font-size: 1rem;
+}
+
+.sheet #transfer-section {
+  padding: 0.5rem 0 0;
+  border: 0;
+}
+
+/* A card that folds away (native <details>): a 48 px summary, the body padded like a card. */
+.fold {
+  padding: 0;
+}
+
+.fold > summary {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 3rem;
+  padding: 0.5rem 1.1rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary::after {
+  content: '';
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-left: auto;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+}
+
+.fold[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.fold > summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+  border-radius: 1rem;
+}
+
+.fold .fold-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fold-body {
+  padding: 0 1.1rem 1.1rem;
+}
+
+.customize-view {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.customize-view .who {
+  margin: 0;
+}
+
+/* The active character's card on Home, and the cards of the Characters area. */
+.active-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.char-stage {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--sheet-line);
+  padding: 0.25rem;
+}
+
+.preview-canvas {
+  display: block;
+  width: 8.25rem;
+  height: 6.75rem;
+  max-width: 100%;
+}
+
+.active-card .char-body {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.active-name,
+.char-name {
+  margin: 0;
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.char-tagline {
+  margin: 0.1rem 0 0.4rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.char-desc {
+  margin: 0.4rem 0;
+}
+
+.characters-view .lead {
+  margin: 0 0 0.25rem;
+}
+
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 0.9rem;
+  margin-top: 0.75rem;
+}
+
+.char-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.9rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 1rem;
+  background: var(--sheet-bg);
+}
+
+.char-card.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.char-card .char-stage {
+  align-self: center;
+}
+
+.char-body {
+  min-width: 0;
+}
+
+.char-facts {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.5rem 0;
+}
+
+.char-facts dt {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.char-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.badge {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--sheet-line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.char-pick {
+  flex: 1 1 auto;
+  min-height: 3rem;
+}
+
+/* Palette choices of a character other than the cat: the character itself, drawn once per palette. */
+.palette-canvas {
+  display: block;
+  width: 4.4rem;
+  height: 3.6rem;
+}
+
+.home-actions button {
+  flex: 1 1 12rem;
+}
+
+/* Wrapping everywhere: long Turkish labels never push a row off the screen. */
+.panel .field-row label,
+.panel .row-text,
+.panel .card .title,
+.panel .card .desc,
+.sheet .field-row label,
+.sheet .row-text,
+.sheet .card .title,
+.sheet .card .desc {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.panel .cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 7rem), 1fr));
+}
+
+.panel .cards.wide,
+.sheet .cards.wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (forced-colors: active) {
+  .tab.selected,
+  .char-card.active,
+  .card.checked {
+    outline: 2px solid Highlight;
+  }
+}
+
+/* Reduced motion: the system preference, or the companion's own switch (html[data-calm], src/web/ui/motion.ts). Transitions only: the boot screen's timed
+   animations carry the load-failure message and must keep running. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}
+
+html[data-calm] *,
+html[data-calm] *::before,
+html[data-calm] *::after {
+  transition: none !important;
 }

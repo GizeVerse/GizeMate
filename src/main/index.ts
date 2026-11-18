@@ -9,14 +9,34 @@ import { createLogger, type LogLevel, type RootLogger } from './diagnostics/logg
 import { appVersion } from './lifecycle/appInfo';
 import { createCrashGuard } from './lifecycle/crashGuard';
 import { hasFlag, isTestMode, LAUNCHED_AT_LOGIN_FLAG, parseTimeScale, parseUserDataOverride } from './lifecycle/launchArgs';
-import { explicitOzone, NO_SANDBOX_MESSAGE, NO_SANDBOX_TITLE, sandboxDecision } from './platform/boot';
+import { explicitOzone, noSandboxDialog, sandboxDecision } from './platform/boot';
 import { registerAppSchemePrivileges } from './protocol';
 import { createJsonStore } from './store/jsonStore';
 import { createSettingsStore } from './store/settingsStore';
 import { BRAND } from '../shared/brand';
+import { t } from '../shared/i18n';
+import { firstSystemLocale, resolveLocale, type Locale } from '../shared/i18n/locale';
 import { IDENTITY } from '../shared/identity';
+import type { Settings } from '../shared/settings';
 
 export const APP_USER_MODEL_ID = IDENTITY.appUserModelId;
+/**
+ * The language of the dialogs shown before the app runs: settings.general.language once the settings are
+ * read, else the system's. Never throws (app.getLocale() may be unavailable this early).
+ */
+let languageChoice: Settings['general']['language'] = 'auto';
+function dialogLocale(): Locale {
+  // app.getLocale() is only valid after 'ready' (before it, it may throw or answer empty): ask it only then,
+  // and otherwise read the system language from the runtime and the environment.
+  const system = firstSystemLocale([
+    () => (app.isReady() ? app.getLocale() : undefined),
+    () => app.getPreferredSystemLanguages()[0],
+    () => Intl.DateTimeFormat().resolvedOptions().locale,
+    () => process.env.LC_ALL || process.env.LC_MESSAGES || process.env.LANG,
+  ]);
+  return resolveLocale(languageChoice, system);
+}
+
 /** macOS: 'activate' events this soon after start belong to the launch itself. */
 const MAC_ACTIVATE_GRACE_MS = 3000;
 
@@ -38,8 +58,9 @@ function exitAfterStartupFailure(err: unknown, logger: RootLogger | null, test: 
   }
   if (!test) {
     try {
-      const where = logger?.logDir ? `\n\nDetails were written to the log in:\n${logger.logDir}` : '';
-      dialog.showErrorBox(`${BRAND.product} could not start`, `${BRAND.product} ran into a problem while starting and has closed.${where}`);
+      const lang = dialogLocale();
+      const where = logger?.logDir ? t(lang, 'dialog.startFailedLog', { dir: logger.logDir }) : '';
+      dialog.showErrorBox(t(lang, 'dialog.startFailedTitle', { product: BRAND.product }), `${t(lang, 'dialog.startFailedBody', { product: BRAND.product })}${where}`);
     } catch {
       /* exiting anyway */
     }
@@ -63,13 +84,18 @@ function start(test: boolean, boot: { logger: RootLogger | null }): void {
   const startedAt = Date.now();
   // DevTools and other development affordances never exist in packaged builds.
   const dev = hasFlag(process.argv, '--dev') && !app.isPackaged;
+  // Windows: the Run entry passes this flag. macOS (1.4.0) passes no arguments to SMAppService login
+  // items and wasOpenedAtLogin is not reliable there, so a login start reads as a user start (false).
   const launchedAtLogin = hasFlag(process.argv, LAUNCHED_AT_LOGIN_FLAG);
 
   // GizeVerse (ADR 0004 §6), before the lock and the logger: a packaged build never runs its
   // renderers without the Chromium sandbox.
   const sandbox = sandboxDecision(app.isPackaged, app.commandLine.hasSwitch('no-sandbox'));
   if (sandbox === 'refuse') {
-    if (!test) dialog.showErrorBox(NO_SANDBOX_TITLE, NO_SANDBOX_MESSAGE);
+    if (!test) {
+      const refusal = noSandboxDialog(dialogLocale());
+      dialog.showErrorBox(refusal.title, refusal.message);
+    }
     app.exit(1);
     return;
   }
@@ -104,6 +130,10 @@ function start(test: boolean, boot: { logger: RootLogger | null }): void {
   });
   // macOS (ADR 0004 §6, review M3): a Dock click or a Finder launch while running emits 'activate',
   // not 'second-instance'. The first activation of a fresh launch is ignored (it is the launch itself).
+  // 1.4.0: with "Show GizeCat in the Dock" off (accessory policy, platform/dock.ts) there is no Dock
+  // icon to click; opening the app again from Spotlight, Finder or Launchpad is the route back, and
+  // whether it emits 'activate' for an accessory app is UNVERIFIED (no Mac run). The menu-bar icon
+  // stays either way.
   if (process.platform === 'darwin') {
     app.on('activate', () => {
       if (running && Date.now() - startedAt > MAC_ACTIVATE_GRACE_MS) running.onSecondInstance();
@@ -137,6 +167,7 @@ function start(test: boolean, boot: { logger: RootLogger | null }): void {
     logger: logger.child('settings'),
   });
   const loaded = settings.load();
+  languageChoice = loaded.settings.general.language;
   logger.setLevel(loaded.settings.diagnostics.logLevel);
   if (!loaded.settings.diagnostics.hardwareAcceleration) {
     app.disableHardwareAcceleration();

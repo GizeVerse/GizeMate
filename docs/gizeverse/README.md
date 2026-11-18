@@ -31,6 +31,17 @@ Branch `feat/gizeverse-foundation`, cut from `feat/v1.2-lively` at `58b4cd6` (v1
 | 17 | Risks and next milestone | [below](#risks-and-next-milestone), [ROADMAP.md](../../ROADMAP.md) |
 | 18 | Changed files, commits, branch, status | [below](#branch-and-status) |
 | 19 | Long-run interaction reliability (1.3.0): diagnosis, fix, long-run suites, soak | [13-interaction-reliability.md](13-interaction-reliability.md) |
+| 20 | 1.4.0 candidate: every device, install guides and statuses per target and artifact | [docs/platforms/](../platforms/README.md) |
+| 21 | 1.4.0: the Android tablet app (native WebView vs Capacitor, identifiers, permissions, backup, hardening, file bridge, signing) | [14-android-app.md](14-android-app.md) |
+| 22 | 1.4.0: the installable tablet web app (PWA) | [07-web-host.md](07-web-host.md#140-the-installable-tablet-web-app) |
+| 23 | 1.4.0: macOS as a desktop target (floor only, floating panel, Dock, opt-in login item, packaging) | [04-macos.md](04-macos.md#140-update) |
+| 24 | 1.4.0: mobile boundaries revisited (native Android app, no native iPad app, profile format) | [08-mobile-boundaries.md](08-mobile-boundaries.md#140-update) |
+| 25 | 1.4.0 decisions in the platform ADR | [ADR 0004, 1.4.0 addendum](../adr/0004-gizeverse-platform.md#addendum-140-release-candidate) |
+| 26 | Building and packaging every artifact | [building-and-packaging.md](../platforms/building-and-packaging.md) |
+| 27 | 1.4.0: the manual release workflows, their secrets and the owner's steps | [release-automation.md](../platforms/release-automation.md) |
+| 28 | 1.4.0: signing the Android app, and Google Play readiness | [android-signing.md](../platforms/android-signing.md), [docs/store/google-play/](../store/google-play/release-readiness.md) |
+| 29 | 1.4.0: troubleshooting by device | [troubleshooting.md](../platforms/troubleshooting.md) |
+| 30 | 1.4.0: moving a cat to another device | [profile-transfer.md](../platforms/profile-transfer.md) |
 
 ## Status in one table
 
@@ -44,6 +55,18 @@ Branch `feat/gizeverse-foundation`, cut from `feat/v1.2-lively` at `58b4cd6` (v1
 | Android | The web host in a browser | desktop Chrome Pixel 7 emulation | SIMULATED_OR_MOCK_TESTED; native overlay BLOCKED |
 | iOS / iPadOS | The web host in a browser | none | IMPLEMENTED_BUT_NOT_PLATFORM_VERIFIED (web code); overlay BLOCKED |
 
+## 1.4.0 release candidate
+
+Branch `release/1.4.0-universal-devices`. **Not released**; 1.3.0 stays the current release until the owner approves 1.4.0. Nothing in 1.4.0 has run on any device. It uses its own status vocabulary (IMPLEMENTED, COMPILED_OR_PACKAGED, THEORETICALLY_COMPATIBLE_NOT_EXECUTED, REQUIRES_OWNER_CREDENTIALS, BLOCKED_BY_PLATFORM, NOT_IMPLEMENTED), defined in [docs/platforms/README.md](../platforms/README.md#status-vocabulary-for-140) with the status of every target and artifact. The table above is the 1.3.0 status and is kept as it was.
+
+| Target | What 1.4.0 adds | Runs on the device |
+|---|---|---|
+| Windows x64 and ARM64 | One installer per architecture; an ARM64-only guard; a static payload check | THEORETICALLY_COMPATIBLE_NOT_EXECUTED |
+| macOS Intel and Apple Silicon | Floating panel, template menu-bar icon, Dock switch, opt-in login item, packaging routes, ad-hoc zips (COMPILED_OR_PACKAGED, not notarized) | THEORETICALLY_COMPATIBLE_NOT_EXECUTED |
+| iPad | The installable web app (expected project-site address not deployed) | THEORETICALLY_COMPATIBLE_NOT_EXECUTED |
+| Android tablets | A native WebView app with a ready signing pipeline (no key exists), an optional floating cat over other apps (1.4.1: four permissions, only for it), and the installable web app | THEORETICALLY_COMPATIBLE_NOT_EXECUTED |
+| Every host | A portable profile file and "Take your cat to another device" to save and load it | THEORETICALLY_COMPATIBLE_NOT_EXECUTED |
+
 ## Risks and next milestone
 
 1. **Owner decisions still open.** Security and conduct reports now go through GitHub private vulnerability reporting ([SECURITY.md](../../SECURITY.md)); no maintainer contact or legal identity is named. Still open: the deb/rpm homepage and maintainer, and whether the persistent identifiers ever change. See [11-open-source-readiness.md](11-open-source-readiness.md).
@@ -55,7 +78,7 @@ Branch `feat/gizeverse-foundation`, cut from `feat/v1.2-lively` at `58b4cd6` (v1
    - Windows 10 and multi-monitor.
 5. **Linux packaging that keeps the sandbox** (a deb with an AppArmor profile, or a Flatpak). Without it, the AppImage is refused where it cannot sandbox.
 6. **Wayland and XWayland users see no cat.** A windowed or in-page companion is the candidate.
-7. **Web host size** (about 870 KB, half of it zod locales), and a PWA. Optionally a Capacitor wrapper for the mobile stores.
+7. **Web host size** (about 870 KB in 1.3.0, half of it zod locales). The 1.4.0 candidate adds the PWA and a native Android WebView app; Capacitor was rejected ([14-android-app.md](14-android-app.md)).
 8. **R2: a per-OS process identity for the privacy exclusions** before any window adapter or perception off Windows.
 
 ## Branch and status

@@ -5,11 +5,21 @@
 //   --web-only  build only the web host; out/web (and out/web-test) are replaced, the rest of out/ is kept
 //   --web-test  also build out/web-test: the web host with the read-only window.__gizecatWebTest hook
 //               for tests/web (never in out/web)
+// 1.4.0 (installable web app): the web host also gets its manifest, icons (scripts/web-icons.mjs),
+// static third-party notices and privacy pages (licenses.html from scripts/web-licenses.mjs,
+// privacy.html from src/web) and, in production
+// builds, a versioned service worker (sw.js, from src/web/sw.ts) whose precache list is every other
+// file of the build. out/web is then checked by scripts/web-csp.mjs. The web
+// path needs no Windows tooling (--web-only skips the native helper).
 import { build, context } from 'esbuild';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildUiaHelper } from './build-uia-helper.mjs';
+import { checkWebBuild, listFiles, SW_FILE } from './web-csp.mjs';
+import { writeWebIcons } from './web-icons.mjs';
+import { writeWebLicenses } from './web-licenses.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dev = process.argv.includes('--dev');
@@ -21,9 +31,37 @@ const webDir = path.join(outDir, 'web');
 const webTestDir = path.join(outDir, 'web-test');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
+// The version the web bundle reports (About line, service worker version). It is package.json's,
+// except for the Android app's own bundle, which scripts/build-web-app.mjs builds with
+// GIZECAT_WEB_APP_VERSION set to android/version.properties' versionName: an update that changes only
+// Android must not make the desktop or the hosted web app claim a new version.
+const appVersion = /^\d+\.\d+\.\d+$/.test(process.env.GIZECAT_WEB_APP_VERSION ?? '') ? process.env.GIZECAT_WEB_APP_VERSION : pkg.version;
+
+// The owner-provisioned, encrypted secret-name payload (scripts/egg-provision.mjs). It is a local,
+// git-ignored file; without it the feature is simply off. Only the ciphertext is embedded: the build
+// never sees, and cannot print, the trigger or the message. The payload's own structure is checked at
+// run time by src/shared/secretEgg.ts; here it only has to be a JSON object with the expected format.
+function readEggPayload() {
+  const file = process.env.GIZECAT_EGG_PAYLOAD_FILE || path.join(root, 'secrets', 'easter-egg.payload.json');
+  if (!fs.existsSync(file)) return { text: '', note: 'absent (the feature is off in this build)' };
+  const text = fs.readFileSync(file, 'utf8').trim();
+  let ok = false;
+  try {
+    const o = JSON.parse(text);
+    ok = typeof o === 'object' && o !== null && o.v === 1 && o.kdf === 'pbkdf2-sha256';
+  } catch {
+    ok = false;
+  }
+  if (!ok) throw new Error('the provisioned payload file is not a valid payload: run scripts/egg-provision.mjs again');
+  return { text, note: `embedded (sha256 ${crypto.createHash('sha256').update(text).digest('hex').slice(0, 12)})` };
+}
+const eggPayload = readEggPayload();
+console.log(`build: secret-name payload ${eggPayload.note}`);
+
 const define = {
+  __EGG_PAYLOAD__: JSON.stringify(eggPayload.text),
   __DEV__: JSON.stringify(dev),
-  __APP_VERSION__: JSON.stringify(pkg.version),
+  __APP_VERSION__: JSON.stringify(appVersion),
   'process.env.NODE_ENV': JSON.stringify(dev ? 'development' : 'production'),
 };
 
@@ -71,14 +109,15 @@ const appTargets = [
 
 /**
  * The web host for any current browser. Production has no source map (nothing but the page's own
- * three files is ever requested) and no test hook: __WEB_TEST__ is false, so esbuild drops the hook.
+ * files is ever requested) and no test hook: __WEB_TEST__ is false, so esbuild drops the hook.
+ * __WEB_SW__: the service worker exists (and is registered) only in production builds.
  * @returns {import('esbuild').BuildOptions}
  */
 function webTarget(test) {
   return {
     ...common,
     sourcemap: dev ? 'inline' : false,
-    define: { ...define, __WEB_TEST__: JSON.stringify(test) },
+    define: { ...define, __WEB_TEST__: JSON.stringify(test), __WEB_SW__: JSON.stringify(!dev) },
     entryPoints: { main: 'src/web/main.ts' },
     platform: 'browser',
     format: 'esm',
@@ -103,26 +142,58 @@ function copyStatic() {
   }
 }
 
-/** The web host's page and stylesheet next to its bundle. */
+const webDirs = () => [webDir, ...(webTest ? [webTestDir] : [])];
+
+/** The web host's pages, stylesheet and manifest next to its bundle, the icons (scripts/web-icons.mjs) and the notices page (scripts/web-licenses.mjs). */
 function copyWebStatic() {
   const srcDir = path.join(root, 'src', 'web');
-  for (const dstDir of [webDir, ...(webTest ? [webTestDir] : [])]) {
+  for (const dstDir of webDirs()) {
     fs.mkdirSync(dstDir, { recursive: true });
     for (const f of fs.readdirSync(srcDir)) {
-      if (f.endsWith('.html') || f.endsWith('.css')) fs.copyFileSync(path.join(srcDir, f), path.join(dstDir, f));
+      if (f.endsWith('.html') || f.endsWith('.css') || f.endsWith('.webmanifest')) fs.copyFileSync(path.join(srcDir, f), path.join(dstDir, f));
     }
+    writeWebIcons(dstDir);
+    writeWebLicenses(dstDir);
   }
 }
 
-/** Strings that must never ship in out/web (M5): the test hook, and key listeners. */
-const WEB_FORBIDDEN = ['__gizecatWebTest', 'keydown', 'keyup', 'keypress'];
+/**
+ * The service worker for one web build directory, after everything else is in it: its precache
+ * list is every file there but sw.js, and its version is the package version plus a hash of those
+ * files' paths and bytes, so sw.js changes (and browsers update) whenever any file changes.
+ */
+async function buildServiceWorker(dir) {
+  const files = listFiles(dir).filter((f) => f !== SW_FILE);
+  const hash = crypto.createHash('sha256');
+  for (const f of files) {
+    hash.update(f);
+    hash.update('\0');
+    hash.update(fs.readFileSync(path.join(dir, ...f.split('/'))));
+    hash.update('\0');
+  }
+  const version = `${appVersion}-${hash.digest('hex').slice(0, 16)}`;
+  await build({
+    bundle: true,
+    minify: true,
+    sourcemap: false,
+    legalComments: 'none',
+    logLevel: 'warning',
+    entryPoints: { sw: 'src/web/sw.ts' },
+    platform: 'browser',
+    format: 'iife',
+    target: ['es2020'],
+    outdir: dir,
+    define: { ...define, __SHELL_VERSION__: JSON.stringify(version), __SHELL_FILES__: JSON.stringify(files) },
+  });
+  return version;
+}
 
-/** Fails the build when the production web host contains a forbidden string. */
+/** Fails the build when the production web host is incomplete or contains a forbidden string (scripts/web-csp.mjs). */
 function checkWebProduction() {
-  for (const f of fs.readdirSync(webDir)) {
-    const text = fs.readFileSync(path.join(webDir, f), 'utf8');
-    const hit = WEB_FORBIDDEN.find((s) => text.includes(s));
-    if (hit) throw new Error(`build: out/web/${f} contains "${hit}" (test hook or key listener in the production web host)`);
+  try {
+    checkWebBuild(webDir, 'out/web');
+  } catch (err) {
+    throw new Error(`build: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -156,8 +227,16 @@ if (watch) {
   await Promise.all(targets.map((t) => build(t)));
   copyStatic();
   copyWebStatic();
-  if (!dev) checkWebProduction();
+  let swVersion = null;
+  if (!dev) {
+    // Production only: a development build never registers a worker (__WEB_SW__ is false there).
+    for (const dir of webDirs()) {
+      const v = await buildServiceWorker(dir);
+      if (dir === webDir) swVersion = v;
+    }
+    checkWebProduction();
+  }
   buildNative();
   const what = webOnly ? `web host written to out/web${webTest ? ' and out/web-test' : ''}` : `bundle written to out/${webTest ? ' (with out/web-test)' : ''}`;
-  console.log(`build: ${dev ? 'development' : 'production'} ${what} in ${Date.now() - t0} ms`);
+  console.log(`build: ${dev ? 'development' : 'production'} ${what} in ${Date.now() - t0} ms${swVersion ? ` (web shell ${swVersion})` : ''}`);
 }

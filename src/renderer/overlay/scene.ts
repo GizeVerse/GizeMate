@@ -1,15 +1,20 @@
-// One cat on one overlay: maps a render snapshot to the puppet, owns the view
-// transform (anchor, scale, facing turn), computes bounds and hit rects, and draws
-// in smooth or pixel style. Uses only the Canvas 2D context it is given (no DOM).
-import type { CatRenderState, Emote, RenderStyle } from '../../shared/cat';
+// One character on one overlay: maps a render snapshot to the active CharacterRenderer, owns the view
+// transform (anchor, scale, squash-turn facing), opacity, bounds, hit rects, emote placement and the
+// frame-rate policy inputs, and draws in smooth or pixel style. Character-agnostic: anatomy (pose,
+// geometry, tracked points, drawing) lives behind the renderer seam (character/types.ts); the cat is
+// wrapped by character/catRenderer.ts. Uses only the Canvas 2D context it is given (no DOM).
+import type { CatAccessory, CatRenderState, Emote, RenderStyle } from '../../shared/cat';
+import { characterOrDefault, DEFAULT_CHARACTER, type CharacterId } from '../../shared/characters/registry';
 import type { Rect } from '../../shared/geometry';
-import { drawCat, drawShadow, earCorners, type Ctx2D } from './cat/draw';
+import type { Ctx2D } from './cat/draw';
 import { drawEmote, EMOTE_RADIUS, EMOTE_SIZE, emoteFrame, type EmoteFrame } from './cat/emotes';
 import { clamp, smooth } from './cat/math';
-import { LEG_COUNT, LEG_FF, LEG_FN } from './cat/pose';
-import { CatPuppet } from './cat/puppet';
-import { applyMatX, applyMatY, HEAD_RX, HEAD_RY, OUTLINE_W, PAW_RX, TORSO_POINTS } from './cat/rig';
-import { getSkin, type Skin } from './cat/skins';
+import type { CatPuppet } from './cat/puppet';
+import { OUTLINE_W } from './cat/rig';
+import { CatRenderer } from './character/catRenderer';
+import { hardenAlpha } from './character/paint';
+import { MAX_HIT_RECTS, type CharacterRenderer, type EmoteAnchor, type GeometryCollector } from './character/types';
+import { createCharacterRenderer } from './characters/registry';
 import { frameIntervalMs, isFastMotion, type FrameMotion } from './frameRate';
 
 const TURN_MS = 170;
@@ -18,10 +23,7 @@ const DRAW_MARGIN = 5;
 /** Pixel style: device pixels per low-res pixel at scale 1 and DPR 1. */
 const PIXEL_BLOCK = 3;
 /** Hit rects per frame (main accepts up to 8). */
-const HIT_RECTS = 7;
-/** Points on the head oval of the head's hit rect, and the slack covering the polygon's chords. */
-const HEAD_HIT_STEPS = 12;
-const HEAD_HIT_SLACK = 0.7;
+const HIT_RECTS = MAX_HIT_RECTS;
 /** Gap (DIP at size 1) the emote keeps from the overlay's top edge. */
 const EMOTE_EDGE_GAP = 2;
 
@@ -61,11 +63,17 @@ interface LayerGeometry {
   lh: number;
 }
 
+/** Builds the renderer for a character id; the runtime passes the registry's, tests may pass their own. */
+export type RendererFactory = (id: CharacterId, random: () => number) => CharacterRenderer;
+
 export class CatScene {
-  readonly puppet: CatPuppet;
+  /** The active character's renderer, built on first use (a scene whose first snapshot names another character never builds a stand-in). */
+  private current: CharacterRenderer | null = null;
+  /** The character the scene was last told to show (the renderer may be a stand-in until its own exists). */
+  character: CharacterId = DEFAULT_CHARACTER;
   /** Overlay-local DIP bounds of everything drawn this frame. */
   readonly bounds: Rect = { x: 0, y: 0, width: 0, height: 0 };
-  /** Hit rects (overlay-local DIP): head, body, front legs, tail base, hind legs, front paws, hind paws. */
+  /** Hit rects (overlay-local DIP), roles fixed by the renderer (the cat: head, body, front legs, tail base, hind legs, front paws, hind paws). */
   readonly hitRects: Rect[] = [];
   hitCount = 0;
 
@@ -77,9 +85,10 @@ export class CatScene {
   private facingTo = 1;
   private facingNow = 1;
   private turnElapsed = Infinity;
-  private skin: Skin = getSkin('ginger');
+  private skin = 'ginger';
   private style: RenderStyle = 'smooth';
   private shadow = true;
+  private accessory: CatAccessory | undefined = undefined;
   private opacity = 1;
   private visible = false;
   private emote: Emote | null = null;
@@ -101,6 +110,7 @@ export class CatScene {
   private poseSpeed = 0;
   private hasPosePoints = false;
   private readonly posePoints = new Float64Array(6);
+  private readonly curPoints = new Float64Array(6);
   private readonly motion: FrameMotion = {
     clip: 'stand',
     state: 'idle',
@@ -112,9 +122,44 @@ export class CatScene {
     quiet: false,
   };
 
-  constructor(random: () => number) {
-    this.puppet = new CatPuppet(random);
+  private readonly emoteAnchor: EmoteAnchor = { x: 0, y: 0, lift: 30.5, side: 5 };
+  private readonly collector: GeometryCollector = {
+    add: (x, y, r, hit) => this.acc(x, y, r, hit),
+    addGround: (cx, half, rh) => this.accGround(cx, half, rh),
+  };
+
+  constructor(
+    private readonly random: () => number,
+    private readonly factory: RendererFactory = createCharacterRenderer,
+  ) {
     for (let i = 0; i < HIT_RECTS; i++) this.hitRects.push({ x: 0, y: 0, width: 0, height: 0 });
+  }
+
+  /** The active character's renderer (replaced when a snapshot's character changes); created on demand. */
+  get renderer(): CharacterRenderer {
+    if (this.current === null) this.current = this.factory(this.character, this.random);
+    return this.current;
+  }
+
+  /** The cat's puppet (tests and tools that look at the cat's pose); throws for any other renderer. */
+  get puppet(): CatPuppet {
+    if (this.renderer instanceof CatRenderer) return this.renderer.puppet;
+    throw new Error(`scene: the active renderer (${this.renderer.id}) has no cat puppet`);
+  }
+
+  /** Shows `id`: a different character replaces the renderer (fresh pose, nothing carried over). */
+  private setCharacter(id: CharacterId): void {
+    this.character = id;
+    this.current = this.factory(id, this.random);
+    this.hasPosePoints = false;
+    this.poseSpeed = 0;
+    this.moved = false;
+    this.turnElapsed = Infinity;
+    this.hasPos = false;
+    this.clipName = '';
+    this.clipStart = Number.NaN;
+    this.reactionAt = Number.NaN;
+    this.lastFastAt = Number.NEGATIVE_INFINITY;
   }
 
   /** Behaviour state and clip of the last update (debug overlay). */
@@ -128,12 +173,12 @@ export class CatScene {
 
   /** True when the cat is asleep and nothing visibly moves except breathing (frame-rate can drop). */
   get isQuiet(): boolean {
-    return this.sleeping && !this.moved && !this.emoteVisible && !this.puppet.animator.blending && this.turnElapsed >= TURN_MS;
+    return this.sleeping && !this.moved && !this.emoteVisible && !this.renderer.blending && this.turnElapsed >= TURN_MS;
   }
 
   /** A cross-fade, facing turn or reaction layer moved the last frame. */
   private get transitioning(): boolean {
-    return this.puppet.animator.blending || this.puppet.animator.reacting || this.turnElapsed < TURN_MS;
+    return this.renderer.blending || this.renderer.reacting || this.turnElapsed < TURN_MS;
   }
 
   /**
@@ -158,16 +203,20 @@ export class CatScene {
       (r !== undefined && r !== null && r.at !== this.reactionAt);
     m.poseSpeed = this.poseSpeed;
     m.quiet = this.isQuiet && next.state === 'sleeping';
+    m.sleepDepth = next.sleepDepth;
     return frameIntervalMs(m, this.clock - this.lastFastAt);
   }
 
   update(input: SceneInput): void {
     const s = input.state;
+    const wanted = characterOrDefault(s.character);
+    if (wanted !== this.character) this.setCharacter(wanted);
     this.visible = s.visible;
     this.opacity = clamp(Number.isFinite(s.opacity) ? s.opacity : 1, 0, 1);
-    this.skin = getSkin(s.skin);
+    this.skin = typeof s.skin === 'string' ? s.skin : 'ginger';
     this.style = s.style === 'pixel' ? 'pixel' : 'smooth';
     this.shadow = s.shadow;
+    this.accessory = s.accessory === 'heartPendant' ? 'heartPendant' : undefined;
     this.sleeping = s.state === 'sleeping';
     this.stateName = s.state;
     this.clipName = s.clip;
@@ -201,7 +250,7 @@ export class CatScene {
       my = (input.y - this.y) / scale;
     }
     this.moved = Math.abs(input.x - this.x) > 0.01 || Math.abs(input.y - this.y) > 0.01;
-    if (input.snapped) this.puppet.resetTail();
+    if (input.snapped) this.renderer.resetMotion();
     this.x = input.x;
     this.y = input.y;
     this.scale = scale;
@@ -209,7 +258,7 @@ export class CatScene {
 
     const look = s.look;
     const hasLook = look !== null && Number.isFinite(look.x) && Number.isFinite(look.y);
-    this.puppet.advance(
+    this.renderer.advance(
       {
         clip: s.clip,
         clipStartedAt: s.clipStartedAt,
@@ -227,6 +276,9 @@ export class CatScene {
         jumpKind: s.jumpKind ?? null,
         impact: s.impact,
         balance: s.balance,
+        mood: s.mood,
+        sleepDepth: s.sleepDepth,
+        reducedMotion: s.reducedMotion === true,
       },
       input.simTime,
       dt,
@@ -242,23 +294,15 @@ export class CatScene {
 
   /** Measures this frame's motion for the frame-rate policy (allocation-free). */
   private trackMotion(s: CatRenderState, dt: number, snapped: boolean): void {
-    const rig = this.puppet.rig;
-    const m = rig.m;
-    const tail = this.puppet.tail;
-    const tip = tail.count - 1;
-    const paw = rig.legs[LEG_FN]!;
-    // A point at the front of the head, so head turns and tilts count, not just its centre.
-    const hx = rig.headX + HEAD_RX * Math.cos(rig.headRot);
-    const hy = rig.headY - HEAD_RX * Math.sin(rig.headRot);
     const pts = this.posePoints;
+    const cur = this.curPoints;
+    this.renderer.trackedPoints(cur);
     // A snap resets the tail: that jump is not motion.
     const measure = this.hasPosePoints && dt >= 1 && !snapped;
     let fastest = 0;
     for (let i = 0; i < 3; i++) {
-      const lx = i === 0 ? tail.x[tip]! : i === 1 ? hx : paw.fx;
-      const ly = i === 0 ? tail.y[tip]! : i === 1 ? hy : paw.fy;
-      const X = applyMatX(m, lx, ly);
-      const Y = applyMatY(m, lx, ly);
+      const X = cur[i * 2]!;
+      const Y = cur[i * 2 + 1]!;
       if (measure) fastest = Math.max(fastest, (Math.hypot(X - pts[i * 2]!, Y - pts[i * 2 + 1]!) * 1000) / dt);
       pts[i * 2] = X;
       pts[i * 2 + 1] = Y;
@@ -274,6 +318,7 @@ export class CatScene {
     mo.transition = this.transitioning;
     mo.poseSpeed = this.poseSpeed;
     mo.quiet = this.isQuiet;
+    mo.sleepDepth = s.sleepDepth;
     if (isFastMotion(mo)) this.lastFastAt = this.clock;
   }
 
@@ -291,14 +336,20 @@ export class CatScene {
   private by0 = 0;
   private bx1 = 0;
   private by1 = 0;
-  private readonly earPts = new Float64Array(6);
 
-  /** Adds a posed cat-local point with radius r (cat units) to the bounds and to hit rect `hit` (or none if < 0). */
+  /** Adds a posed character-local point with radius r (local units) to the bounds and to hit rect `hit` (or none if < 0). */
   private acc(px: number, py: number, r: number, hit: number): void {
-    const m = this.puppet.rig.m;
-    const X = this.x + this.gsx * applyMatX(m, px, py);
-    const Y = this.y + this.gsy * applyMatY(m, px, py);
-    this.accView(X, Y, r * this.scale, hit);
+    this.accView(this.x + this.gsx * px, this.y + this.gsy * py, r * this.scale, hit < HIT_RECTS ? hit : -1);
+  }
+
+  /** The ground shadow's two end caps: bounds only. */
+  private accGround(cx: number, half: number, rh: number): void {
+    if (!this.shadow) return;
+    const gx = this.x + this.gsx * cx;
+    const h = half * Math.abs(this.gsx);
+    const r = rh * this.gsy;
+    this.accView(gx - h, this.y - 0.6 * this.gsy, r, -1);
+    this.accView(gx + h, this.y - 0.6 * this.gsy, r, -1);
   }
 
   /** Adds an overlay-DIP point with radius R. Hit rects hold min/max until finalised. */
@@ -317,9 +368,6 @@ export class CatScene {
   }
 
   private computeGeometry(): void {
-    const rig = this.puppet.rig;
-    const tail = this.puppet.tail;
-    const m = rig.m;
     const s = this.scale;
     this.gsx = this.sx;
     this.gsy = this.sy;
@@ -334,78 +382,7 @@ export class CatScene {
       r.width = -Infinity;
       r.height = -Infinity;
     }
-
-    for (let i = 0; i < TORSO_POINTS; i++) this.acc(rig.torso[i * 2]!, rig.torso[i * 2 + 1]!, 0.5, 1);
-    this.acc(rig.hx - rig.hrx, rig.hy, 0, 1);
-    this.acc(rig.hx + rig.hrx, rig.hy, 0, 1);
-    this.acc(rig.hx, rig.hy + rig.hry, 0, 1);
-    // Head including ears, drawn bounds: corners of a rotated box.
-    const hc = Math.cos(rig.headRot);
-    const hs = Math.sin(rig.headRot);
-    const hf = rig.headFlip < 0 ? -1 : 1;
-    for (let i = 0; i < 4; i++) {
-      const lx = i & 1 ? HEAD_RX + 1 : -HEAD_RX - 1;
-      const ly = (i & 2 ? HEAD_RY + 1 : -HEAD_RY - 9) * hf;
-      this.acc(rig.headX + lx * hc + ly * hs, rig.headY - lx * hs + ly * hc, 0, -1);
-    }
-    // Head hit region (v1.2): the head oval and the two ears as drawn. The box above swings its
-    // empty ear-room corners ahead of the face when the head tips down, which put a pouncing or
-    // striking cat's region ~7 DIP closer to the cursor than anything painted (HIT_FRONT_EXTENT_DIP).
-    for (let i = 0; i < HEAD_HIT_STEPS; i++) {
-      const a = (i * 2 * Math.PI) / HEAD_HIT_STEPS;
-      const lx = (HEAD_RX + 1) * Math.cos(a);
-      const ly = (HEAD_RY + 1) * Math.sin(a) * hf;
-      this.acc(rig.headX + lx * hc + ly * hs, rig.headY - lx * hs + ly * hc, HEAD_HIT_SLACK, 0);
-    }
-    const pose = this.puppet.pose;
-    const ears = this.earPts;
-    for (let e = 0; e < 2; e++) {
-      earCorners(pose, e === 0 ? 0 : 1, ears);
-      for (let i = 0; i < 3; i++) {
-        const lx = ears[i * 2]!;
-        const ly = ears[i * 2 + 1]! * hf;
-        this.acc(rig.headX + lx * hc + ly * hs, rig.headY - lx * hs + ly * hc, 0.5, 0);
-      }
-    }
-    // Room around the ear tips and the whiskers: drawn bounds only, not interactive. Whiskers (drawCat's
-    // drawWhiskers) fan out from the face, which shifts with the face turn, and tilt
-    // with pose.whisker by up to ~0.6 rad.
-    for (let i = 0; i < 2; i++) {
-      const lx = i ? 10 : -14;
-      const ly = -25 * hf;
-      this.acc(rig.headX + lx * hc + ly * hs, rig.headY - lx * hs + ly * hc, 1, -1);
-    }
-    const turn = clamp(this.puppet.pose.faceTurn, -2, 1);
-    const fx = 3.6 + turn * 4.2;
-    const back = 1 - 0.4 * clamp(turn + 1, 0, 1);
-    for (let i = 0; i < 4; i++) {
-      const lx = i & 1 ? fx + 22 : fx - 9 - 11.5 * back;
-      const ly = (i & 2 ? 18.7 : -5.3) * hf;
-      this.acc(rig.headX + lx * hc + ly * hs, rig.headY - lx * hs + ly * hc, 0.5, -1);
-    }
-    // Legs per pair (front, hind): knees and legs down to the paw centres, and the paws in a rect of
-    // their own. One box over all four legs would span the gap between the pairs at the full width of
-    // a knee or paw: on a wall the paws grip the wall line, so it reached into the window the cat
-    // clings to over a band where nothing is drawn.
-    for (let i = 0; i < LEG_COUNT; i++) {
-      const g = rig.legs[i]!;
-      const front = i === LEG_FN || i === LEG_FF;
-      this.acc(g.kx, g.ky, 4.5, front ? 2 : 4);
-      this.acc(g.fx, g.fy, 0, front ? 2 : 4);
-      this.acc(g.fx, g.fy, PAW_RX, front ? 5 : 6);
-    }
-    const n = tail.count;
-    for (let i = 0; i < n; i++) this.acc(tail.x[i]!, tail.y[i]!, tail.radius(i) + 1, i <= n * 0.5 ? 3 : -1);
-    // Shadow: drawn on the ground line of the view (outside the pose matrix).
-    if (this.shadow) {
-      // Same extent as drawShadow (upper bound: no airborne shrink).
-      const k = clamp(this.puppet.pose.shadow, 0, 1.5);
-      const gx = this.x + this.gsx * (m[0]! * rig.bodyX + m[4]!);
-      const half = (27 * k * Math.abs(m[0]!) + 4) * Math.abs(this.gsx);
-      const rh = (4.2 * k + 0.8) * this.gsy;
-      this.accView(gx - half, this.y - 0.6 * this.gsy, rh, -1);
-      this.accView(gx + half, this.y - 0.6 * this.gsy, rh, -1);
-    }
+    this.renderer.measure(this.collector);
 
     const margin = DRAW_MARGIN * s;
     let x0 = this.bx0 - margin;
@@ -415,11 +392,17 @@ export class CatScene {
 
     // Emote above the head (not mirrored).
     if (this.emoteVisible) {
-      const hx = this.x + this.gsx * applyMatX(m, rig.headX, rig.headY);
-      const hy = this.y + this.gsy * applyMatY(m, rig.headX, rig.headY);
+      const ea = this.emoteAnchor;
+      ea.x = 0;
+      ea.y = 0;
+      ea.lift = 30.5;
+      ea.side = 5;
+      this.renderer.emoteAnchor(ea);
+      const hx = this.x + this.gsx * (Number.isFinite(ea.x) ? ea.x : 0);
+      const hy = this.y + this.gsy * (Number.isFinite(ea.y) ? ea.y : 0);
       const size = EMOTE_SIZE * clamp(s, 0.85, 2.2);
-      this.emoteX = hx + 5 * s * Math.sign(this.facingNow || 1);
-      this.emoteY = Math.min(hy, this.y) - (HEAD_RY + 17 + this.emoteF.rise) * s;
+      this.emoteX = hx + ea.side * s * Math.sign(this.facingNow || 1);
+      this.emoteY = Math.min(hy, this.y) - (ea.lift + this.emoteF.rise) * s;
       const half = (size * EMOTE_RADIUS) / EMOTE_SIZE;
       // v1.2 (ADR 0003 §8.2): kept inside this overlay at its top edge, so a cat at the top of the
       // screen (a screen-edge climb, a window near the top) shows its whole emote. Only when the cat
@@ -504,7 +487,7 @@ export class CatScene {
     return out;
   }
 
-  /** Draws the cat into `ctx` (whose canvas pixels are overlay DIP * dpr). */
+  /** Draws the character into `ctx` (whose canvas pixels are overlay DIP * dpr). */
   draw(ctx: Ctx2D, dpr: number, layers: LayerProvider | null): void {
     if (!this.isVisible) return;
     if (this.needsLayer && layers) {
@@ -534,8 +517,8 @@ export class CatScene {
       hardenAlpha(lc, lw, lh);
       if (this.shadow) {
         lc.globalCompositeOperation = 'destination-over';
-        this.setCatTransform(lc, dpr / block, -ox / block, -oy / block);
-        drawShadow(lc, this.puppet.rig, this.puppet.pose);
+        this.setViewTransform(lc, dpr / block, -ox / block, -oy / block);
+        this.renderer.drawShadow(lc);
         lc.globalCompositeOperation = 'source-over';
       }
       this.paintEmote(lc, dpr / block, -ox / block, -oy / block);
@@ -548,14 +531,14 @@ export class CatScene {
     ctx.restore();
   }
 
-  private setCatTransform(ctx: Ctx2D, k: number, tx: number, ty: number): void {
+  private setViewTransform(ctx: Ctx2D, k: number, tx: number, ty: number): void {
     ctx.setTransform(k * this.sx, 0, 0, k * this.sy, k * this.x + tx, k * this.y + ty);
   }
 
   /** Paints cat (+shadow, +emote unless pixel) with device scale k and device offset (tx, ty). */
   private paint(ctx: Ctx2D, k: number, tx: number, ty: number, outline: number, withExtras: boolean): void {
-    this.setCatTransform(ctx, k, tx, ty);
-    drawCat(ctx, this.puppet, this.skin, { outline, shadow: this.shadow && withExtras, pixelsPerUnit: k * this.scale });
+    this.setViewTransform(ctx, k, tx, ty);
+    this.renderer.draw(ctx, { outline, shadow: this.shadow && withExtras, pixelsPerUnit: k * this.scale, skin: this.skin, accessory: this.accessory });
     if (withExtras) this.paintEmote(ctx, k, tx, ty);
   }
 
@@ -565,17 +548,4 @@ export class CatScene {
     ctx.setTransform(k, 0, 0, k, k * this.emoteX + tx, k * this.emoteY + ty);
     drawEmote(ctx, this.emote, EMOTE_SIZE * s, this.emoteF);
   }
-}
-
-/** Pixel style: make every low-res pixel either opaque or transparent for crisp edges. */
-function hardenAlpha(ctx: Ctx2D, w: number, h: number): void {
-  let img: ImageData;
-  try {
-    img = ctx.getImageData(0, 0, w, h);
-  } catch {
-    return;
-  }
-  const d = img.data;
-  for (let i = 3; i < d.length; i += 4) d[i] = d[i]! >= 100 ? 255 : 0;
-  ctx.putImageData(img, 0, 0);
 }

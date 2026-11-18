@@ -29,8 +29,11 @@ import { frameIntervalMs, FULL_RATE_MS, type FrameMotion } from '../../../src/re
 import { createPose, LEG_POSE_KEYS, POSE_KEYS, type Pose } from '../../../src/renderer/overlay/cat/pose';
 import { applyMatX, applyMatY, Rig } from '../../../src/renderer/overlay/cat/rig';
 import { CatScene } from '../../../src/renderer/overlay/scene';
+import { slow } from '../../helpers/slowTimeout';
 
-const V12_CLIPS = ANIM_CLIPS.slice(ANIM_CLIPS.indexOf('climb') + 1);
+// The 14 clips of v1.2: those between 'climb' and the Living Companion clips (scratch, shake, confused),
+// which livingCompanion.test.ts covers.
+const V12_CLIPS = ANIM_CLIPS.slice(ANIM_CLIPS.indexOf('climb') + 1, ANIM_CLIPS.indexOf('scratch'));
 /** The placeholders the contract step (C1) gave the new clips; each must now be drawn differently. */
 const C1_PLACEHOLDER: Readonly<Record<string, AnimClip>> = {
   stalk: 'walk',
@@ -522,7 +525,7 @@ describe('strike poses: hit region vs HIT_FRONT_EXTENT_DIP (ADR 0003 §4.2, §6.
     expect(failures.slice(0, 5)).toEqual([]);
     // The bounds are not vacuous: each pose reaches most of the way to its bound.
     for (const key of Object.keys(HIT_FRONT_EXTENT_DIP) as StrikePose[]) expect(worst[key], key).toBeGreaterThan(25);
-  }, 120_000);
+  }, slow(120_000));
 });
 
 describe('emote clamp and head hit region (ADR 0003 §8.2)', () => {

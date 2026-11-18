@@ -1,0 +1,208 @@
+// Rabbit: a round, plush, energetic hopper with big expressive ears. It hops instead of walking, startles
+// at sudden things (freeze, thump, bolt) and recovers fast, and needs a calm moment before it trusts a
+// surprise. Everything the shared engine needs to know lives here; the drawing is in
+// src/renderer/overlay/characters/rabbit/ (the native clip list below is exactly what it draws).
+import type { CharacterModule } from './types';
+
+export const RABBIT_MODULE: CharacterModule = Object.freeze({
+  id: 'rabbit',
+  kind: 'animal',
+  locomotion: 'hop',
+  i18nPrefix: 'character.rabbit',
+  body: Object.freeze({
+    widthDip: 66,
+    heightDip: 68,
+    gaitScale: 1,
+    hitFrontExtentDip: Object.freeze({ crouch: 38, land: 38, pawAt: 38, wake: 44, stretch: 44, bounce: 46, jump: 42, hop: 42, startle: 40, scratch: 36 }),
+  }),
+  skins: Object.freeze(['white', 'brown', 'gray', 'spotted']),
+  // Native clips: the whole rest and play vocabulary, the stomp/puff/sulk/balance/dangle/spin/flop/splat/scramble/squeak
+  // gestures, the pounce leap and the burrow vanish/appear. Gaits (walk, run, sprint, stalk, slink) are the 'hop' clip: the
+  // sim restyles every gait to it and the pace shows in the speed (creep, hop, long leaps).
+  clips: Object.freeze([
+    'stand', 'sit', 'loaf', 'sleep', 'wake', 'yawn', 'crouch', 'jump', 'fall', 'land', 'startle', 'annoyed', 'petted', 'groom', 'pawAt', 'held',
+    'hide', 'peek', 'scratch', 'shake', 'confused', 'hop', 'bounce', 'dance', 'scan', 'squish', 'stretch',
+    'pounce', 'swat', 'hiss', 'grumpy', 'balance', 'edgeSit', 'tailChase', 'rollOver', 'impact', 'slip', 'meow', 'vanish', 'appear',
+  ] as const),
+  // Kept aliases, each a pose that suits a rabbit (never emitted for it, or the same motion):
+  // walk/run/sprint/stalk/slink: the hop clip itself (speed shapes it); landRecover: shaking it off is what a rabbit does after
+  // a hard landing; climb: never emitted (no wall climbing, climbsEdges false); float: unused by a hopper; swing: hangs by the
+  // scruff like held; beam: unused, the upright periscope with antenna ears is the nearest pose.
+  clipAlias: Object.freeze({
+    walk: 'hop',
+    run: 'hop',
+    sprint: 'hop',
+    stalk: 'hop',
+    slink: 'hop',
+    landRecover: 'shake',
+    climb: 'stand',
+    float: 'bounce',
+    swing: 'held',
+    beam: 'scan',
+  } as const),
+  personality: Object.freeze({
+    means: Object.freeze({ curiosity: 0.55, energy: 0.78, playfulness: 0.68, sociability: 0.72, mischief: 0.22, affection: 0.78, independence: 0.28 }),
+    spread: 0.15,
+  }),
+  behavior: Object.freeze({
+    speedScale: 1.15,
+    restBias: 0.9,
+    exploreBias: 1.2,
+    playBias: 1.25,
+    cursorInterest: 1.1,
+    jumpiness: 1.3,
+    shyness: 1.45,
+    eventAffinity: Object.freeze({
+      butterflyEncounter: 2.2,
+      fallingLeaf: 1.8,
+      boxAppears: 1.5,
+      bubbleParty: 1.5,
+      magicSparkles: 1.4,
+      toySpring: 1.3,
+      mysteriousBall: 1.3,
+      tinyTreasure: 1.2,
+      fallingStar: 1.2,
+      curiousBird: 1.1,
+      yarnTrouble: 0.9,
+      flyingFish: 0.8,
+      windGust: 0.8,
+      mouseEncounter: 0.7,
+      tinyUfo: 0.6,
+      littleGhost: 0.5,
+      shadowVisitor: 0.5,
+      thunderstorm: 0.4,
+    }),
+    signatures: Object.freeze([
+      // The joyful leap with a twist, out of nowhere when the mood is right.
+      Object.freeze({
+        id: 'binky',
+        clip: 'bounce',
+        leadIn: Object.freeze(['crouch'] as const),
+        weight: 1.3,
+        cooldownMs: 90_000,
+        durationMs: Object.freeze([1500, 3000] as const),
+        requires: Object.freeze({ minEnergy: 0.35, notWhileSleepy: true }),
+        traitBias: Object.freeze({ playfulness: 0.8, energy: 0.6 }),
+        movement: 'none',
+        emote: 'sparkle',
+        sound: 'trill',
+      }),
+      // Stand tall on the hind feet and look around, ears up like antennae.
+      Object.freeze({
+        id: 'periscope',
+        clip: 'scan',
+        weight: 1.4,
+        cooldownMs: 60_000,
+        durationMs: Object.freeze([3500, 7000] as const),
+        requires: Object.freeze({ notWhileSleepy: true }),
+        traitBias: Object.freeze({ curiosity: 0.8 }),
+        movement: 'none',
+        emote: 'question',
+      }),
+      // Pull an ear down and wash it with both forepaws.
+      Object.freeze({
+        id: 'earWash',
+        clip: 'groom',
+        leadIn: Object.freeze(['sit'] as const),
+        weight: 1.1,
+        cooldownMs: 80_000,
+        durationMs: Object.freeze([5000, 9000] as const),
+        traitBias: Object.freeze({ independence: 0.3 }),
+        movement: 'none',
+      }),
+      // Thump a hind foot: a warning to the world.
+      Object.freeze({
+        id: 'footThump',
+        clip: 'annoyed',
+        weight: 0.8,
+        cooldownMs: 150_000,
+        durationMs: Object.freeze([2200, 4000] as const),
+        requires: Object.freeze({ moods: Object.freeze(['curious', 'startled', 'confused'] as const) }),
+        traitBias: Object.freeze({ independence: 0.5, mischief: 0.4 }),
+        movement: 'none',
+        emote: 'exclaim',
+        sound: 'thud',
+      }),
+      // Nibble something, forepaws holding it, nose busy.
+      Object.freeze({
+        id: 'nibble',
+        clip: 'pawAt',
+        leadIn: Object.freeze(['sit'] as const),
+        weight: 1.1,
+        cooldownMs: 70_000,
+        durationMs: Object.freeze([4500, 8000] as const),
+        requires: Object.freeze({ moods: Object.freeze(['relaxed', 'happy', 'curious'] as const) }),
+        traitBias: Object.freeze({ affection: 0.2 }),
+        movement: 'none',
+        emote: 'note',
+      }),
+      // Hop in circles, the zoomies.
+      Object.freeze({
+        id: 'zoomies',
+        clip: 'dance',
+        leadIn: Object.freeze(['crouch'] as const),
+        weight: 0.9,
+        cooldownMs: 180_000,
+        durationMs: Object.freeze([3000, 5000] as const),
+        requires: Object.freeze({ minEnergy: 0.5, notWhileSleepy: true, moods: Object.freeze(['happy', 'excited'] as const) }),
+        traitBias: Object.freeze({ energy: 0.9, playfulness: 0.8 }),
+        movement: 'random-hop',
+        emote: 'sparkle',
+        sound: 'boing',
+      }),
+      // Dive into a burrow and pop up somewhere else, looking around: rare, and never with reduced motion (the engine swaps).
+      Object.freeze({
+        id: 'burrow',
+        clip: 'scan',
+        weight: 0.5,
+        cooldownMs: 240_000,
+        durationMs: Object.freeze([1800, 3000] as const),
+        requires: Object.freeze({ notWhileSleepy: true }),
+        traitBias: Object.freeze({ playfulness: 0.5, mischief: 0.4 }),
+        movement: 'teleport',
+        emote: 'question',
+      }),
+      // Duck low and peek out again.
+      Object.freeze({
+        id: 'peekaboo',
+        clip: 'peek',
+        weight: 0.7,
+        cooldownMs: 120_000,
+        durationMs: Object.freeze([4000, 7000] as const),
+        traitBias: Object.freeze({ playfulness: 0.5 }),
+        movement: 'none',
+        emote: 'heart',
+      }),
+    ]),
+  }),
+  reactions: Object.freeze({
+    petted: Object.freeze({ clip: 'petted', emote: 'heart', sound: 'trill', mood: 'happy' }),
+    held: Object.freeze({ clip: 'held', emote: 'exclaim', sound: 'squeak', mood: 'scared' }),
+    startled: Object.freeze({ clip: 'startle', emote: 'exclaim', sound: 'thud', mood: 'startled' }),
+    cursorNear: Object.freeze({ clip: 'scan', emote: 'question', mood: 'curious', durationMs: 2000 }),
+    laser: Object.freeze({ clip: 'hop', emote: 'exclaim', sound: 'chirp', mood: 'excited', durationMs: 2600 }),
+    butterfly: Object.freeze({ clip: 'hop', emote: 'sparkle', mood: 'excited', durationMs: 3000 }),
+    goldenButterfly: Object.freeze({ clip: 'bounce', emote: 'sparkle', sound: 'trill', mood: 'excited', durationMs: 2800 }),
+    leaf: Object.freeze({ clip: 'pawAt', emote: 'note', mood: 'happy', durationMs: 3200 }),
+    box: Object.freeze({ clip: 'hide', emote: 'question', mood: 'curious', durationMs: 2600 }),
+    yarn: Object.freeze({ clip: 'crouch', emote: 'question', mood: 'curious', durationMs: 1800 }),
+    ghost: Object.freeze({ clip: 'startle', emote: 'exclaim', sound: 'thud', mood: 'scared', durationMs: 1400 }),
+    ball: Object.freeze({ clip: 'hop', emote: 'sparkle', mood: 'excited', durationMs: 2400 }),
+    mouse: Object.freeze({ clip: 'scan', emote: 'question', mood: 'curious', durationMs: 2400 }),
+    bubble: Object.freeze({ clip: 'dance', emote: 'sparkle', mood: 'happy', durationMs: 2600 }),
+    bird: Object.freeze({ clip: 'scan', emote: 'question', mood: 'curious', durationMs: 2600 }),
+    bolt: Object.freeze({ clip: 'startle', emote: 'exclaim', sound: 'thud', mood: 'scared', durationMs: 1400 }),
+    raindrop: Object.freeze({ clip: 'shake', emote: 'question', mood: 'confused', durationMs: 1400 }),
+    shadow: Object.freeze({ clip: 'hide', emote: 'exclaim', mood: 'scared', durationMs: 2600 }),
+    spring: Object.freeze({ clip: 'bounce', emote: 'sparkle', sound: 'boing', mood: 'excited', durationMs: 2400 }),
+  }),
+  sound: Object.freeze({
+    pitch: 1.3,
+    voice: 'soft',
+    gain: 0.6,
+    cooldownMs: 2500,
+    cues: Object.freeze({ voice: 'squeak', happy: 'trill', startled: 'thud' }),
+  }),
+  memory: Object.freeze({ kinds: Object.freeze(['pet', 'nap', 'chase', 'inspect', 'startle', 'play', 'attention', 'greet', 'hide', 'called'] as const) }),
+  capabilities: Object.freeze({ climbsEdges: false, flies: false, passesThrough: false, squashes: true }),
+});

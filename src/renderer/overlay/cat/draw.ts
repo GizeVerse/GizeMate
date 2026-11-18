@@ -2,6 +2,9 @@
 // facing); everything here is in cat-local DIP. Groups of shapes are drawn as an
 // outline pass followed by a fill pass so that overlapping parts merge into one
 // clean silhouette with a single exterior outline. No per-frame allocation.
+import type { CatAccessory } from '../../../shared/cat';
+import { traceClosedSpline, limbStroke } from '../character/paint';
+import { computeNecklace, createNecklaceGeom, drawNecklace } from './accessory';
 import { clamp, clamp01, lerp, TAU } from './math';
 import { LEG_BF, LEG_BN, LEG_FF, LEG_FN, type Pose } from './pose';
 import type { CatPuppet } from './puppet';
@@ -17,6 +20,8 @@ export interface DrawOptions {
   shadow: boolean;
   /** Device pixels per cat-local unit; small values drop fine detail. */
   pixelsPerUnit: number;
+  /** Optional worn accessory (absent = none). */
+  accessory?: CatAccessory | undefined;
 }
 
 const DASH_NONE: number[] = [];
@@ -40,6 +45,7 @@ const tailPts = new Float64Array(TAIL_SAMPLES * 2);
 const tailRad = new Float64Array(TAIL_SAMPLES);
 const tailLen = new Float64Array(TAIL_SAMPLES);
 const ear = new Float64Array(6);
+const necklace = createNecklaceGeom();
 // Per-call drawing state (set at the start of drawCat; drawing is never re-entrant).
 let unit = 1;
 let pixelMode = false;
@@ -97,6 +103,17 @@ export function drawCat(ctx: Ctx2D, puppet: CatPuppet, skin: Skin, o: DrawOption
   torsoMarks(ctx, rig, skin, fine);
   legDetails(ctx, rig.legs[LEG_FN]!, LEG_FN, skin, false, fine);
 
+  // Accessory: after the torso, neck and standing front leg fills, before the lifted-paw layer
+  // (a raised paw stays in front of the pendant) and before the head (the chin overlaps the collar,
+  // so the necklace can never cover the face, ears or eyes).
+  // With the tail in front (sit, loaf, sleep) the necklace is drawn after the tail instead, so the
+  // tail can never cover the heart (never drawn twice).
+  const wearing = o.accessory === 'heartPendant';
+  if (wearing) {
+    computeNecklace(rig, p, necklace);
+    if (!tail.front) drawNecklace(ctx, necklace, skin.outline, ol, o.pixelsPerUnit);
+  }
+
   // A front paw lifted off the ground (grooming, batting) gets its own outline so it
   // reads in front of the chest; a shoulder patch hides the stroke's root cap.
   const lift = frontLift(rig.legs[LEG_FN]!);
@@ -132,7 +149,10 @@ export function drawCat(ctx: Ctx2D, puppet: CatPuppet, skin: Skin, o: DrawOption
   ctx.stroke();
   ctx.globalAlpha = a0;
 
-  if (tail.front) drawTail(ctx, tail, skin, ol, fine);
+  if (tail.front) {
+    drawTail(ctx, tail, skin, ol, fine);
+    if (wearing) drawNecklace(ctx, necklace, skin.outline, ol, o.pixelsPerUnit);
+  }
 
   drawHead(ctx, rig, p, skin, ol, fine);
   ctx.restore();
@@ -205,22 +225,6 @@ function traceTorso(ctx: Ctx2D, rig: Rig): void {
 function traceHaunch(ctx: Ctx2D, rig: Rig): void {
   ctx.beginPath();
   ctx.ellipse(rig.hx, rig.hy, Math.max(0.5, rig.hrx), Math.max(0.5, rig.hry), rig.hrot, 0, TAU);
-}
-
-function traceClosedSpline(ctx: Ctx2D, pts: Float64Array, n: number): void {
-  ctx.moveTo(pts[0]!, pts[1]!);
-  for (let i = 0; i < n; i++) {
-    const i0 = ((i - 1 + n) % n) * 2;
-    const i1 = i * 2;
-    const i2 = ((i + 1) % n) * 2;
-    const i3 = ((i + 2) % n) * 2;
-    const c1x = pts[i1]! + (pts[i2]! - pts[i0]!) / 6;
-    const c1y = pts[i1 + 1]! + (pts[i2 + 1]! - pts[i0 + 1]!) / 6;
-    const c2x = pts[i2]! - (pts[i3]! - pts[i1]!) / 6;
-    const c2y = pts[i2 + 1]! - (pts[i3 + 1]! - pts[i1 + 1]!) / 6;
-    ctx.bezierCurveTo(c1x, c1y, c2x, c2y, pts[i2]!, pts[i2 + 1]!);
-  }
-  ctx.closePath();
 }
 
 /** Spiky fur along the back when bristling (startle/arched). */
@@ -301,15 +305,6 @@ function drawMarks(ctx: Ctx2D, marks: readonly Mark[], region: Mark['region'], s
 
 // ---------------------------------------------------------------------------
 // Legs
-
-function limbStroke(ctx: Ctx2D, x0: number, y0: number, x1: number, y1: number, width: number, color: string): void {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(0.1, width);
-  ctx.beginPath();
-  ctx.moveTo(x0, y0);
-  ctx.lineTo(x1, y1);
-  ctx.stroke();
-}
 
 function tracePaw(ctx: Ctx2D, g: LegGeom, grow: number): void {
   const c = Math.cos(g.paw);

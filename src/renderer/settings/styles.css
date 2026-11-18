@@ -2,10 +2,10 @@
 
 :root {
   color-scheme: light dark;
-  --font: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  --font-display: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', sans-serif;
-  --font-mono: 'Cascadia Mono', Consolas, monospace;
-  --icon-font: 'Segoe Fluent Icons', 'Segoe MDL2 Assets';
+  --font: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  --icon-font: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', system-ui, sans-serif;
 
   --bg: #f3f3f3;
   --card: #fbfbfb;
@@ -15,7 +15,7 @@
   --divider: rgba(0, 0, 0, 0.08);
   --text: #1b1b1b;
   --text-2: #5e5e5e;
-  --text-3: #8a8a8a;
+  --text-3: #6b6b6b;
   --accent: #005fb8;
   --accent-hover: #1a6dc0;
   --accent-pressed: #3381c8;
@@ -74,7 +74,7 @@
     --divider: rgba(255, 255, 255, 0.08);
     --text: #ffffff;
     --text-2: #c5c5c5;
-    --text-3: #8b8b8b;
+    --text-3: #a0a0a0;
     --accent: #60cdff;
     --accent-hover: #5ab8e6;
     --accent-pressed: #52a3cc;
@@ -110,7 +110,7 @@
     --warn-stroke: #5c4a22;
     --danger: #ff99a4;
     --danger-solid: #d13438;
-    --danger-solid-hover: #e04347;
+    --danger-solid-hover: #bf2d31;
     --on-danger: #ffffff;
     --danger-bg: #442726;
     --danger-stroke: #6b3433;
@@ -1229,7 +1229,7 @@ p.row-desc {
   padding: 22px 24px;
   border: 1px solid var(--card-stroke);
   border-radius: 8px;
-  background: linear-gradient(120deg, var(--hero-a), var(--hero-b));
+  background: var(--card);
 }
 
 .hero-art .coat-art {
@@ -1883,7 +1883,18 @@ p.row-desc {
   *::before,
   *::after {
     transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
   }
+}
+
+/* The companion's own reduced-motion switch (set on <html> by appListeners.ts) calms the interface the same way. */
+html[data-calm] *,
+html[data-calm] *::before,
+html[data-calm] *::after {
+  transition: none !important;
+  animation: none !important;
+  scroll-behavior: auto !important;
 }
 
 @media (forced-colors: active) {
@@ -1951,4 +1962,456 @@ p.row-desc {
 
 .test-details .kv {
   gap: 4px 20px;
+}
+
+/* ---------- 1.4.0 take your cat to another device (profileView.ts) ---------- */
+
+.transfer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.check-row input[type='checkbox'] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.check-row.is-disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.check-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.check-hint {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.check-list-title {
+  font-weight: 600;
+}
+
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.modal-body .profile-note {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.profile-changes {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.profile-changes summary {
+  cursor: pointer;
+  color: var(--accent-text);
+}
+
+.profile-changes .bullets {
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* ---------- Living Companion ---------- */
+
+/* Personality cards: a sentence and a short "how it behaves" list under each name. */
+.personality-cards {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.option-sub {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.option-bullets {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.option-bullets li {
+  margin: 2px 0;
+}
+
+.journal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.journal-entry {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 4px 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--divider, var(--control-stroke));
+}
+
+.journal-entry:first-child {
+  border-top: 0;
+}
+
+.journal-date {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.journal-event {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.journal-count {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+  .journal-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- four-area structure: skip link, tabs, characters, home ---------- */
+
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 20;
+  padding: 8px 14px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.skip-link:focus {
+  top: 8px;
+}
+
+.content:focus {
+  outline: none;
+}
+
+.tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  margin: 0 0 6px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.tab {
+  position: relative;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.tab:hover {
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.tab[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.tab-panel > .page {
+  max-width: none;
+}
+
+.tab-panel .section-title {
+  font: 600 20px/28px var(--font-display);
+  margin: 18px 0 8px 2px;
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 9px;
+  border: 1px solid var(--control-stroke-bottom);
+  border-radius: 10px;
+  background: var(--subtle-fill);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.badge-accent {
+  border-color: var(--accent);
+  background: var(--info-bg);
+  color: var(--accent-text);
+}
+
+.badge-ability {
+  background: var(--card);
+  color: var(--text);
+}
+
+.preview-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
+.preview-small {
+  width: 96px;
+}
+
+.preview-hero {
+  width: 100%;
+  max-width: 280px;
+}
+
+.swatch-canvas {
+  display: block;
+  width: 56px;
+  height: 42px;
+}
+
+.swatch-sets > [hidden] {
+  display: none;
+}
+
+.character-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.character-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--control-stroke);
+  border-bottom-color: var(--control-stroke-bottom);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.character-card:hover {
+  background: var(--control-hover);
+}
+
+.character-card.selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.character-stage {
+  display: block;
+  border-radius: 6px;
+  background: var(--subtle-fill);
+}
+
+.character-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.character-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.character-tagline {
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.character-detail {
+  margin-top: 16px;
+  padding: 16px 20px 18px;
+  border: 1px solid var(--card-stroke);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.detail-name {
+  margin: 0;
+  font: 600 22px/30px var(--font-display);
+}
+
+.detail-tagline {
+  margin: 2px 0 0;
+  color: var(--text-2);
+}
+
+.detail-block {
+  margin-top: 14px;
+}
+
+.detail-heading {
+  margin: 0 0 4px;
+  font: 600 14px/20px var(--font);
+}
+
+.detail-block p {
+  margin: 0;
+}
+
+.context-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--card-stroke);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.context-stage {
+  flex: 0 0 auto;
+  width: 96px;
+}
+
+.context-text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.context-title {
+  margin: 0;
+  font: 600 16px/22px var(--font-display);
+  overflow-wrap: anywhere;
+}
+
+.home-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px 28px;
+  padding: 18px 22px;
+  border: 1px solid var(--card-stroke);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.home-stage {
+  flex: 0 1 280px;
+  min-width: 160px;
+  border-radius: 8px;
+  background: var(--subtle-fill);
+}
+
+.home-copy {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.hero-kicker {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.hero-name {
+  margin: 2px 0 0;
+  font: 600 26px/34px var(--font-display);
+  overflow-wrap: anywhere;
+}
+
+.hero-tagline {
+  margin: 2px 0 0;
+  color: var(--text-2);
+}
+
+.segmented-wrap {
+  max-width: 100%;
+}
+
+.segmented-wrap .segment {
+  white-space: normal;
+}
+
+@media (max-width: 640px) {
+  .app {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+  .nav-label,
+  .brand-name {
+    display: none;
+  }
 }

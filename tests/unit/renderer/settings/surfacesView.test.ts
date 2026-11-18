@@ -2,6 +2,7 @@
 // a SurfaceDiagnostics, the 1 Hz poll that reads only while the page is shown, and the
 // session-only outline switch's action. SIMULATED diagnostics.
 import { describe, expect, it } from 'vitest';
+import { BRAND } from '../../../../src/shared/brand';
 import type { SurfaceDiagnostics } from '../../../../src/shared/surfaceDiagnostics';
 import { outlineAction, SURFACES_REFRESH_MS, surfacesPoll } from '../../../../src/renderer/settings/pages/diagnostics';
 import type { Timers } from '../../../../src/renderer/settings/store';
@@ -245,7 +246,7 @@ describe('Surfaces section: refresh', () => {
     expect(outlineAction(true)).toBe('showSurfaceOutlines');
     expect(outlineAction(false)).toBe('hideSurfaceOutlines');
     expect(V.outlinesDesc).toMatch(/never captures the screen/);
-    expect(V.outlinesDesc).toMatch(/turns off when GizeCat restarts/);
+    expect(V.outlinesDesc).toContain(`turns off when ${BRAND.product} restarts`);
   });
 
   it('the Behaviour page says maximized windows have no edges to climb', () => {

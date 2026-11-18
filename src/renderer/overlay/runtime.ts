@@ -3,16 +3,33 @@
 // (frameRate.ts), clears and redraws only dirty regions, reports the hit region and
 // forwards pointer input. Never decides behaviour.
 import type { CatRenderState } from '../../shared/cat';
+import type { RenderProp } from '../../shared/companion';
 import type { OverlayApi, OverlayConfig } from '../../shared/ipc';
 import type { Ctx2D } from './cat/draw';
-import { FramePacer, FULL_RATE_MS } from './frameRate';
+import { CALM_FRAME_MS, FramePacer, FULL_RATE_MS } from './frameRate';
+import { blendProps, drawLaser, drawProps, laserBounds, propsBounds, type PropRect } from './props';
 import { HIT_REFRESH_MS, HitRegionReporter } from './hitRegion';
 import { attachPointerInput } from './input';
 import { SnapshotInterpolator, type InterpSample } from './interpolation';
+import { createCharacterRenderer } from './characters/registry';
 import { CatScene, type DeviceRect, type Layer, type LayerProvider } from './scene';
-import { createSoundPlayer, type SoundPlayer } from './sound';
+import { createSoundPlayer, type AudioContextLike, type SoundPlayer } from './sound';
 import { isOverlayConfig, isRenderState } from './validate';
 
+/**
+ * 1.4.0: optional host hooks for the web host (src/web/main.ts). The desktop overlay passes none
+ * and behaves exactly as before: the browser's AudioContext and window.innerWidth/innerHeight.
+ */
+export interface OverlayRuntimeOptions {
+  /** Makes the sound player's AudioContext (the web host shares one gesture-unlocked context). */
+  audio?: () => AudioContextLike;
+  /** The canvas's CSS size (the web host measures the layout viewport, as its display service does). */
+  viewport?: () => { width: number; height: number };
+}
+
+const windowViewport = (): { width: number; height: number } => ({ width: window.innerWidth, height: window.innerHeight });
+
+const NO_PROPS: readonly RenderProp[] = [];
 const MAX_FRAME_DT_MS = 250;
 const MAX_CONSECUTIVE_ERRORS = 30;
 const ERROR_REPORT_INTERVAL_MS = 2000;
@@ -50,7 +67,8 @@ export class OverlayRuntime {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly interp = new SnapshotInterpolator();
   private readonly sample: InterpSample;
-  private readonly scene = new CatScene(Math.random);
+  /** The scene creates (and on a snapshot's character change swaps) its renderer through the registry. */
+  private readonly scene = new CatScene(Math.random, createCharacterRenderer);
   private readonly pacer = new FramePacer();
   private readonly hits: HitRegionReporter;
   /** v1.2 (ADR 0003 §10): plays the cues main sends this overlay (only while sound is on). */
@@ -65,6 +83,8 @@ export class OverlayRuntime {
   private readonly prevDirty: DeviceRect = { x: 0, y: 0, w: 0, h: 0 };
   private hasPrevDirty = false;
   private readonly curDirty: DeviceRect = { x: 0, y: 0, w: 0, h: 0 };
+  /** Reused by the per-frame prop blend (no allocation of the array per frame). */
+  private readonly propScratch: RenderProp[] = [];
   private layerCanvas: OffscreenCanvas | null = null;
   private layer: Layer | null = null;
   private consecutiveErrors = 0;
@@ -73,17 +93,41 @@ export class OverlayRuntime {
   /** Drawing failed for good: stay silent so main recreates this overlay. */
   private gaveUp = false;
   private readonly disposers: (() => void)[] = [];
+  /** The canvas's CSS size source (window.innerWidth/innerHeight unless the host gives one). */
+  private readonly viewportSize: () => { width: number; height: number };
+  private readonly windowSize = { width: 0, height: 0 };
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly api: OverlayApi,
+    options: OverlayRuntimeOptions = {},
   ) {
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) throw new Error('overlay: 2D canvas context unavailable');
     this.ctx = ctx;
     this.hits = new HitRegionReporter((r) => api.sendHitRegion(r));
-    this.sound = createSoundPlayer({ now: () => performance.now() });
+    this.sound = createSoundPlayer({ now: () => performance.now(), audio: options.audio });
+    this.viewportSize = options.viewport ?? windowViewport;
     this.sample = { x: 0, y: 0, state: INITIAL_STATE, simTime: 0, snapped: false };
+  }
+
+  /**
+   * The canvas's CSS size, read every frame: without a host source, window.innerWidth/innerHeight
+   * into one reused object (no allocation per frame, as before 1.4.0); a host source that throws or
+   * returns a broken size falls back to the window's.
+   */
+  private viewport(): { width: number; height: number } {
+    if (this.viewportSize !== windowViewport) {
+      try {
+        const v = this.viewportSize();
+        if (Number.isFinite(v.width) && Number.isFinite(v.height)) return v;
+      } catch {
+        // Fall back below.
+      }
+    }
+    this.windowSize.width = window.innerWidth;
+    this.windowSize.height = window.innerHeight;
+    return this.windowSize;
   }
 
   start(): void {
@@ -134,7 +178,7 @@ export class OverlayRuntime {
   private onRender(s: unknown): void {
     if (!isRenderState(s)) return;
     // The player plays each cue once and drops stale ones, so a duplicate snapshot is harmless.
-    if (s.sound && s.visible) this.sound.play(s.sound, s.t);
+    if (s.sound && s.visible) this.sound.play(s.sound, s.t, s.character);
     // Hidden or away: a cue already playing ends now, not at its own end (ADR 0003 §10).
     if (!s.visible) this.sound.close();
     if (!this.interp.push(s, performance.now())) return;
@@ -154,8 +198,9 @@ export class OverlayRuntime {
   private resize(): void {
     const ratio = window.devicePixelRatio;
     const dpr = Number.isFinite(ratio) && ratio > 0 ? ratio : this.config.scaleFactor > 0 ? this.config.scaleFactor : 1;
-    const w = Math.max(1, window.innerWidth);
-    const h = Math.max(1, window.innerHeight);
+    const v = this.viewport();
+    const w = Math.max(1, v.width);
+    const h = Math.max(1, v.height);
     if (dpr === this.dpr && w === this.cssW && h === this.cssH && this.canvas.width > 1) return;
     this.dpr = dpr;
     this.cssW = w;
@@ -228,7 +273,8 @@ export class OverlayRuntime {
   };
 
   private step(now: number): void {
-    if (window.devicePixelRatio !== this.dpr || window.innerWidth !== this.cssW || window.innerHeight !== this.cssH) this.resize();
+    const v = this.viewport();
+    if (window.devicePixelRatio !== this.dpr || v.width !== this.cssW || v.height !== this.cssH) this.resize();
     if (!this.interp.sample(now, this.sample)) {
       this.stopLoop();
       return;
@@ -243,7 +289,13 @@ export class OverlayRuntime {
       return;
     }
     const first = this.sample.snapped || !Number.isFinite(this.lastUpdateAt);
-    if (!this.pacer.shouldDraw(now, first ? FULL_RATE_MS : this.scene.frameIntervalMs(this.sample.x, this.sample.y, st))) return;
+    const props = this.currentProps(st);
+    const laser = st.laser ?? null;
+    let interval = first ? FULL_RATE_MS : this.scene.frameIntervalMs(this.sample.x, this.sample.y, st);
+    // Animated props and the laser dot keep at least a calm 30 fps even while the cat sleeps; with
+    // neither, the cat's own (slower) pacing applies again.
+    if ((props.length > 0 || laser !== null) && interval > CALM_FRAME_MS) interval = CALM_FRAME_MS;
+    if (!this.pacer.shouldDraw(now, interval)) return;
 
     const dt = Number.isFinite(this.lastUpdateAt) ? Math.min(MAX_FRAME_DT_MS, Math.max(0, now - this.lastUpdateAt)) : 0;
     this.lastUpdateAt = now;
@@ -255,6 +307,13 @@ export class OverlayRuntime {
       cur.h += Math.round(18 * this.dpr);
       cur.w = Math.max(cur.w, Math.round(220 * this.dpr));
     }
+    // Props and the laser dot join the dirty rect, so what they drew last frame is cleared when they
+    // move or vanish (the previous union is cleared together with this one below).
+    const reduced = st.reducedMotion === true;
+    const propBox = props.length > 0 ? propsBounds(props, st.scale) : null;
+    if (propBox) this.unionDip(cur, propBox);
+    const laserBox = laser ? laserBounds(laser.x, laser.y) : null;
+    if (laserBox) this.unionDip(cur, laserBox);
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (this.hasPrevDirty) {
@@ -265,7 +324,16 @@ export class OverlayRuntime {
     } else {
       ctx.clearRect(cur.x, cur.y, cur.w, cur.h);
     }
+    // Props behind the cat, the laser dot over it; neither is part of the hit region (reported from the cat only).
+    if (propBox) {
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      drawProps(ctx, props, { t: this.sample.simTime, scale: st.scale, style: st.style, reducedMotion: reduced, width: this.cssW, height: this.cssH });
+    }
     this.scene.draw(ctx, this.dpr, this.layers);
+    if (laser) {
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      drawLaser(ctx, laser.x, laser.y, { t: this.sample.simTime, reducedMotion: reduced });
+    }
     if (this.config.debug) this.drawDebug(ctx);
     this.prevDirty.x = cur.x;
     this.prevDirty.y = cur.y;
@@ -274,6 +342,29 @@ export class OverlayRuntime {
     this.hasPrevDirty = true;
 
     this.hits.update(this.scene.hitRects, this.scene.hitCount, now);
+  }
+
+  /** The props to draw this frame: the current snapshot's, blended by id toward the next one when the render time lies between them. */
+  private currentProps(st: CatRenderState): readonly RenderProp[] {
+    const a = st.props;
+    if (!a || a.length === 0) return NO_PROPS;
+    const next = this.sample.next;
+    const k = this.sample.k ?? 0;
+    if (next && next.props && !next.snap && k > 0) return blendProps(a, next.props, k, this.propScratch);
+    return a;
+  }
+
+  /** Grows `r` (device px) to cover a DIP rectangle, with the same 2 px of anti-aliasing slack as the cat's rect. */
+  private unionDip(r: DeviceRect, b: PropRect): void {
+    const d = this.dpr;
+    const x0 = Math.min(r.x, Math.floor(b.x * d) - 2);
+    const y0 = Math.min(r.y, Math.floor(b.y * d) - 2);
+    const x1 = Math.max(r.x + r.w, Math.ceil((b.x + b.width) * d) + 2);
+    const y1 = Math.max(r.y + r.h, Math.ceil((b.y + b.height) * d) + 2);
+    r.x = x0;
+    r.y = y0;
+    r.w = x1 - x0;
+    r.h = y1 - y0;
   }
 
   private drawDebug(ctx: Ctx2D): void {

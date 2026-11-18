@@ -135,8 +135,9 @@ describe('catalog mirrors shared constants', () => {
     expect([...BEHAVIOR_IDS]).toEqual([...TOGGLEABLE_BEHAVIORS]);
     expect([...PROVIDER_IDS]).toEqual([...AI_PROVIDERS]);
     expect(CATALOG_COMPLETE).toBe(true);
-    expect(isPageId('privacy')).toBe(true);
-    expect(isPageId('settings')).toBe(false);
+    // The four areas (and the first-run page) are the page ids; earlier ids are routes into them (companionPages.test).
+    expect(isPageId('settings')).toBe(true);
+    expect(isPageId('privacy')).toBe(false);
   });
 
   it('keeps list and text limits identical to the schema', () => {

@@ -9,6 +9,7 @@ import type { ScreenEdgeBand } from '../../../../src/shared/surfaces';
 import { mulberry32, newPersistedCat } from '../../../../src/core/behavior';
 import { STAY_OVERDUE_MS } from '../../../../src/core/behavior/stay';
 import { callCat, Harness, ledge, onWindowTop, settingsWith, stripId, tabStrip, WAKE_MS } from './fixtures';
+import { slow } from '../../../helpers/slowTimeout';
 
 const MIN = 60_000;
 const WALL = 1_800_000_000_000;
@@ -53,7 +54,7 @@ describe('screen edges (ADR 0003 §6.1)', () => {
       expect(run(seed, 40 * MIN, clearBands(), { disabledExtras: ['screenEdges'] }).samples).toEqual([]);
       expect(run(seed, 40 * MIN, []).samples).toEqual([]);
     }
-  }, 120_000);
+  }, slow(120_000));
 
   it('over a visible desktop: full climbs up the right edge with a top hold of 3-12 s, a low peek on the left', () => {
     const visits: EdgeVisitRecord[] = [];
@@ -68,7 +69,7 @@ describe('screen edges (ADR 0003 §6.1)', () => {
       expect(v.holdMs).toBeLessThanOrEqual(20_000);
     }
     for (const v of visits.filter((x) => x.side === 'left')) expect(v.topReached).toBe(false);
-  }, 120_000);
+  }, slow(120_000));
 
   it('a covered band gets peeks only: at most 2 body heights high, at most 8 s, at most 4 per hour', () => {
     const covered: ScreenEdgeBand[] = [
@@ -94,7 +95,7 @@ describe('screen edges (ADR 0003 §6.1)', () => {
       }
     }
     expect(peeks).toBeGreaterThan(0);
-  }, 120_000);
+  }, slow(120_000));
 
   it('with a maximized window in front the left edge is preferred (scrollbars are on the right)', () => {
     const covered: ScreenEdgeBand[] = [
@@ -110,12 +111,12 @@ describe('screen edges (ADR 0003 §6.1)', () => {
     }
     expect(sides.length).toBeGreaterThan(0);
     expect(new Set(sides)).toEqual(new Set(['left']));
-  }, 120_000);
+  }, slow(120_000));
 
   it('no peek with the cursor within 6 bw of the band (the only band offered)', () => {
     const left: ScreenEdgeBand[] = [{ displayId: '1', side: 'left', clearSpans: [] }];
     for (const seed of [1, 2, 3]) expect(run(seed, 40 * MIN, left, { cursorX: 4 * BW }).samples).toEqual([]);
-  }, 120_000);
+  }, slow(120_000));
 
   it.each([
     ['removed', (h: Harness): void => void delete h.env.edgeBands],
@@ -151,7 +152,7 @@ describe('screen edges (ADR 0003 §6.1)', () => {
       expect(resets).toEqual([]);
     }
     expect(tested).toBeGreaterThanOrEqual(2);
-  }, 120_000);
+  }, slow(120_000));
 
   it('the cat climbs down when the cursor comes within 2 bw', () => {
     let tested = 0;
@@ -172,7 +173,7 @@ describe('screen edges (ADR 0003 §6.1)', () => {
       expect(h.last!.y).toBeGreaterThan(y0 + 20);
     }
     expect(tested).toBeGreaterThanOrEqual(3);
-  }, 120_000);
+  }, slow(120_000));
 
   // REAL E2E (INT-b): a cursor arriving during the 320 ms mount found no way off yet (leave options exist only
   // once the cat clings), so the cat went on up and sat out the 20 s hold cap: 24.4 s on the wall in 2 runs of 6.
@@ -194,7 +195,7 @@ describe('screen edges (ADR 0003 §6.1)', () => {
       expect(off, `seed ${seed}: off the wall within 6 s`).toBe(true);
     }
     expect(tested).toBeGreaterThanOrEqual(3);
-  }, 120_000);
+  }, slow(120_000));
 
   it('typing that starts during the mount lets it down as well', () => {
     let tested = 0;
@@ -213,7 +214,7 @@ describe('screen edges (ADR 0003 §6.1)', () => {
       expect(off, `seed ${seed}: off the wall within 6 s`).toBe(true);
     }
     expect(tested).toBeGreaterThanOrEqual(3);
-  }, 120_000);
+  }, slow(120_000));
 });
 
 describe('the leave intent (ADR 0003 §2.3)', () => {
@@ -237,7 +238,7 @@ describe('the leave intent (ADR 0003 §2.3)', () => {
     for (const e of own) kinds.set(e.leaveKind as string, (kinds.get(e.leaveKind as string) ?? 0) + 1);
     expect(kinds.size).toBeGreaterThanOrEqual(3);
     for (const n of kinds.values()) expect(n / own.length).toBeLessThanOrEqual(0.75);
-  }, 180_000);
+  }, slow(180_000));
 
   it('a hop to another window needs surfaceHops', () => {
     const ends: ExcursionRecord[] = [];
@@ -248,7 +249,7 @@ describe('the leave intent (ADR 0003 §2.3)', () => {
     }
     expect(ends.filter((e) => e.endReason === 'leave').length).toBeGreaterThan(0);
     expect(ends.some((e) => e.leaveKind === 'hop')).toBe(false);
-  }, 120_000);
+  }, slow(120_000));
 
   it('a strong social need ends a stay early, at least 60 s in, as a stimulus (imposed, so censored in B3)', () => {
     const ends: ExcursionRecord[] = [];
@@ -280,7 +281,7 @@ describe('the leave intent (ADR 0003 §2.3)', () => {
     });
     // Stroked all along: never away for good, the leave keeps being put off.
     expect(onWindowTop(h.last!.support, 'w')).toBe(true);
-  }, 120_000);
+  }, slow(120_000));
 });
 
 describe('covered and vanished supports (ADR 0003 §2.4, §3)', () => {
@@ -418,7 +419,7 @@ describe('deliberate slips (ADR 0003 §6.6)', () => {
     }
     if (on.slips.some((s) => s.kind === 'scramble')) expect(on.clips.has('slip')).toBe(true);
     expect(trips(['slips']).slips).toEqual([]);
-  }, 180_000);
+  }, slow(180_000));
 });
 
 describe('landings and render hints (ADR 0003 §6.2, §6.4)', () => {
@@ -504,7 +505,7 @@ describe('on a tab strip (ADR 0003 §2.2, §7.4, §1.8)', () => {
     expect(seen).toContain('idle:watchTab');
     expect(seen).toContain('inspectingWindow:edge');
     expect(patrols.length).toBeGreaterThan(3);
-  }, 120_000);
+  }, slow(120_000));
 
   it('a removed tab right next to it is a small surprise; geometry changes get nothing; the switch turns reactions off', () => {
     const react = (disabledExtras: string[], change: 'removed' | 'geometry'): boolean => {
@@ -544,5 +545,5 @@ describe('determinism and bounds', () => {
     const b = hunts(66);
     expect(a).toBeGreaterThan(0);
     expect(Math.abs(a - b)).toBeLessThanOrEqual(Math.max(1, Math.ceil(0.25 * a)));
-  }, 120_000);
+  }, slow(120_000));
 });

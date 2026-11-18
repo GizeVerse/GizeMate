@@ -1,0 +1,456 @@
+name: macos-packages
+
+# NEVER STARTED (written 2026-11-08 for GizeCat 1.4.0). GitHub Actions has never run this workflow,
+# and nothing below has been observed to pass or fail on a hosted runner. A person must check its
+# first real run step by step, and inspect every file it produces, before any of them is shared.
+#
+# GitHub rule: a workflow_dispatch workflow can only be started once its file is on the repository's
+# default branch. main (v1.3.0) does not have this file yet, and the owner decides when the
+# candidate reaches main. Until then nobody can start this workflow.
+#
+# Manual only (workflow_dispatch): no push, pull_request, schedule, release or workflow_run trigger,
+# and agents never start it. It builds macOS packages on a macOS runner and uploads them as workflow
+# artifacts. It contains no test step: the checks below read the signatures of the built files and
+# never run the app. Nothing is published (`--publish never`). Guide with every secret and the
+# owner's steps: docs/platforms/release-automation.md.
+#
+# Two paths (input `signing`):
+# - adhoc (default, no secrets): DMG and zip for x64, arm64 and universal, ad-hoc signed and NOT
+#   notarized, named GizeCat-<version>-mac-<arch>-adhoc-macrunner.dmg/.zip so they cannot be
+#   confused with notarized files or with the Linux routes' GizeCat-<version>-mac-<arch>-adhoc.zip
+#   (rcodesign signature, different bytes, scripts/docker/mac-adhoc-build.sh).
+#   Ad-hoc signing is explicit (`-c.mac.identity=-`): electron-builder 26 has no
+#   automatic ad-hoc fallback (app-builder-lib scheme.json, mac.identity), and Apple Silicon only
+#   starts validly signed code. The hardened runtime is off on this path, because library
+#   validation rejects an ad-hoc signed app's frameworks. macOS still blocks these files until the
+#   user allows them.
+# - developer-id: Developer ID signed, hardened, notarized and stapled DMG and zip, named
+#   GizeCat-<version>-mac-<arch>.dmg/.zip. The job runs in the GitHub Environment `macos-signing`.
+#   Before the first run the owner creates that environment with a required reviewer and these
+#   secrets (GitHub creates a missing environment WITHOUT protection rules when a job names it, so
+#   set it up first; the guard step below fails closed when secrets are missing or partial):
+#     MAC_CSC_LINK          base64 of the "Developer ID Application" certificate exported as .p12
+#     MAC_CSC_KEY_PASSWORD  its export password
+#   and exactly one complete notarization set:
+#     APPLE_API_KEY_P8_BASE64, APPLE_API_KEY_ID, APPLE_API_ISSUER   (App Store Connect API key; preferred)
+#     APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID          (alternative)
+#   Optional environment variable (not secret): MAC_EXPECTED_TEAM_ID, the 10-character Team ID the
+#   signatures must carry.
+#   electron-builder 26 reads CSC_LINK and CSC_KEY_PASSWORD. It notarizes right after signing, with
+#   whichever identity it found (it does not require a Developer ID one), and only with a complete
+#   set (a partial set is an error in app-builder-lib/out/mac/MacTargetHelper.js getNotarizeOptions).
+#   The step below passes it one set. Afterwards the job refuses any .app (built, or inside a shipped
+#   zip) that lacks a Developer ID Application signature under Apple's CA, the hardened runtime, a
+#   secure timestamp, Gatekeeper's "Notarized Developer ID" verdict or a valid stapled ticket. It then
+#   signs each DMG container with the same identity, notarizes it (blocking: Apple must answer
+#   "Accepted"), staples it and keeps Apple's submission IDs in notarization-mac.txt.
+#   No PKG is produced, so no "Developer ID Installer" certificate is needed.
+#   Guide: docs/platforms/macos-signing.md.
+#
+# Optional input draft_release_tag: job attach-to-draft adds the files to an existing DRAFT release
+# (gh release upload). It refuses a release that is not a draft and never replaces an asset.
+#
+# A package that builds and signs is not evidence that the app runs on macOS: the Mac checklist in
+# docs/gizeverse/04-macos.md needs a real Apple Silicon Mac and a real Intel Mac.
+
+on:
+  workflow_dispatch:
+    inputs:
+      signing:
+        description: 'adhoc: ad-hoc signed DMG and zip, not notarized, no secrets. developer-id: signed and notarized DMG and zip (macos-signing environment).'
+        type: choice
+        options:
+          - adhoc
+          - developer-id
+        default: adhoc
+      universal:
+        description: 'Also build universal (x64 + arm64) DMG and zip.'
+        type: boolean
+        default: true
+      draft_release_tag:
+        description: 'Optional: attach the files to the existing DRAFT release with this tag (for example v1.4.0). Empty: workflow artifacts only. A release that is not a draft is refused.'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-packages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  adhoc:
+    name: macOS DMG and zip, ad-hoc signed, not notarized
+    if: inputs.signing == 'adhoc'
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install (no install scripts)
+        run: npm ci --ignore-scripts
+      - name: Read the version
+        id: meta
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: node scripts/build.mjs
+      # The arch flags are required: without them electron-builder builds only the runner's arch.
+      - name: Package DMG and zip, ad-hoc signed (not published)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          UNIVERSAL: ${{ inputs.universal }}
+        run: |
+          set -euo pipefail
+          archs="--x64 --arm64"
+          if [ "$UNIVERSAL" = "true" ]; then archs="$archs --universal"; fi
+          npx electron-builder --mac dmg zip $archs --publish never \
+            -c.mac.identity=- \
+            -c.mac.hardenedRuntime=false \
+            '-c.mac.artifactName=GizeCat-${version}-mac-${arch}-adhoc-macrunner.${ext}'
+      - name: Check the ad-hoc signatures (reads the files, runs nothing)
+        env:
+          UNIVERSAL: ${{ inputs.universal }}
+        run: |
+          set -euo pipefail
+          dirs="mac mac-arm64"
+          if [ "$UNIVERSAL" = "true" ]; then dirs="$dirs mac-universal"; fi
+          for dir in $dirs; do
+            app="release/$dir/Desktop Cat.app"
+            [ -d "$app" ] || { echo "::error::missing $app"; exit 1; }
+            echo "== $app"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            info="$(codesign -dv --verbose=4 "$app" 2>&1)"
+            echo "$info"
+            grep -q '^Signature=adhoc' <<<"$info" || { echo "::error::$app is not ad-hoc signed"; exit 1; }
+            if grep -q 'flags=.*runtime' <<<"$info"; then
+              echo "::error::$app has the hardened runtime, which an ad-hoc signature cannot satisfy"
+              exit 1
+            fi
+          done
+      # The universal zip holds fat binaries, which this checker does not read; codesign covers it above.
+      - name: Static payload check of the thin zips, ad-hoc signatures (reads the files, runs nothing)
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          for arch in x64 arm64; do
+            node scripts/check-mac-payload.mjs --arch "$arch" --zip "release/GizeCat-$VERSION-mac-$arch-adhoc-macrunner.zip" --expect-signature adhoc
+          done
+      - name: SHA-256 checksums
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          UNIVERSAL: ${{ inputs.universal }}
+        run: |
+          set -euo pipefail
+          cd release
+          archs="x64 arm64"
+          if [ "$UNIVERSAL" = "true" ]; then archs="$archs universal"; fi
+          for arch in $archs; do
+            for ext in dmg zip; do
+              [ -f "GizeCat-$VERSION-mac-$arch-adhoc-macrunner.$ext" ] || { echo "::error::missing GizeCat-$VERSION-mac-$arch-adhoc-macrunner.$ext"; exit 1; }
+            done
+          done
+          shasum -a 256 GizeCat-*-adhoc-macrunner.dmg GizeCat-*-adhoc-macrunner.zip | tee SHA256SUMS-mac-adhoc.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GizeCat-${{ steps.meta.outputs.version }}-mac-adhoc
+          path: |
+            release/GizeCat-*-adhoc-macrunner.dmg
+            release/GizeCat-*-adhoc-macrunner.zip
+            release/SHA256SUMS-mac-adhoc.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  developer-id:
+    name: macOS DMG and zip, Developer ID signed and notarized
+    if: inputs.signing == 'developer-id'
+    runs-on: macos-15
+    # Protected by the owner: a required reviewer approves every run before any secret is exposed.
+    environment: macos-signing
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check that the signing secrets are complete (fails closed)
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          count_set() { local n=0 name; for name in "$@"; do if [ -n "${!name}" ]; then n=$((n + 1)); fi; done; echo "$n"; }
+          failed=0
+          for name in MAC_CSC_LINK MAC_CSC_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then echo "::error::secret $name is not set in the macos-signing environment"; failed=1; fi
+          done
+          # A partial set is an error even when the other set is complete.
+          api="$(count_set APPLE_API_KEY_P8_BASE64 APPLE_API_KEY_ID APPLE_API_ISSUER)"
+          aid="$(count_set APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID)"
+          if [ "$api" != 0 ] && [ "$api" != 3 ]; then
+            echo "::error::partial App Store Connect set ($api of 3): APPLE_API_KEY_P8_BASE64, APPLE_API_KEY_ID, APPLE_API_ISSUER"
+            failed=1
+          fi
+          if [ "$aid" != 0 ] && [ "$aid" != 3 ]; then
+            echo "::error::partial Apple ID set ($aid of 3): APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID"
+            failed=1
+          fi
+          route=""
+          if [ "$api" = 3 ]; then
+            route="api-key"
+          elif [ "$aid" = 3 ]; then
+            route="apple-id"
+          else
+            echo "::error::no complete notarization set (APPLE_API_KEY_P8_BASE64 + APPLE_API_KEY_ID + APPLE_API_ISSUER, or APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID)"
+            failed=1
+          fi
+          if [ "$failed" != 0 ]; then exit 1; fi
+          echo "NOTARIZE_ROUTE=$route" >> "$GITHUB_ENV"
+      - name: Write the App Store Connect API key (API key route only)
+        if: env.NOTARIZE_ROUTE == 'api-key'
+        env:
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$APPLE_API_KEY_P8_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          [ -s "$RUNNER_TEMP/AuthKey.p8" ] || { echo "::error::APPLE_API_KEY_P8_BASE64 decoded to an empty file"; exit 1; }
+      - name: Install (no install scripts)
+        run: npm ci --ignore-scripts
+      - name: Read the version
+        id: meta
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: node scripts/build.mjs
+      # forceCodeSigning stops the build here only when electron-builder finds no signing identity at
+      # all, instead of producing an unsigned package. It does not check the certificate's type: in
+      # app-builder-lib 26.18.1 (macCodeSign.js _findIdentity) a non-Developer-ID identity such as
+      # "Apple Development" can be picked and used. The next step refuses anything that is not a
+      # Developer ID Application signature with a secure timestamp and a notarization ticket.
+      # electron-builder notarizes and staples each .app before it makes the DMG and zip from it.
+      - name: Package, sign and notarize (DMG and zip, not published)
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          IN_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          IN_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          IN_APPLE_ID: ${{ secrets.APPLE_ID }}
+          IN_APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          IN_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          UNIVERSAL: ${{ inputs.universal }}
+        run: |
+          set -euo pipefail
+          # Exactly one complete notarization set reaches electron-builder.
+          if [ "$NOTARIZE_ROUTE" = "api-key" ]; then
+            export APPLE_API_KEY="$RUNNER_TEMP/AuthKey.p8" APPLE_API_KEY_ID="$IN_API_KEY_ID" APPLE_API_ISSUER="$IN_API_ISSUER"
+          else
+            export APPLE_ID="$IN_APPLE_ID" APPLE_APP_SPECIFIC_PASSWORD="$IN_APPLE_PASSWORD" APPLE_TEAM_ID="$IN_APPLE_TEAM_ID"
+          fi
+          archs="--x64 --arm64"
+          if [ "$UNIVERSAL" = "true" ]; then archs="$archs --universal"; fi
+          npx electron-builder --mac dmg zip $archs --publish never -c.forceCodeSigning=true
+      # Checks each built .app and the .app inside each shipped zip: a valid deep signature, the
+      # hardened runtime, a Developer ID Application certificate under Apple's Developer ID CA, a
+      # secure timestamp, the expected Team ID (when MAC_EXPECTED_TEAM_ID is set), Gatekeeper's
+      # verdict "Notarized Developer ID", and a valid stapled ticket. Then the static payload check
+      # with real (CMS) signatures for the thin zips. Reads files, runs no app.
+      - name: Check signatures, Developer ID, hardened runtime, notarization and stapling (runs no app)
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          UNIVERSAL: ${{ inputs.universal }}
+          MAC_EXPECTED_TEAM_ID: ${{ vars.MAC_EXPECTED_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          check_app() {
+            local app="$1" info gk
+            [ -d "$app" ] || { echo "::error::missing $app"; return 1; }
+            echo "== $app"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            info="$(codesign -dv --verbose=4 "$app" 2>&1)"
+            echo "$info"
+            grep -q 'flags=.*runtime' <<<"$info" || { echo "::error::$app is not signed with the hardened runtime"; return 1; }
+            grep -q '^Authority=Developer ID Application: ' <<<"$info" || { echo "::error::$app is not signed with a Developer ID Application certificate"; return 1; }
+            grep -q '^Authority=Developer ID Certification Authority' <<<"$info" || { echo "::error::$app does not chain to Apple's Developer ID Certification Authority"; return 1; }
+            grep -q '^Authority=Apple Root CA' <<<"$info" || { echo "::error::$app does not chain to Apple Root CA"; return 1; }
+            grep -q '^Timestamp=' <<<"$info" || { echo "::error::$app has no secure timestamp"; return 1; }
+            if ! grep -q '^TeamIdentifier=' <<<"$info" || grep -q '^TeamIdentifier=not set' <<<"$info"; then echo "::error::$app has no Team ID"; return 1; fi
+            if [ -n "$MAC_EXPECTED_TEAM_ID" ] && ! grep -qx "TeamIdentifier=$MAC_EXPECTED_TEAM_ID" <<<"$info"; then
+              echo "::error::$app is not signed by Team ID $MAC_EXPECTED_TEAM_ID"; return 1
+            fi
+            codesign -d --entitlements :- "$app"
+            gk="$(spctl -a -t exec -vv "$app" 2>&1)"
+            echo "$gk"
+            grep -q 'source=Notarized Developer ID' <<<"$gk" || { echo "::error::Gatekeeper does not report $app as Notarized Developer ID"; return 1; }
+            xcrun stapler validate "$app"
+          }
+          archs="x64 arm64"
+          if [ "$UNIVERSAL" = "true" ]; then archs="$archs universal"; fi
+          for arch in $archs; do
+            case "$arch" in x64) dir=mac ;; *) dir="mac-$arch" ;; esac
+            check_app "release/$dir/Desktop Cat.app"
+            zip="release/GizeCat-$VERSION-mac-$arch.zip"
+            [ -f "$zip" ] || { echo "::error::missing $zip"; exit 1; }
+            out="$RUNNER_TEMP/zipcheck/$arch"
+            rm -rf "$out"; mkdir -p "$out"
+            ditto -x -k "$zip" "$out"
+            check_app "$out/Desktop Cat.app"
+          done
+          node scripts/check-mac-payload.mjs --arch x64 --zip "release/GizeCat-$VERSION-mac-x64.zip" --expect-signature cms
+          node scripts/check-mac-payload.mjs --arch arm64 --zip "release/GizeCat-$VERSION-mac-arm64.zip" --expect-signature cms
+          echo "payload checks passed (x64, arm64)"
+      # electron-builder leaves DMG containers unsigned (dmg.sign is off by default). This signs each
+      # DMG with the same Developer ID Application identity (secure timestamp), notarizes it, staples
+      # the ticket and asks Gatekeeper for its verdict. Blocking: a DMG that Apple did not accept never
+      # reaches the artifact. The certificate goes into a throwaway keychain with a random password
+      # that is never printed; the cleanup step deletes it.
+      - name: Sign, notarize and staple the DMG containers (blocking)
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          IN_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          IN_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          IN_APPLE_ID: ${{ secrets.APPLE_ID }}
+          IN_APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          IN_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          UNIVERSAL: ${{ inputs.universal }}
+        run: |
+          set -euo pipefail
+          umask 077
+          keychain="$RUNNER_TEMP/gizecat-dmg-signing.keychain-db"
+          echo "DMG_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+          kc_password="$(openssl rand -hex 32)"
+          security create-keychain -p "$kc_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$kc_password" "$keychain"
+          printf '%s' "$MAC_CSC_LINK" | base64 --decode > "$RUNNER_TEMP/dmg-signing.p12"
+          security import "$RUNNER_TEMP/dmg-signing.p12" -k "$keychain" -P "$MAC_CSC_KEY_PASSWORD" -T /usr/bin/codesign > /dev/null
+          rm -f "$RUNNER_TEMP/dmg-signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kc_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity="$(security find-identity -v -p codesigning "$keychain" | awk '/"Developer ID Application: /{print $2; exit}')"
+          [ -n "$identity" ] || { echo "::error::the certificate in MAC_CSC_LINK is not a Developer ID Application identity"; exit 1; }
+          record="release/notarization-mac.txt"
+          : > "$record"
+          archs="x64 arm64"
+          if [ "$UNIVERSAL" = "true" ]; then archs="$archs universal"; fi
+          for arch in $archs; do
+            dmg="release/GizeCat-$VERSION-mac-$arch.dmg"
+            [ -f "$dmg" ] || { echo "::error::missing $dmg"; exit 1; }
+            echo "== $dmg"
+            codesign --sign "$identity" --timestamp --keychain "$keychain" "$dmg"
+            codesign --verify --strict --verbose=2 "$dmg"
+            set +e
+            if [ "$NOTARIZE_ROUTE" = "api-key" ]; then
+              result="$(xcrun notarytool submit "$dmg" --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$IN_API_KEY_ID" --issuer "$IN_API_ISSUER" --wait --output-format json)"
+            else
+              result="$(xcrun notarytool submit "$dmg" --apple-id "$IN_APPLE_ID" --password "$IN_APPLE_PASSWORD" --team-id "$IN_APPLE_TEAM_ID" --wait --output-format json)"
+            fi
+            set -e
+            echo "$result"
+            status="$(node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).status||"")}catch{console.log("")}})' <<<"$result")"
+            sub_id="$(node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).id||"")}catch{console.log("")}})' <<<"$result")"
+            if [ "$status" != "Accepted" ]; then
+              echo "::error::Apple did not accept $dmg (status: ${status:-none}, submission: ${sub_id:-none})"
+              if [ -n "$sub_id" ]; then
+                if [ "$NOTARIZE_ROUTE" = "api-key" ]; then
+                  xcrun notarytool log "$sub_id" --key "$RUNNER_TEMP/AuthKey.p8" --key-id "$IN_API_KEY_ID" --issuer "$IN_API_ISSUER" || true
+                else
+                  xcrun notarytool log "$sub_id" --apple-id "$IN_APPLE_ID" --password "$IN_APPLE_PASSWORD" --team-id "$IN_APPLE_TEAM_ID" || true
+                fi
+              fi
+              exit 1
+            fi
+            xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
+            gk="$(spctl -a -t open --context context:primary-signature -vv "$dmg" 2>&1)"
+            echo "$gk"
+            grep -q 'source=Notarized Developer ID' <<<"$gk" || { echo "::error::Gatekeeper does not report $dmg as Notarized Developer ID"; exit 1; }
+            echo "$(basename "$dmg"): notarytool submission $sub_id status $status; stapled; Gatekeeper: Notarized Developer ID" >> "$record"
+          done
+          echo "Each .app inside the DMGs and zips was notarized and stapled by electron-builder and checked in the previous step." >> "$record"
+          cat "$record"
+      - name: Remove the API key, the certificate copy and the throwaway keychain
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/dmg-signing.p12"
+          if [ -n "${DMG_KEYCHAIN:-}" ] && [ -f "$DMG_KEYCHAIN" ]; then security delete-keychain "$DMG_KEYCHAIN"; fi
+      # After stapling, which changes the DMG bytes.
+      - name: SHA-256 checksums
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          UNIVERSAL: ${{ inputs.universal }}
+        run: |
+          set -euo pipefail
+          cd release
+          archs="x64 arm64"
+          if [ "$UNIVERSAL" = "true" ]; then archs="$archs universal"; fi
+          files=""
+          for arch in $archs; do
+            for ext in dmg zip; do
+              f="GizeCat-$VERSION-mac-$arch.$ext"
+              [ -f "$f" ] || { echo "::error::missing $f"; exit 1; }
+              files="$files $f"
+            done
+          done
+          # shellcheck disable=SC2086
+          shasum -a 256 $files | tee SHA256SUMS-mac.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GizeCat-${{ steps.meta.outputs.version }}-mac-developer-id
+          path: |
+            release/GizeCat-*.dmg
+            release/GizeCat-*.zip
+            release/SHA256SUMS-mac.txt
+            release/notarization-mac.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  attach-to-draft:
+    name: Attach to the draft release (optional)
+    needs: [adhoc, developer-id]
+    if: ${{ !cancelled() && inputs.draft_release_tag != '' && (needs.adhoc.result == 'success' || needs.developer-id.result == 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Only this job can write to the repository. It holds no signing secret.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: GizeCat-*-mac-*
+          path: to-attach
+          merge-multiple: true
+      - name: Attach the files, only if the release is a draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.draft_release_tag }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._/+-]*$ ]]; then
+            echo "::error::draft_release_tag is not a valid tag name"
+            exit 1
+          fi
+          is_draft="$(gh release view "$TAG" --json isDraft --jq .isDraft)" || {
+            echo "::error::no release with the tag $TAG, or this token cannot see it"
+            exit 1
+          }
+          if [ "$is_draft" != "true" ]; then
+            echo "::error::refused: the release $TAG is not a draft, and this workflow never changes a published release"
+            exit 1
+          fi
+          ls -la to-attach
+          # Never overwriting: an asset that already has this name makes the upload fail.
+          gh release upload "$TAG" to-attach/*

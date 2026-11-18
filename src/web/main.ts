@@ -5,31 +5,76 @@
 // viewport only: no window surfaces, taskbars or perception; the window tracker and activity
 // monitor run on the unavailable Win32 stand-in (never win32/index.ts or native.ts, which reach
 // koffi), with idle time taken from the page's own pointer events (never key events).
+//
+// 1.4.0, the installable tablet app (the same bundle is the Android app's payload, hostMode.ts):
+// a manifest and a versioned service worker (registered only in a browser, production builds,
+// secure origins); the layout viewport and the bottom safe-area inset shape the cat's room; a
+// toolbar and a settings sheet (settingsPanel.ts) that win over the cat; one gesture-unlocked
+// AudioContext (audioUnlock.ts); "Start over" and persistence requests (storage.ts).
 // First: configures zod before any schema is built (see zodConfig.ts).
 import './zodConfig';
-import { createCatSim } from '../core/behavior';
+import { adoptCatInto, createCatSim } from '../core/behavior';
 import { simWorld } from '../core/display/simWorld';
 import { createGestureRecognizer } from '../core/interaction/gestures';
+import type { PersistedCat } from '../shared/catState';
+import type { CatRenderState } from '../shared/cat';
+import type { Point } from '../shared/geometry';
+import type { OverlayApi } from '../shared/ipc';
+import { PROFILE_MIME } from '../shared/profileTransfer';
+import type { Locale } from '../shared/i18n';
+import type { Settings } from '../shared/settings';
 import type { SimEvent } from '../shared/sim';
 import { createCatHost, type CatHost } from '../main/catHost';
 import { createActivityMonitor } from '../main/win32/activityMonitor';
 import { createUnavailableWin32Api } from '../main/win32/win32Api';
 import { createWindowTracker } from '../main/win32/windowTracker';
 import { OverlayRuntime } from '../renderer/overlay/runtime';
+import { browserAudioMaker, createSharedAudio } from './audioUnlock';
+import { settleBootScreen } from './bootScreen';
 import { createWebDisplayService } from './display';
+import { connectControlBridge, connectOverlayBridge, isOverlaySurface } from './floatingBridges';
+import { parseMetricsQuery } from './floatingProtocol';
+import { createAndroidPanel, type AndroidPanel, type CompanionSource } from './androidPanel';
+import { createFloatingUi, type FloatingUi } from './floatingUi';
+import { detectHostMode, installHint, readHostEnv, shouldRegisterServiceWorker, shouldRequestPersistence } from './hostMode';
+import { createOverlaySurface, TOUCH_PAD_DP } from './overlaySurface';
+import { createScreenEdgeProvider } from './screenEdgeSurfaces';
 import { createWebLogger } from './logger';
 import { createPointerRouter, type RouterTarget } from './pointerRouter';
+import { createBrowserSaver, selectProfileSaver } from './profileFiles';
+import { createProfileUi } from './profileUi';
+import { readSafeAreaInsets } from './safeArea';
+import { NO_SESSION_FLAGS, readSessionFlags, writeSessionFlags, type SessionFlags } from './sessionFlags';
+import { applyWebPatch, patchFor, resetWebSettings, type WebPatchResult } from './settingsModel';
+import { createWebSecretName } from './secretName';
+import { createSettingsPanel, type SettingsPanel } from './settingsPanel';
+import { applyPageText } from './pageText';
+import { keepCompanionOnReset } from './resetKeep';
 import { describeCat, isAsleep } from './status';
-import { createWebCatStore, openWebStorage } from './storage';
+import { activeCharacterOf, applyWebLocale, companionName } from './characterHost';
+import { createWebCatStore, openSessionBackup, openWebStorage, requestPersistence, type PersistenceState } from './storage';
+import { setLocale as setStringsLocale, WS } from './strings';
+import { registerServiceWorker, type OfflineState } from './swRegister';
 import { installTestHook, type WebTestRecorder } from './testHook';
 import { createWebOverlays } from './webOverlays';
 
 declare const __DEV__: boolean;
+declare const __APP_VERSION__: string;
 /** True only in the --web-test build (out/web-test); esbuild drops the test hook from out/web. */
 declare const __WEB_TEST__: boolean;
+/** True in production builds (out/web, out/web-test): the service worker exists only there. */
+declare const __WEB_SW__: boolean;
 
 /** The live region announces at most this often (ms): the cat changes what it does often. */
 const STATUS_MIN_INTERVAL_MS = 3000;
+/** Pinch-zoomed in past this, the cat takes no touches (the visual viewport no longer matches the room). */
+const ZOOMED_SCALE = 1.01;
+
+/** Chromium's install prompt event (not in the DOM lib). */
+interface BeforeInstallPromptLike {
+  preventDefault(): void;
+  prompt(): Promise<unknown>;
+}
 
 function byId<T extends HTMLElement>(id: string, ctor: { new (): T }): T | null {
   const el = document.getElementById(id);
@@ -46,17 +91,64 @@ function boot(): void {
     return;
   }
 
+  // ---- where the page runs: a browser tab, the installed web app, or the Android app
+  const hostEnv = readHostEnv(window);
+  const mode = detectHostMode(hostEnv);
+
   // ---- persistence (corrupt or blocked storage: a fresh cat, never a crash)
   const storage = openWebStorage(() => window.localStorage, log.child('storage'));
   let settings = storage.loadSettings();
-  const catLoad = storage.loadCat(Math.random, Date.now());
+  // Without localStorage a swap or a language change restarts the page through sessionStorage (this tab only): the choice
+  // and the live companions come back from there instead of a fresh cat with the choice undone.
+  const sessionBackup = openSessionBackup(() => window.sessionStorage);
+  const restored = storage.available ? null : sessionBackup.load();
+  if (restored) settings = restored.settings;
+  // GizeMate: the active companion for this page's life (a swap saves it, then reloads), its stored
+  // state from its own slot (the cat's is the untouched v1 key), and the interface language.
+  const character = activeCharacterOf(settings);
+  const restoredCat = restored?.cats[character];
+  const catLoad: { cat: PersistedCat; source: 'stored' | 'new' | 'recovered' } = restoredCat ? { cat: restoredCat, source: 'stored' } : storage.loadCat(Math.random, Date.now(), character);
+  // Detected from the browser's language list each time; never stored.
+  let locale: Locale = applyWebLocale(settings, navigator.languages, document, setStringsLocale);
+  /**
+   * Applies the effective language of `settings` (<html lang>, the strings layer); true when it changed. The
+   * page's controls were built in the old language, so a change restarts the page (see restartForLanguage).
+   */
+  const syncLocale = (): boolean => {
+    const next = applyWebLocale(settings, navigator.languages, document, setStringsLocale);
+    const changed = next !== locale;
+    locale = next;
+    return changed;
+  };
 
-  // ---- platform stand-ins: one logical display; no windows, taskbars, perception or keyboard
-  const display = createWebDisplayService({
-    viewport: () => ({ width: window.innerWidth, height: window.innerHeight }),
+  // ---- the floating cat (Android app, 1.4.1): this page is either the app screen, or the
+  // transparent window the foreground service floats over other apps (`?surface=overlay`). Only the
+  // app's own origin has either bridge; anywhere else both are null and the page is the plain web host.
+  const root = document.documentElement;
+  const overlayPort = mode.kind === 'android-app' && isOverlaySurface(window.location.search) ? connectOverlayBridge(window) : null;
+  const overlayMetrics = overlayPort ? parseMetricsQuery(window.location.search) : null;
+  const surface = overlayPort && overlayMetrics ? createOverlaySurface(overlayMetrics, overlayPort, () => settings.appearance, () => !catBlocked(), clock, () => character) : null;
+  if (surface) root.classList.add('gizecat-overlay');
+  const controlPort = mode.kind === 'android-app' && !surface ? connectControlBridge(window) : null;
+
+  // ---- platform stand-ins: one logical display; no windows, taskbars, perception or keyboard.
+  // The layout viewport (the document never scrolls, so iOS toolbars do not collapse, and neither
+  // pinch zoom nor an on-screen keyboard changes it); the canvas is sized from the same source. In
+  // the floating window the viewport is only that small window: the world is the whole screen
+  // (overlayDisplay.ts) and the renderer's canvas follows the cat.
+  const viewport = (): { width: number; height: number } => ({ width: root.clientWidth || window.innerWidth, height: root.clientHeight || window.innerHeight });
+  const probe = document.getElementById('safe-area-probe');
+  const display = surface ? surface.display : createWebDisplayService({
+    viewport,
+    insets: () => readSafeAreaInsets(probe, (el) => window.getComputedStyle(el)),
     listen: (cb) => {
+      const orientation = (screen as { orientation?: EventTarget }).orientation;
       window.addEventListener('resize', cb);
-      return () => window.removeEventListener('resize', cb);
+      orientation?.addEventListener('change', cb);
+      return () => {
+        window.removeEventListener('resize', cb);
+        orientation?.removeEventListener('change', cb);
+      };
     },
     timers: { setTimeout: (fn, ms) => window.setTimeout(fn, ms), clearTimeout: (h) => window.clearTimeout(h as number) },
     logger: log.child('display'),
@@ -66,29 +158,86 @@ function boot(): void {
 
   let host: CatHost | null = null;
   let suspended = false;
+  let panel: SettingsPanel | null = null;
+  /** The app screen's floating-cat controls (Android app, outside the floating window); null elsewhere. */
+  let floatingUi: FloatingUi | null = null;
+  /** The Android app's home panel (androidPanel.ts); null in the browser and in the floating window. */
+  let androidPanel: AndroidPanel | null = null;
   /** Test build only (see installTestHook below). */
   let recorder: WebTestRecorder | null = null;
 
+  const zoomed = (): boolean => (window.visualViewport?.scale ?? 1) > ZOOMED_SCALE;
+  /** The cat takes no pointer right now (also tells the floating window to let touches through). */
+  const catBlocked = (): boolean =>
+    !host || host.hidden || host.paused || host.locked || suspended || !settings.interaction.enabled || (panel?.isOpen ?? false) || zoomed();
   const overlays = createWebOverlays({
     display,
     getSettings: () => settings,
     clock,
     logger: log.child('overlay'),
-    blocked: () => !host || host.hidden || host.paused || host.locked || suspended || !settings.interaction.enabled,
+    blocked: catBlocked,
     onCatGone: () => router.cancel(),
+    onPresence: surface ? (out, info) => surface.onPresence(out, info) : undefined,
   });
+  // The name-dependent extra: the accessory is added to every frame the renderer receives while it is on
+  // (the sim, the stored cat and the settings never see it). A flip redraws at once, even a sleeping cat.
+  const secret = createWebSecretName();
+  const renderSinks = new Set<(s: CatRenderState) => void>();
+  let lastFrame: CatRenderState | null = null;
+  let lastSynthSeq = Number.NEGATIVE_INFINITY;
+  const withAccessory = (s: CatRenderState): CatRenderState => {
+    const accessory = secret.accessory();
+    return accessory ? { ...s, accessory } : s;
+  };
+  const overlayApi: OverlayApi = {
+    ...overlays.api,
+    onRender(cb) {
+      const off = overlays.api.onRender((s) => {
+        lastFrame = s;
+        lastSynthSeq = Number.NEGATIVE_INFINITY;
+        cb(withAccessory(s));
+      });
+      renderSinks.add(cb);
+      return () => {
+        renderSinks.delete(cb);
+        off();
+      };
+    },
+  };
+  secret.onAccessoryChange(() => {
+    const frame = lastFrame;
+    if (!frame) return;
+    // Strictly increasing synthetic seq, always below the next real frame (an integer, seq + 1): each step
+    // halves the gap to it. The cue is never replayed.
+    const base = Math.max(frame.seq, lastSynthSeq);
+    const nextSeq = base + (Math.floor(frame.seq) + 1 - base) / 2;
+    lastSynthSeq = nextSeq;
+    const again = withAccessory({ ...frame, seq: nextSeq, snap: false, sound: null });
+    for (const cb of [...renderSinks]) cb(again);
+  });
+  secret.setName(companionName(settings, locale));
   const deliverSimEvents = (events: SimEvent[]): void => {
     host?.enqueueAll(events);
     recorder?.noteEvents(events);
   };
+  // The toolbar's buttons win over the cat: a press on them is the page's, wherever the cat is.
+  const controls = document.querySelector('.bar .controls');
+  const insideBar = (p: Point): boolean => {
+    if (!controls) return false;
+    const r = controls.getBoundingClientRect();
+    return p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom;
+  };
+  const routerHitTest = (p: Point, hovering: boolean): boolean => !insideBar(p) && overlays.hitTest(p, hovering, surface ? TOUCH_PAD_DP : 0);
   const router = createPointerRouter({
     gestures: createGestureRecognizer(),
-    hitTest: (p, hovering) => overlays.hitTest(p, hovering),
+    // The floating cat's window is only the cat and its pad: the whole of it is "on the cat".
+    hitTest: routerHitTest,
+    // The floating window has nothing to scroll: a finger that moves on the cat carries it (and a flick throws it).
+    touchDragOnMove: surface !== null,
     onSimEvents: deliverSimEvents,
     now: clock,
     timers: { setTimeout: (fn, ms) => window.setTimeout(fn, ms), clearTimeout: (h) => window.clearTimeout(h as number) },
     onStateChange: (s) => {
-      const root = document.documentElement;
       root.classList.toggle('gizecat-hover', s.hovering && !s.pressed);
       root.classList.toggle('gizecat-hold', s.pressed);
     },
@@ -103,14 +252,25 @@ function boot(): void {
     sleepThresholdMs: settings.behavior.sleepAfterIdleMinutes * 60_000,
   });
 
-  const sim = createCatSim({ persisted: catLoad.cat, settings, world: simWorld(display.world), now: 0, random: Math.random, wallClock: Date.now });
+  const sim = createCatSim({ persisted: catLoad.cat, settings, world: simWorld(display.world), now: 0, random: Math.random, wallClock: Date.now, character });
   const catStore = createWebCatStore({
     storage,
     snapshot: () => sim.serialize(),
+    character,
     logger: log.child('cat-store'),
     setInterval: (fn, ms) => window.setInterval(fn, ms),
     clearInterval: (h) => window.clearInterval(h as number),
   });
+
+  // ---- sound: one AudioContext, unlocked inside user gestures (iPadOS Safari needs one)
+  const audio = createSharedAudio(browserAudioMaker(window));
+  const unlockAudioOnGesture = (): void => {
+    if (settings.sound.enabled && audio.state !== 'running') audio.unlock();
+  };
+  // Passive, capture phase, registered before the pointer router so the router's stopPropagation on
+  // the cat's own clicks cannot hide them. Pointer and touch only: never keys.
+  document.addEventListener('click', unlockAudioOnGesture, { capture: true, passive: true });
+  document.addEventListener('touchend', unlockAudioOnGesture, { capture: true, passive: true });
 
   // ---- page controls and the polite status line
   const status = byId('cat-status', HTMLElement);
@@ -118,6 +278,7 @@ function boot(): void {
   const btnSleep = byId('btn-sleep', HTMLButtonElement);
   const btnPause = byId('btn-pause', HTMLButtonElement);
   const btnSound = byId('btn-sound', HTMLButtonElement);
+  const btnSettings = byId('btn-settings', HTMLButtonElement);
   let statusShownAt = Number.NEGATIVE_INFINITY;
   let statusTimer: number | null = null;
 
@@ -126,13 +287,15 @@ function boot(): void {
   }
 
   function refreshUi(): void {
+    // The toolbar's static labels follow the language and the companion's name (also before the host exists).
+    applyPageText(document, WS, companionName(settings, locale));
     const h = host;
     if (!h) return;
-    setText(btnSleep, isAsleep(h.state) ? 'Wake' : 'Sleep');
-    setText(btnPause, h.paused ? 'Resume' : 'Pause');
-    setText(btnSound, settings.sound.enabled ? 'Turn sound off' : 'Turn sound on');
+    setText(btnSleep, isAsleep(h.state) ? WS.toolbar.wake : WS.toolbar.sleep);
+    setText(btnPause, h.paused ? WS.toolbar.resume : WS.toolbar.pause);
+    setText(btnSound, settings.sound.enabled ? WS.toolbar.soundOff : WS.toolbar.soundOn);
     if (!status) return;
-    const text = describeCat({ name: settings.general.catName, state: h.state, paused: h.paused });
+    const text = describeCat({ name: companionName(settings, locale), state: h.state, paused: h.paused });
     if (status.textContent === text) return;
     const wait = STATUS_MIN_INTERVAL_MS - (clock() - statusShownAt);
     if (wait <= 0) {
@@ -152,12 +315,28 @@ function boot(): void {
     tracker,
     activity,
     perception: null,
+    // The floating cat walks the floor and climbs the screen's own edges (screenEdgeSurfaces.ts); the
+    // in-app cat and the browser page have no surfaces at all.
+    surfaces: surface ? createScreenEdgeProvider(display) : null,
     display,
     overlays,
     catStore,
     logger: log.child('host'),
     getSettings: () => settings,
-    cursorFallback: () => router.cursor,
+    // The floating cat sees a pointer only while one is on its own window (a press or a mouse hover) or
+    // as a fresh hint from a touch inside GizeCat's own app window; a touch that ended is not a pointer
+    // left standing there (Android shows an app nothing outside its own windows).
+    // The same source feeds Laser Mode's dot (the host hands it on only while that mode is on): the page's
+    // own pointer in the app and the browser, and in the floating window only what Android delivers there.
+    cursorFallback: () => (surface ? (router.pressed || router.hovering ? router.cursor : surface.cursorHint()) : router.cursor),
+    // "Remove animations" on Android reaches the WebView as prefers-reduced-motion; absent or throwing means no.
+    getReducedMotion: () => {
+      try {
+        return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      } catch {
+        return false;
+      }
+    },
     clock,
     onStatusChange: () => {
       if (host) recorder?.noteState(host.state);
@@ -165,10 +344,248 @@ function boot(): void {
     },
   });
   const catHost = host;
+
+  // ---- session-only choices: Laser Mode and "pause world events" (sessionFlags.ts). Off at every start;
+  // the app page hands them to the floating page through a tiny record plus native's "settings changed".
+  const localStore = (): Storage | null => {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  };
+  let flags: SessionFlags = surface ? readSessionFlags(localStore) : NO_SESSION_FLAGS;
+  /** Pushes the flags into the host: Laser Mode and the events pause both end with the page (nothing is stored in the cat). */
+  function applyFlags(next: SessionFlags): void {
+    flags = next;
+    catHost.setLaserMode(flags.laser);
+    catHost.setEventsPaused(flags.eventsPaused);
+  }
+  applyFlags(flags);
+  // The app screen starts clean: a record left by an earlier session is never honoured.
+  if (controlPort) writeSessionFlags(localStore, NO_SESSION_FLAGS);
   display.onChange((world) => {
     overlays.onDisplayChanged();
     catHost.onDisplayChanged(world);
   });
+
+  /**
+   * A clean swap of the active companion: the current one is written to its own slot first, then the
+   * new choice (already in `settings`) is stored and the page restarts with the other companion (the
+   * same freeze-then-reload the profile import uses, so no later save writes the old one into the new
+   * slot). The floating cat's page does the same when it re-reads the settings.
+   */
+  function swapCharacter(): boolean {
+    if (storage.available) {
+      // Both writes must land: a refused one (quota) would reload into the old choice or lose the companion's last state.
+      const savedCat = catStore.saveSync();
+      const savedSettings = storage.saveSettings(settings);
+      if (!savedCat || !savedSettings) {
+        log.warn('the restart was refused: storage did not take the companion and the settings', { savedCat, savedSettings });
+        return false;
+      }
+    } else if (!sessionBackup.save({ settings, cats: { ...restored?.cats, [character]: sim.serialize() } })) {
+      // Not even sessionStorage: a reload would lose the choice and the session. Nothing is changed.
+      log.warn('the restart was refused: neither localStorage nor sessionStorage is available');
+      return false;
+    }
+    catStore.freeze();
+    if (floatingUi?.state.running) controlPort?.send('settingsChanged');
+    window.location.reload();
+    return true;
+  }
+
+  /**
+   * The interface language changed: the toolbar, the sheet and the panel were built in the old one, so
+   * the page restarts in the new one (the choice is stored first, the cat saved and frozen, as in
+   * swapCharacter; without localStorage the choice and the live companions go through sessionStorage). False when
+   * neither can hold them: the page keeps its text until the next visit while the strings layer speaks the new language.
+   */
+  function restartForLanguage(): boolean {
+    return swapCharacter();
+  }
+
+  // ---- settings: every change through the web allow-list, then screen analysis and AI forced off
+  function applyPatch(patch: unknown, save: boolean): WebPatchResult {
+    const r = applyWebPatch(settings, patch);
+    if (!r.ok) {
+      log.warn('settings change refused', { error: r.error });
+      return r;
+    }
+    const swapTo = activeCharacterOf(r.settings);
+    const before = settings;
+    settings = r.settings;
+    if (swapTo !== character) {
+      if (swapCharacter()) return r;
+      // The restart could not be made safely: the choice is not taken (nothing changed, the sheet shows the old one).
+      settings = before;
+      return { ok: false, error: 'the companion could not be switched: the browser did not allow saving it' };
+    }
+    catHost.updateSettings(settings);
+    if (syncLocale() && restartForLanguage()) return r;
+    secret.setName(companionName(settings, locale));
+    if (save) {
+      storage.saveSettings(settings);
+      // The floating cat lives in another WebView of this app: native tells it to re-read the settings.
+      if (save && floatingUi?.state.running) controlPort?.send('settingsChanged');
+    }
+    refreshUi();
+    // A change from the sheet shows in the panel's controls too (and the other way round).
+    androidPanel?.refresh();
+    return r;
+  }
+
+  let persistence: PersistenceState | null = null;
+  let installPrompt: BeforeInstallPromptLike | null = null;
+  /** The offline copy (null in the Android app, whose files are inside the app); registerServiceWorker moves it on. */
+  let offline: OfflineState | null = mode.kind === 'android-app' ? null : 'unavailable';
+  const storageText = (): string => {
+    if (!storage.available) return WS.storage.unavailable(mode.place);
+    if (mode.kind === 'android-app') return WS.storage.androidApp;
+    return WS.storage.status(mode.place, persistence);
+  };
+
+  function startOver(): boolean {
+    // The floating cat owns the stored cat and keeps its own live copy: it would write the old cat back.
+    if (floatingUi?.state.running) return false;
+    // Synchronous from here to the reload: no pagehide save can run in between, and the frozen
+    // store would refuse it anyway, so the old cat is never written back.
+    if (storage.available && !storage.clearAll()) return false;
+    catStore.freeze();
+    window.location.reload();
+    return true;
+  }
+
+  const dialogEl = document.getElementById('settings');
+  if (surface) {
+    // The floating window has no sheet: the app screen owns the settings and tells native when they changed.
+  } else if (dialogEl) {
+    panel = createSettingsPanel({
+      dialog: dialogEl as HTMLDialogElement,
+      getSettings: () => settings,
+      apply: (patch, save) => applyPatch(patch, save),
+      onSoundGesture: () => audio.unlock(),
+      onResetSettings: () => {
+        const wasCharacter = character;
+        settings = keepCompanionOnReset(settings, resetWebSettings());
+        if (activeCharacterOf(settings) !== wasCharacter) {
+          swapCharacter();
+          return;
+        }
+        const languageChanged = syncLocale();
+        catHost.updateSettings(settings);
+        secret.setName(companionName(settings, locale));
+        storage.saveSettings(settings);
+        if (languageChanged && restartForLanguage()) return;
+        if (floatingUi?.state.running) controlPort?.send('settingsChanged');
+        refreshUi();
+        androidPanel?.refresh();
+      },
+      onStartOver: startOver,
+      host: mode,
+      secret,
+      installHint: () => installHint(mode, installPrompt !== null),
+      onInstall: () => {
+        const p = installPrompt;
+        installPrompt = null;
+        if (!p) return;
+        void p
+          .prompt()
+          .catch((err: unknown) => log.warn('the install prompt failed', { error: err instanceof Error ? err.message : String(err) }))
+          .finally(() => panel?.refresh());
+      },
+      storageText,
+      offlineState: () => offline,
+      version: __APP_VERSION__,
+      onOpenChange: (open) => {
+        // An open sheet owns the screen: the cat's press ends and it takes no pointer (blocked).
+        if (open) router.cancel();
+        root.classList.toggle('gizecat-sheet-open', open);
+      },
+    });
+  } else {
+    log.error('the #settings sheet is missing');
+  }
+  const settingsPanel = panel;
+
+  // ---- take your cat to another device (profileUi.ts): a local file only, never a network request
+  /**
+   * Keeps a loaded profile: the cat, then the settings, in storage; then the page restarts the cat
+   * the way "Start over" does (a frozen store, so no pagehide save writes the old cat back, then a
+   * reload). Without storage nothing could survive a reload: the cat changes live instead, and is
+   * forgotten on close like any cat here. False, with nothing changed, when storage refused.
+   */
+  function adoptProfile(next: Settings, nextCat: PersistedCat): boolean {
+    // Same reason as startOver: stop the floating cat first.
+    if (floatingUi?.state.running) return false;
+    // A profile file is cat-compatible: its cat goes to the cat's own slot, and the companion chosen on
+    // this device (and the other companions' names and palettes) stay as they are.
+    next = { ...next, general: { ...next.general, activeCharacter: settings.general.activeCharacter, characterNames: settings.general.characterNames, language: settings.general.language }, appearance: { ...next.appearance, characterSkins: settings.appearance.characterSkins } };
+    if (!storage.available) {
+      const before = settings;
+      settings = next;
+      catHost.updateSettings(settings);
+      secret.setName(companionName(settings, locale));
+      try {
+        // Without storage nothing can be written to the cat's slot: only a live cat can take the cat's file.
+        if (character !== 'cat') throw new Error('the active companion is not the cat');
+        if (!adoptCatInto(sim, nextCat)) throw new Error('this simulation cannot adopt a cat');
+      } catch (err) {
+        log.warn('the loaded cat could not be adopted', { error: err instanceof Error ? err.message : String(err) });
+        settings = before;
+        catHost.updateSettings(settings);
+        secret.setName(companionName(settings, locale));
+        return false;
+      }
+      refreshUi();
+      settingsPanel?.refresh();
+      androidPanel?.refresh();
+      return true;
+    }
+    const previous = character === 'cat' ? sim.serialize() : storage.loadCat(() => 0.5, Date.now(), 'cat').cat;
+    if (!storage.saveCat(nextCat, 'cat')) return false;
+    if (!storage.saveSettings(next)) {
+      // Put the cat back: nothing changes unless both are kept.
+      storage.saveCat(previous, 'cat');
+      return false;
+    }
+    catStore.freeze();
+    window.location.reload();
+    return true;
+  }
+
+  if (settingsPanel) {
+    const timers = { setTimeout: (fn: () => void, ms: number) => window.setTimeout(fn, ms), clearTimeout: (handle: unknown) => window.clearTimeout(handle as number) };
+    const saver = selectProfileSaver(
+      mode,
+      globalThis,
+      () =>
+        createBrowserSaver({
+          doc: document,
+          url: URL,
+          makeBlob: (text) => new Blob([text], { type: PROFILE_MIME }),
+          makeFile: typeof File === 'function' ? (text, fileName) => new File([text], fileName, { type: PROFILE_MIME }) : undefined,
+          share: navigator,
+          timers,
+          // The installed web app on an iPad or iPhone: the share sheet ("Save to Files") first.
+          preferShare: mode.apple && mode.standalone,
+        }),
+      timers,
+    );
+    if (!saver) log.warn('saving a profile is unavailable: the native file bridge is missing');
+    createProfileUi({
+      slot: settingsPanel.transferSlot,
+      mode,
+      getSettings: () => settings,
+      // A profile file carries the cat (cat-compatible): with another companion active, the stored cat is exported.
+      getCat: () => (character === 'cat' ? sim.serialize() : storage.loadCat(() => 0.5, Date.now(), 'cat').cat),
+      saver,
+      appVersion: __APP_VERSION__,
+      now: () => Date.now(),
+      commit: adoptProfile,
+    });
+    settingsPanel.setTransferVisible(true);
+  }
 
   btnCall?.addEventListener('click', () => {
     // To the button (keyboard activation has no pointer): the cat walks over to it.
@@ -182,11 +599,56 @@ function boot(): void {
     catHost.setPaused(!catHost.paused);
   });
   btnSound?.addEventListener('click', () => {
-    settings = { ...settings, sound: { ...settings.sound, enabled: !settings.sound.enabled } };
-    catHost.updateSettings(settings);
-    storage.saveSettings(settings);
-    refreshUi();
+    const on = !settings.sound.enabled;
+    // Inside the click: the one moment iPadOS lets audio start.
+    if (on) audio.unlock();
+    const patch = patchFor({ field: 'soundEnabled', value: on });
+    if (patch) applyPatch(patch, true);
+    settingsPanel?.refresh();
   });
+  btnSettings?.addEventListener('click', () => {
+    router.cancel();
+    settingsPanel?.open();
+  });
+
+  // ---- installing: Chromium's prompt (kept for the sheet's Install button); never in the Android app
+  if (mode.kind === 'browser') {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      installPrompt = e as unknown as BeforeInstallPromptLike;
+      settingsPanel?.refresh();
+    });
+    window.addEventListener('appinstalled', () => {
+      installPrompt = null;
+      settingsPanel?.refresh();
+    });
+  }
+
+  // ---- keeping the data: ask once when installed (Safari grants it to Home Screen apps by heuristics); else only read it
+  if (storage.available && mode.kind === 'browser') {
+    const manager = (navigator as { storage?: { persist?: () => Promise<boolean>; persisted?: () => Promise<boolean> } }).storage;
+    void requestPersistence(manager, shouldRequestPersistence(mode)).then((p) => {
+      persistence = p;
+      settingsPanel?.refresh();
+    });
+  }
+
+  // ---- offline: the service worker (production, browser, secure origin; never in the Android app)
+  if (shouldRegisterServiceWorker(mode, hostEnv, __WEB_SW__)) {
+    registerServiceWorker({
+      container: 'serviceWorker' in navigator ? navigator.serviceWorker : undefined,
+      pageUrl: window.location.href,
+      whenLoaded: (cb) => {
+        if (document.readyState === 'complete') cb();
+        else window.addEventListener('load', () => cb(), { once: true });
+      },
+      warn: (msg, data) => log.warn(msg, data),
+      onState: (state) => {
+        offline = state;
+        settingsPanel?.refresh();
+      },
+    });
+  }
 
   // ---- a hidden page: the cat naps (system suspend), not "paused by the user" (see the note below)
   function onVisibility(): void {
@@ -199,6 +661,8 @@ function boot(): void {
     } else if (suspended) {
       suspended = false;
       catHost.onSystem('resume');
+      // A rotation or a Split View change while hidden may have sent no resize.
+      display.refresh();
     }
   }
   // setPaused(true) would show the cat as paused by the user (the Pause button, the status line,
@@ -206,14 +670,18 @@ function boot(): void {
   // computer-asleep signal: the sim settles the cat asleep (its 'locked' mode) and wakes it on
   // resume, the host keeps no flag of its own, and the browser throttles the hidden page's timers,
   // so the slower asleep ticks cost next to nothing.
-  document.addEventListener('visibilitychange', onVisibility);
+  // Not in the floating window: its WebView is detached from any window while the cat is hidden or
+  // not yet drawn, which a WebView reports as a hidden page. Native's suspend and wake commands
+  // (overlaySurface.ts) carry the screen-off signal there; this would fight them and throttle the
+  // timers that bring the window back.
+  if (!surface) document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('pagehide', () => catStore.saveSync());
   // A press can lose its release when the window loses focus mid-drag.
   window.addEventListener('blur', () => router.cancel());
 
   let runtime: OverlayRuntime | null = null;
   try {
-    runtime = new OverlayRuntime(canvas, overlays.api);
+    runtime = new OverlayRuntime(canvas, overlayApi, { audio: audio.factory, viewport });
   } catch (err) {
     log.error('the cat renderer could not start', { error: err instanceof Error ? err.message : String(err) });
   }
@@ -228,6 +696,8 @@ function boot(): void {
       catSource: catLoad.source,
       catId: () => catLoad.cat.catId,
       suspended: () => suspended,
+      sheetOpen: () => settingsPanel?.isOpen ?? false,
+      routerHitTest,
     });
     recorder.noteState(catHost.state);
   }
@@ -237,11 +707,168 @@ function boot(): void {
   runtime?.start();
   catHost.start();
   catStore.start();
-  // RouterTarget is structural (the router has no DOM types); a Document listens the same way.
-  router.attach(document as unknown as RouterTarget);
+  if (surface) {
+    // The floating window: touches come from native (raw screen coordinates), not from the DOM, and
+    // native's commands drive the lifecycle. Not hooked to the document at all.
+    surface.connect({
+      setPaused: (paused) => catHost.setPaused(paused),
+      setHidden: (hidden) => catHost.setHidden(hidden),
+      onSystem: (kind) => catHost.onSystem(kind),
+      saveNow: () => catStore.saveSync(),
+      reloadSettings: () => {
+        const reloaded = storage.loadSettings();
+        if (activeCharacterOf(reloaded) !== character) {
+          // The app screen changed the companion: save this one in its slot, then start the other.
+          catStore.saveSync();
+          catStore.freeze();
+          window.location.reload();
+          return;
+        }
+        settings = reloaded;
+        catHost.updateSettings(settings);
+        if (syncLocale() && storage.available) {
+          // The app screen changed the language: this window restarts in it (nothing to write back).
+          catStore.saveSync();
+          catStore.freeze();
+          window.location.reload();
+          return;
+        }
+        secret.setName(companionName(settings, locale));
+        // Laser Mode and the events pause travel the same way: the app page wrote them, native said "changed".
+        applyFlags(readSessionFlags(localStore));
+      },
+      router,
+      getAppearance: () => settings.appearance,
+    });
+  } else {
+    // RouterTarget is structural (the router has no DOM types); a Document listens the same way.
+    router.attach(document as unknown as RouterTarget);
+  }
+
+  // ---- the Android app's home panel and its floating-cat controls (Android app only)
+  if (controlPort && settingsPanel) {
+    const control = controlPort;
+    const sheet = settingsPanel;
+    // While the floating cat runs its own WebView owns the cat and the stored copy; this parked page never
+    // writes it and shows the stored snapshot instead (the floating cat saves it every 30 seconds).
+    const floatingNow = (): boolean => floatingUi?.state.running ?? false;
+    const companion: CompanionSource = {
+      live: () => !floatingNow(),
+      status: () => {
+        if (floatingNow()) return null;
+        try {
+          return { ...sim.companionStatus(), state: sim.state };
+        } catch {
+          return null;
+        }
+      },
+      journal: () => {
+        try {
+          if (!floatingNow()) return sim.journal();
+          // A read of what the floating cat last saved; the random source and clock only matter for a cat that does not exist yet.
+          return storage.loadCat(() => 0.5, Date.now(), character).cat.world.journal;
+        } catch {
+          return [];
+        }
+      },
+      clearJournal: () => {
+        if (floatingNow()) return false;
+        try {
+          sim.clearJournal();
+          catStore.markDirty();
+          // The normal save path, now: a cleared journal must not come back from an older save.
+          return catStore.saveSync();
+        } catch {
+          return false;
+        }
+      },
+    };
+    const panelUi = createAndroidPanel({
+      getSettings: () => settings,
+      apply: (patch, save) => applyPatch(patch, save),
+      companion,
+      session: {
+        get: () => flags,
+        set: (next) => {
+          applyFlags(next);
+          writeSessionFlags(localStore, next);
+          // The floating cat re-reads them (and the settings) when native says so.
+          if (floatingNow()) control.send('settingsChanged');
+        },
+      },
+      onSoundGesture: () => audio.unlock(),
+      secret,
+      onCustomize: () => {
+        router.cancel();
+        sheet.open();
+      },
+      onStage: () => panelUi.close(),
+      version: __APP_VERSION__,
+      onOpenChange: (open) => {
+        router.cancel();
+        // The in-app cat steps aside while the panel covers it (and stays parked while the cat floats).
+        catHost.setHidden(open || (floatingUi?.state.running ?? false));
+      },
+    });
+    androidPanel = panelUi;
+    document.body.append(panelUi.root);
+    floatingUi = createFloatingUi({
+      els: panelUi.floating,
+      control,
+      catName: () => companionName(settings, locale),
+      // The floating cat starts from the stored cat: write the live one first.
+      beforeStart: () => {
+        catStore.saveSync();
+      },
+      onRunningChange: (running) => {
+        if (running) {
+          // Parked: one cat only. Its saves stop for good; the floating cat's WebView owns the stored cat.
+          router.cancel();
+          catStore.freeze();
+          catHost.setHidden(true);
+          root.classList.add('gizecat-floating-on');
+        } else {
+          // The floating cat saved the cat before it stopped: a fresh page loads exactly that cat.
+          window.location.reload();
+        }
+      },
+    });
+    // A floating cat that outlived this page may still hold flags the clean start just erased: tell it, once.
+    let flagsSynced = false;
+    control.onState((s) => {
+      floatingUi?.update(s);
+      panelUi.setFloatingState(s);
+      if (!flagsSynced) {
+        flagsSynced = true;
+        if (s.running) control.send('settingsChanged');
+      }
+    });
+    // The toolbar's "Panel" button returns to the panel from the in-app cat.
+    const btnPanel = byId('btn-panel', HTMLButtonElement);
+    if (btnPanel) {
+      btnPanel.hidden = false;
+      btnPanel.addEventListener('click', () => {
+        router.cancel();
+        panelUi.open();
+      });
+    }
+    // The first thing the Android app shows is the panel.
+    panelUi.open();
+    control.send('query');
+  } else if (controlPort) {
+    log.warn('the Android panel could not be built: the settings sheet is missing');
+  }
   if (catLoad.source === 'recovered') catStore.markDirty();
-  if (document.visibilityState === 'hidden') onVisibility();
+  if (!surface && document.visibilityState === 'hidden') onVisibility();
   refreshUi();
+  // The first screen (index.html) ends here: the cat is up, or it could not be drawn at all.
+  settleBootScreen(document.getElementById('boot'), runtime !== null ? 'started' : 'no-cat');
 }
 
-boot();
+try {
+  boot();
+} catch (err) {
+  // Whatever stopped the page before the cat ran: the failure message now, not after the stylesheet's wait.
+  settleBootScreen(document.getElementById('boot'), 'crashed');
+  throw err;
+}

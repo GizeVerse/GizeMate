@@ -3,12 +3,14 @@
 import type { BehaviorProfileSnapshot } from './behaviorProfile';
 import type { AnimClip, BehaviorState, CatReaction, CatSoundCue, Emote, Facing, JumpKind } from './cat';
 import type { PersistedCat } from './catState';
+import type { CharacterId } from './characters/types';
 import type { Point, Rect } from './geometry';
 import type { SceneReport, VisualSummary } from './perception';
 import type { Settings } from './settings';
 import type { DecisionDiagnostics, NavDiagnostics, SurfaceDebugLine } from './surfaceDiagnostics';
 import type { ScreenEdgeBand, Surface, SupportSurfaceKind, TaskbarEdge } from './surfaces';
 import type { AppCategory, WindowInfo, WorldGeometry } from './world';
+import type { AnyEventId, JournalEntry, Mood, PersonalityId, RenderProp, WorldEventSnapshot } from './companion';
 
 /** Discrete stimuli delivered to the simulation since the previous tick. */
 export type SimEvent =
@@ -48,6 +50,13 @@ export type SimEvent =
   | { type: 'command.sleep' }
   | { type: 'command.wake' }
   | { type: 'command.play' }
+  /**
+   * Living Companion, session-only: hold the world-event schedule (the user paused events from the menu or
+   * panel) / let it run again. A running event winds down gracefully. Never persisted; a new session
+   * starts with events running (settings.companion.events.enabled still governs).
+   */
+  | { type: 'command.eventsPause' }
+  | { type: 'command.eventsResume' }
   | { type: 'lifecycle.quitRequested' }
   // Environment surfaces (v1.1)
   /** An auto-hide (or newly discovered) taskbar slid into view; `surfaceId` names its ledge in env.surfaces. */
@@ -108,12 +117,41 @@ export interface SimEnv {
    */
   edgeBands?: readonly ScreenEdgeBand[];
   /**
+   * Android floating cat (1.4.2): the left edge is a full-height climb like the right one, not the
+   * desktop's short peek (the peek rule protects a visible desktop's sidebars and scrollbars, which a
+   * phone screen has not). Absent or false: the desktop rule, unchanged.
+   */
+  edgeFullBothSides?: boolean;
+  /**
+   * Android floating cat (1.4.2): multiplies the pause between screen-edge visits (default 1: the
+   * desktop's 4 to 8 minutes), clamped to 0.05..1, so a pet that lives on a phone screen visits its
+   * edges often enough to be seen. Absent: the desktop pause, unchanged.
+   */
+  edgeCooldownScale?: number;
+  /**
    * v1.2 (review C2): monotonic count of mouse-button presses (down edges, any button) since the host
    * started. Content-free (no position, no which-button); the sim only compares it with the previous
    * tick's value: a press ends a running hunt and blocks hunt starts for a few seconds (ADR 0003 §4.3).
    * Absent: unknown (no button gate beyond pointerButtonDown).
    */
   pointerButtonPresses?: number;
+  // ---- Living Companion, optional: absent means the stated default ---------------------------
+  /**
+   * Laser Mode is on (the user turned it on from the cat's menu or the panel). The cat chases the
+   * cursor position as if it were a light: it never pounces on it, never catches it and never counts
+   * it as prey ('caught'), and the opt-outs for cursor play still apply. Default false.
+   */
+  laserMode?: boolean;
+  /**
+   * The user asked for reduced motion: calmer clips (no long sprints or big jumps by choice), slower
+   * and fewer event props, no flashes. Default false.
+   */
+  reducedMotion?: boolean;
+  /**
+   * Work area of the display the cat is on that a world event may use as its stage, in the same
+   * px as the cat (floor y is its bottom). Absent: the sim derives it from the world geometry.
+   */
+  eventStage?: Rect;
 }
 
 export type SimSupport =
@@ -170,6 +208,17 @@ export interface SimOutput {
   balance?: number;
   /** One-off procedural sound (only while settings.sound.enabled); the host routes it to one overlay. */
   sound?: CatSoundCue | null;
+  // ---- Living Companion render hints, optional ----------------------------------------------
+  /** World-event props to draw (world px; at most MAX_PROPS). Absent or empty: none. */
+  props?: readonly RenderProp[];
+  /** The cat's current temporary mood (derived, never persisted). */
+  mood?: Mood;
+  /** 0..1 how deeply it sleeps (0 just dozing, 1 deep sleep); only meaningful while asleep. */
+  sleepDepth?: number;
+  /** The world event that is running, for status displays and the journal; null/absent: none. */
+  worldEvent?: WorldEventSnapshot | null;
+  /** A short event line to write in the journal this tick (the host appends it to the persisted journal; the sim also keeps it). */
+  journalEntry?: JournalEntry | null;
 }
 
 export interface CatSimOptions {
@@ -181,6 +230,11 @@ export interface CatSimOptions {
   random?: () => number;
   /** Wall clock (epoch ms) for persisted timestamps; injectable for tests. */
   wallClock?: () => number;
+  /**
+   * GizeMate: the active character (default 'cat'; an unknown id is the cat too). The sim resolves its
+   * module once; with the cat every output is exactly what it was before characters existed.
+   */
+  character?: CharacterId;
 }
 
 export interface CatSim {
@@ -200,6 +254,15 @@ export interface CatSim {
   surfaceDebugLines(): SurfaceDebugLine[];
   /** v1.2: session behaviour profile (kinds, counts, durations; ADR 0003 §11). */
   behaviorProfile(): BehaviorProfileSnapshot;
+  /**
+   * Living Companion: the live status for the Companion page and status displays (ids and numbers
+   * only). nextEventInMs is null while an event runs, events are off or paused, or the schedule is frozen.
+   */
+  companionStatus(): { mood: Mood; event: AnyEventId | null; nextEventInMs: number | null; nearestPersonality: PersonalityId; personalityIsAuto: boolean };
+  /** Living Companion: the persisted journal, oldest first (bounded; a copy). */
+  journal(): readonly JournalEntry[];
+  /** Living Companion: clears the journal and the event history behind it (nothing else); marks the cat dirty. */
+  clearJournal(): void;
 }
 
 export type CreateCatSim = (opts: CatSimOptions) => CatSim;

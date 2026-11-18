@@ -16,6 +16,7 @@ import type { WindowInfo } from '../../../../src/shared/world';
 import { HOUR, MIN, runCell } from './bands';
 import { callCat, Harness, ledge, onWindowTop, settingsWith, taskbar, WAKE_MS } from './fixtures';
 import { TYPICAL_FRAME, TYPICAL_STRIP, USER_SCREEN } from './liveness';
+import { slow } from '../../../helpers/slowTimeout';
 
 const median = (xs: number[]): number => {
   const s = [...xs].sort((a, b) => a - b);
@@ -238,7 +239,7 @@ describe('review BEH-4 (band B16): the Attention seeking slider bounds the reque
     expect(low).toBeLessThanOrEqual(10);
     // Seven multi-sim-hour runs (about 50 s alone): a hang guard that survives a loaded shared machine,
     // not an assertion (it reached 68.9 s against the default 60 s during a GizeVerse verify run).
-  }, 180_000);
+  }, slow(180_000));
 
   it('ignoring it teaches it: a cat whose requests went unanswered asks less', () => {
     const count = (acceptance: number): number => {

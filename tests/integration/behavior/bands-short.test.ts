@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { BAND_TEXT, cellChecks, FULL_LIMITS, type BandId, type BandLimits } from '../../profile/bands';
 import { runProfile, summarizeCell, type CellSummary } from '../../profile/behaviorProfile';
 import { widenRate, widenShare } from '../../profile/metrics';
+import { slow } from '../../helpers/slowTimeout';
 
 const SEEDS = [1, 3];
 // Most stays end by the user's hand at the REAL handling rate: 2 sim-h hold too few own departures for B3 and B4.
@@ -82,7 +83,7 @@ describe(`ADR 0003 §14 short subset: ${KEY}, ${SEEDS.length} seeds x ${HOURS} s
       short();
       expect(cached!.cpuMs).toBeLessThanOrEqual(BUDGET_MS);
     },
-    60_000,
+    slow(60_000),
   );
 
   it(`B1: ${BAND_TEXT.B1} (widened to ${SHORT_LIMITS.activeShare.join('-')})`, () => {

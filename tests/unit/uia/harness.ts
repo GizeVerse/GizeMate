@@ -10,6 +10,7 @@ import { defaultSettings, type Settings } from '../../../src/shared/settings';
 import type { WindowInfo } from '../../../src/shared/world';
 import { memoryLogger, removeDir, tempDir } from '../main/helpers';
 import type { FakeHelperState } from './fakeHelper';
+import { slow } from '../../helpers/slowTimeout';
 
 export const FAKE_HELPER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fakeHelper.ts');
 
@@ -132,7 +133,9 @@ export function fakeHelperHarness(initial: FakeHelperState = {}): FakeHelperHarn
  * vi.waitFor with a timeout suited to real child processes (spawning Node can take well over a
  * second on a loaded machine); resolves as soon as the assertion passes.
  */
-export function eventually<T>(fn: () => T | Promise<T>, timeoutMs = 8000): Promise<T> {
+// The limit is a hang guard: a passing run returns on the first successful poll, so scaling it for a starved
+// machine (tests/helpers/slowTimeout.ts) costs nothing when the machine is idle.
+export function eventually<T>(fn: () => T | Promise<T>, timeoutMs = slow(8000)): Promise<T> {
   return vi.waitFor(fn, { timeout: timeoutMs, interval: 20 });
 }
 

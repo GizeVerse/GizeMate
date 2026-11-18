@@ -6,6 +6,8 @@
 // both native Wayland and XWayland get no overlay (review H2), so only an X11 session shows
 // the cat. explicitOzone() reads what the user passed, for the platform identity.
 import { BRAND } from '../../shared/brand';
+import { t } from '../../shared/i18n';
+import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n/locale';
 
 /** The ozone platform the user chose explicitly (--ozone-platform, else a concrete --ozone-platform-hint), or null. */
 export function explicitOzone(getSwitch: (name: string) => string): string | null {
@@ -23,7 +25,9 @@ export function sandboxDecision(packaged: boolean, noSandboxSwitch: boolean): Sa
   return packaged ? 'refuse' : 'warn';
 }
 
-export const NO_SANDBOX_TITLE = `${BRAND.product} cannot start safely`;
-export const NO_SANDBOX_MESSAGE =
-  `${BRAND.product} was started with --no-sandbox, which turns off the protection that keeps its windows isolated from your system. It does not run that way. ` +
-  'On Linux this usually means the system blocks the Chromium sandbox for this package (for example an AppImage on Ubuntu 24.04 or later); install a package that supports the sandbox instead.';
+/** The refusal dialog in `locale` (English by default; the product name comes from the brand layer). */
+export function noSandboxDialog(locale: Locale = DEFAULT_LOCALE): { title: string; message: string } {
+  return { title: t(locale, 'dialog.noSandboxTitle', { product: BRAND.product }), message: t(locale, 'dialog.noSandboxBody', { product: BRAND.product }) };
+}
+export const NO_SANDBOX_TITLE = noSandboxDialog().title;
+export const NO_SANDBOX_MESSAGE = noSandboxDialog().message;

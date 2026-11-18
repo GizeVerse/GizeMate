@@ -1,10 +1,10 @@
 // The cat simulation: state machine, activities, stimuli, needs, memory and output.
 // Pure TypeScript; time, randomness and the environment are injected. The class is built in
 // layers (simCore -> simDrives -> simStay -> simHunt -> simReactions -> simSalience -> simUtility
-// -> simActivities); this file adds the CatSim API and the per-tick output.
+// -> simActivities -> simCompanion); this file adds the CatSim API and the per-tick output.
 import type { AnimClip, BehaviorState } from '../../shared/cat';
 import type { BehaviorProfileSnapshot } from '../../shared/behaviorProfile';
-import type { PersistedCat } from '../../shared/catState';
+import type { PersistedCat, Traits } from '../../shared/catState';
 import { PersistedCatSchema } from '../../shared/catState';
 import type { Point, Rect } from '../../shared/geometry';
 import { clamp } from '../../shared/geometry';
@@ -16,17 +16,17 @@ import type { WorldGeometry } from '../../shared/world';
 import { clipFor } from './clips';
 import { huntBaseline } from './hunt';
 import { clearMemory } from './memory';
-import { newPersistedCat } from './personality';
+import { newPersistedCat, TRAIT_MAX, TRAIT_MIN } from './personality';
 import { ACTIVE_STATES, ASLEEP_STATES, CALM_STATES, PHYSICAL_STATES, STATE_CHANGE_WINDOW_MS, STATE_SPECS } from './states';
 import { baseContentment, stepStats } from './stats';
-import { SimActivities } from './simActivities';
+import { SimCharacter } from './simCharacter';
 import type { SimHooks } from './simCore';
 import { PERCEPTION_FLOOR_MS, SAVE_MIN_INTERVAL_MS, REACTION_HOLD_MS, FADE_MS, MAX_SIM_DT_MS, WALL_PAW_REACH_BL, SLOWEST_TICK_MS, SELF_TIMED, AROUSAL, CONTENTMENT_BIAS, isFinitePoint } from './simCore';
 
 export type { SimHooks, SimMode, TransitionRecord } from './simCore';
 export { MAX_COMMAND_IGNORE_CHANCE, MAX_SIM_DT_MS, PERCEPTION_FLOOR_MS, PLAY_RETREAT_COOLDOWN_MS, REACTION_MIN_GAP_MS, SLOWEST_TICK_MS, SURPRISE_COOLDOWN_MS } from './simCore';
 
-export class CatSimImpl extends SimActivities implements CatSim {
+export class CatSimImpl extends SimCharacter implements CatSim {
   // ---- CatSim API -------------------------------------------------------------
 
   get state(): BehaviorState {
@@ -42,6 +42,8 @@ export class CatSimImpl extends SimActivities implements CatSim {
     let snap = this.snapNext;
     this.snapNext = false;
 
+    // Reduced motion follows the setting and the host's preference (the opt-outs and the Mover's jump rules).
+    this.syncMotionPolicy();
     // Displays with a fullscreen app in front are off limits: the cat neither walks nor jumps onto them.
     this.mover.setOffLimitsDisplays(this.settings.behavior.fullscreenBehavior === 'ignore' ? [] : env.fullscreenDisplayIds);
     if (env.foreground) {
@@ -75,7 +77,7 @@ export class CatSimImpl extends SimActivities implements CatSim {
     this.checkSlink();
 
     if (this.mode !== 'quit') {
-      stepStats(this.cat.stats, { state: this.act.state, traits: this.cat.traits, patience: this.settings.interaction.patience }, dt);
+      stepStats(this.cat.stats, { state: this.act.state, traits: this.traits, patience: this.settings.interaction.patience }, dt);
     }
     // v1.2: drives (1 Hz) and the hunt evaluation (4 Hz) on sim-time accumulators.
     this.stepDriveClock(dt);
@@ -88,6 +90,10 @@ export class CatSimImpl extends SimActivities implements CatSim {
     if (this.typingRaw) this.profile.addContext('typing', dt);
     if (env.foreground?.maximized === true && !env.foreground.minimized) this.profile.addContext('foregroundMaximized', dt);
     if (this.cursorInWatchBand()) this.profile.addContext('cursorInReach', dt);
+    // Living Companion: mood, the world-event engine and, when an event invites it, the body.
+    this.stepCompanion();
+    // Laser Mode: the cursor as a light (never prey); a sleeping cat is woken gently, a press is the user's.
+    this.stepLaser();
     this.updateActivity();
     if (this.mode !== 'away') {
       const step = this.mover.step({
@@ -123,8 +129,10 @@ export class CatSimImpl extends SimActivities implements CatSim {
   }
 
   updateSettings(settings: Settings): void {
+    const prev = this.settings;
     this.settings = settings;
-    this.disabled = disabledBehaviorSet(settings.behavior);
+    this.disabled = this.withMotionPolicy(disabledBehaviorSet(settings.behavior));
+    this.onCompanionSettings(prev);
     this.syncEmotes();
     if (this.mover.setConfig(this.moverConfig())) this.snapNext = true;
     if (!this.allowedByToggles(this.act.state, this.act.variant)) {
@@ -150,7 +158,7 @@ export class CatSimImpl extends SimActivities implements CatSim {
   }
 
   resetPersonality(): void {
-    const fresh = newPersistedCat(this.random, this.wall());
+    const fresh = newPersistedCat(this.random, this.wall(), this.character.id);
     fresh.memory.counters.sessions = 1;
     fresh.lastPosition = this.cat.lastPosition;
     this.cat = fresh;
@@ -158,7 +166,36 @@ export class CatSimImpl extends SimActivities implements CatSim {
     this.surfaceHabit.clear();
     this.rough.clear();
     this.cat.drives.huntDrive = huntBaseline(clamp(this.settings.behavior.cursorPlay, 0, 1));
+    // A new cat has seen nothing: no stale event, mood or history of the old one runs on.
+    this.onCatReplaced();
     // Route preferences follow the new personality.
+    if (this.mover.setConfig(this.moverConfig())) this.snapNext = true;
+    this.markDirty(true);
+  }
+
+  /**
+   * 1.4.0 (profile import): replaces the live cat with `next`, already computed and validated by
+   * the host (applyProfile in src/shared/profileTransfer.ts). Traits are clamped to the generator
+   * band; lastPosition stays this device's. Another catId is another cat: the session's habits and
+   * rough-handling memory start over and the hunt drive starts from its baseline, as after
+   * resetPersonality. Throws (changing nothing) when `next` is not a valid persisted cat.
+   */
+  adoptCat(next: PersistedCat): void {
+    const cat = PersistedCatSchema.parse(next);
+    for (const k of Object.keys(cat.traits) as Array<keyof Traits>) cat.traits[k] = clamp(cat.traits[k], TRAIT_MIN, TRAIT_MAX);
+    cat.lastPosition = this.cat.lastPosition;
+    const other = cat.catId !== this.cat.catId;
+    this.cat = cat;
+    if (other) {
+      this.habit.clear();
+      this.surfaceHabit.clear();
+      this.rough.clear();
+      this.restAccumMs = 0;
+      this.cat.drives.huntDrive = huntBaseline(clamp(this.settings.behavior.cursorPlay, 0, 1));
+    }
+    // The adopted cat's own world memory feeds the event engine; nothing of the old one's runs on.
+    this.onCatReplaced();
+    // Route preferences follow the (possibly) new personality.
     if (this.mover.setConfig(this.moverConfig())) this.snapNext = true;
     this.markDirty(true);
   }
@@ -168,6 +205,8 @@ export class CatSimImpl extends SimActivities implements CatSim {
     this.cat.memory.counters.sessions = 1;
     this.restAccumMs = 0;
     this.rough.clear();
+    // The world forgets too: event history, counters and the journal.
+    this.forgetWorld();
     this.markDirty(true);
   }
 
@@ -252,6 +291,8 @@ export class CatSimImpl extends SimActivities implements CatSim {
       screen: this.currentScreen(),
       invalidSamples: [...this.invalidSamples],
       eventErrors: this.eventErrors,
+      // Living Companion: ids and numbers only.
+      companion: { mood: this.mood, props: this.props.length, ...this.events.debugInfo() },
       lastTransitions: this.log.slice(-16).map((r) => ({ at: Math.round(r.at), from: r.from, to: r.to, cause: r.cause })),
     };
   }
@@ -281,7 +322,12 @@ export class CatSimImpl extends SimActivities implements CatSim {
     return isFinitePoint(p) ? p : null;
   }
 
+  /** The clip the active character draws for what the sim chose (the cat draws it as chosen). */
   protected computeClip(): AnimClip {
+    return this.charClip(this.computeCanonicalClip());
+  }
+
+  protected computeCanonicalClip(): AnimClip {
     const a = this.act;
     const m = this.mover;
     if (this.oneShot && this.now >= this.oneShot.until) this.oneShot = null;
@@ -303,7 +349,7 @@ export class CatSimImpl extends SimActivities implements CatSim {
     const scale = m.scale;
     const clip = clipFor(a.state, a.phase, {
       groundSpeed: m.groundSpeed,
-      runThreshold: 140 * this.settings.behavior.movementSpeed * scale,
+      runThreshold: 140 * this.settings.behavior.movementSpeed * this.gaitMul() * scale,
       moveThreshold: 6 * scale,
       vy: m.vy,
     });
@@ -424,7 +470,8 @@ export class CatSimImpl extends SimActivities implements CatSim {
       displayId: m.displayId,
       support: m.support,
       boundsPx: this.bodyBounds(),
-      nextTickMs: this.nextTickMs(),
+      // Props animate at the sim's pace: while any is on screen the tick is at least 30 Hz.
+      nextTickMs: this.props.length > 0 && this.mode !== 'away' ? Math.min(33, this.nextTickMs()) : this.nextTickMs(),
       requests,
       reaction: visible && this.reaction && now - this.reaction.at < REACTION_HOLD_MS ? { ...this.reaction } : null,
       // v1.2 render hints (ADR 0003 §6, §8, §10).
@@ -432,6 +479,12 @@ export class CatSimImpl extends SimActivities implements CatSim {
       impact: s === 'landing' ? clamp(this.impactHint, 0, 1) : 0,
       balance: clamp(m.balance, 0, 1),
       sound: visible ? this.sound : null,
+      // Living Companion render hints (props are world px, passed through as the engine made them).
+      props: this.props,
+      mood: this.outputMood(),
+      sleepDepth: clamp(this.sleepDepth, 0, 1),
+      worldEvent: this.worldEventSnapshot(),
+      journalEntry: this.takeJournalEntry(),
     };
   }
 }

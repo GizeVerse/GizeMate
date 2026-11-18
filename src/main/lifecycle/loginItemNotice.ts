@@ -4,13 +4,17 @@
 // General callout: a v1 user who upgrades gets no window at all, so the callout alone could go
 // unseen. Electron-free: the notification surface (the tray icon) is injected.
 import { BRAND } from '../../shared/brand';
+import { t } from '../../shared/i18n';
+import { DEFAULT_LOCALE, type Locale } from '../../shared/i18n/locale';
 import type { LoginItemStatus } from '../../shared/ipc';
 import type { Logger } from '../contracts';
 
-export const LAUNCH_NOTICE = {
-  title: `${BRAND.product} now starts with Windows`,
-  body: 'Your cat appears when you sign in. To change this, click here for Settings › General, or use Task Manager › Startup apps.',
-} as const;
+/** The notice in `locale` (English by default; the product name always comes from the brand layer). */
+export function launchNotice(locale: Locale = DEFAULT_LOCALE): { title: string; body: string } {
+  return { title: t(locale, 'notice.launchTitle', { product: BRAND.product }), body: t(locale, 'notice.launchBody') };
+}
+
+export const LAUNCH_NOTICE = launchNotice();
 
 export interface NoticeHandlers {
   /** Windows displayed the notification. */
@@ -36,6 +40,8 @@ export interface LaunchNoticeOptions {
   /** Opens Settings › General. */
   openSettings(): void;
   logger: Logger;
+  /** The effective interface language; absent = English. */
+  locale?: Locale;
 }
 
 /**
@@ -53,7 +59,7 @@ export function announceLaunchAtLogin(o: LaunchNoticeOptions): boolean {
     o.markShown();
   };
   try {
-    const asked = o.surface.notify(LAUNCH_NOTICE, {
+    const asked = o.surface.notify(o.locale ? launchNotice(o.locale) : LAUNCH_NOTICE, {
       onShown: shown,
       onClick: () => {
         shown();

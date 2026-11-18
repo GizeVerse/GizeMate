@@ -622,6 +622,11 @@ test.describe('environment surfaces (real app)', () => {
     record(info, 'pids', { app: appProc.pid, probeWindow: probe.proc.pid });
     try {
       await waitForCat(app);
+      // The fresh cat acts on its own from launch. Setup (window up, in front, listed, diagnostics) takes real
+      // seconds, far more on a loaded PC, and the cat may legitimately climb the probe before the "starts on
+      // the floor" preconditions below are read. Run the sim at its slowest allowed speed (0.1) until the trip
+      // is watched, so setup spans a few sim-seconds at most; the trip itself still runs at TIME_SCALE.
+      await hook(app, 'setTimeScale', 0.1);
       await settingsForTraversal(app);
       const r = await probe.next();
       const f = r.frame;
