@@ -248,8 +248,8 @@ describe('TabStripService: refresh policy and privacy', () => {
     expect(r.svc.surfaces()).toEqual([]);
     r.svc.setInterest([A, E], r.clock.advance(2000));
     r.svc.setInterest([A, E], r.clock.advance(2000));
+    await eventually(() => expect(stripOps(r, A)).toBe(1));
     await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(stripOps(r, A)).toBe(1);
     expect(stripOps(r, E)).toBe(0);
     // Events for a dropped window are ignored.
     r.h.emit('selected', A);

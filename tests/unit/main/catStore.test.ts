@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PersistedCat } from '../../../src/shared/catState';
 import { PersistedCatSchema } from '../../../src/shared/catState';
 import { createCatStore, type MigrateCatState } from '../../../src/main/store/catStore';
 import { createJsonStore } from '../../../src/main/store/jsonStore';
 import { failFor, memoryLogger, removeDir, tempDir } from './helpers';
+import { slow } from '../../helpers/slowTimeout';
 
 function cat(id: string, savedAt = 1): PersistedCat {
   return PersistedCatSchema.parse({ schemaVersion: 1, catId: id, bornAt: 1000, savedAt });
@@ -128,8 +129,9 @@ describe('catStore', () => {
     expect(fs.existsSync(file)).toBe(false);
     store.markDirty();
     intervals[0]!();
-    await new Promise((r) => setTimeout(r, 50));
-    expect(JSON.parse(fs.readFileSync(file, 'utf8')).catId).toBe('snapshot-0001');
+    // The interval callback starts an asynchronous write: wait for it (a fixed 50 ms sleep failed on a loaded PC).
+    await vi.waitFor(() => expect(fs.existsSync(file)).toBe(true), { timeout: slow(8000), interval: 10 });
+    await vi.waitFor(() => expect(JSON.parse(fs.readFileSync(file, 'utf8')).catId).toBe('snapshot-0001'), { timeout: slow(8000), interval: 10 });
     expect(store.dirty).toBe(false);
     expect(store.saveSync()).toBe(true);
     expect(JSON.parse(fs.readFileSync(file, 'utf8')).catId).toBe('snapshot-0002');

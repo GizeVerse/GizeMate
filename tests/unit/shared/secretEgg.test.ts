@@ -112,14 +112,14 @@ describe('matcher and tracker', () => {
     tr.setName(trigger);
     expect(tr.state().active).toBe(false);
     await vi.advanceTimersByTimeAsync(60);
-    await vi.waitFor(() => expect(tr.state().active).toBe(true));
+    await vi.waitFor(() => expect(tr.state().active).toBe(true), { timeout: 8000 });
     expect(tr.state()).toEqual({ active: true, message });
     tr.setName(`${trigger}x`);
     expect(tr.state().active).toBe(false);
     expect(seen.map((s) => s.active)).toEqual([true, false]);
     tr.setName(trigger);
     await vi.advanceTimersByTimeAsync(60);
-    await vi.waitFor(() => expect(tr.state().active).toBe(true));
+    await vi.waitFor(() => expect(tr.state().active).toBe(true), { timeout: 8000 });
     tr.dispose();
     expect(tr.state().active).toBe(false);
   });
