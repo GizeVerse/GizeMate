@@ -13,7 +13,7 @@ import { subBehaviorAllowed } from '../../shared/behaviorGates';
 import type { Drives } from '../../shared/catState';
 import type { Point } from '../../shared/geometry';
 import type { BehaviorId } from '../../shared/settings';
-import type { Candidate, DecisionView } from './decide';
+import type { Candidate, CharacterTuning, DecisionView } from './decide';
 import { userIdleForSleep } from './decide';
 import { zEff } from './drives';
 import type { Random, Scored } from './random';
@@ -41,6 +41,12 @@ const TYPING_TRIP_RAW_MUL = 0.2;
 const TYPING_TRIP_RECENT_MS = 30_000;
 const TYPING_TRIP_RECENT_MUL = 0.35;
 const PATROL_MIN_RHYTHM = 0.8;
+/** GizeMate: base utility of a signature action per unit of its weight (1 is about as likely as a common idle pick). */
+export const SIGNATURE_BASE = 0.04;
+/** Signature utility multipliers while the user types / switches windows fast / a video plays (all below the 'active' 0.35 / 0.25 / 0.4 they would otherwise dodge). */
+export const SIGNATURE_TYPING_MUL = 0.25;
+export const SIGNATURE_BUSY_MUL = 0.25;
+export const SIGNATURE_VIDEO_MUL = 0.4;
 
 /** Variants that should not repeat back to back share a family (ADR 0003 §1.5). */
 export type Family = 'observe' | 'rest' | 'groom' | 'explore' | 'tripUp' | 'hunt' | 'play' | 'social' | 'wary' | 'leave' | 'other';
@@ -48,9 +54,45 @@ export type Family = 'observe' | 'rest' | 'groom' | 'explore' | 'tripUp' | 'hunt
 const clamp01 = (v: number): number => (Number.isFinite(v) ? (v < 0 ? 0 : v > 1 ? 1 : v) : 0);
 
 /** Repetition key `state:variant` (trips add `:surfaceKind`). */
-export function candidateKey(c: Pick<Candidate, 'state' | 'variant'> & { surfaceKind?: string | null }): string {
+export function candidateKey(c: Pick<Candidate, 'state' | 'variant'> & { surfaceKind?: string | null; signatureId?: string }): string {
   const base = `${c.state}:${c.variant ?? ''}`;
+  if (c.signatureId) return `${base}:${c.signatureId}`;
   return c.surfaceKind ? `${base}:${c.surfaceKind}` : base;
+}
+
+/**
+ * GizeMate: the multiplier a character's tuning puts on a candidate's interest (1 = none). Resting
+ * follows restBias, trips and walks to explore follow exploreBias, play follows playBias, cursor
+ * watching and hunting follow cursorInterest, hiding and the surprise startle follow shyness and
+ * asking for attention follows its inverse (a shy character asks less). A signature action is not scaled.
+ */
+export function characterInterest(c: Pick<Candidate, 'state' | 'variant' | 'signatureId'>, family: Family, t: Pick<CharacterTuning, 'restBias' | 'exploreBias' | 'playBias' | 'cursorInterest' | 'shyness'>): number {
+  if (c.signatureId) return 1;
+  let m = 1;
+  switch (family) {
+    case 'rest':
+      m = t.restBias;
+      break;
+    case 'explore':
+    case 'tripUp':
+      m = t.exploreBias;
+      break;
+    case 'play':
+      m = t.playBias;
+      break;
+    case 'hunt':
+      m = t.cursorInterest;
+      break;
+    case 'social':
+      m = 1 / Math.max(0.2, t.shyness);
+      break;
+    case 'wary':
+      m = t.shyness;
+      break;
+    default:
+      if (c.state === 'watchingCursor') m = t.cursorInterest;
+  }
+  return Number.isFinite(m) && m > 0 ? m : 1;
 }
 
 export function familyOf(state: BehaviorState, variant: string | null): Family {
@@ -253,11 +295,19 @@ export function scoreAll(v: DecisionView): Scored<Candidate>[] {
   const recent = v.recentKeys ?? [];
   const currentKey = v.currentKey ?? null;
   const rough = clamp01(v.recentRough / 4);
+  const tuning = v.character;
+  /** GizeMate: the signature actions eligible now (each its own candidate; calm idle, never gated by the idle cooldown). */
+  const addSignatures = (): void => {
+    if (!tuning) return;
+    for (const o of tuning.signatures) add(cand('idle', { variant: 'signature', signatureId: o.id }), SIGNATURE_BASE * o.weight, 1);
+  };
 
   const add = (c: Candidate, base: number, interest: number): void => {
-    if (!(interest > 0) || !(base > 0) || v.isCoolingDown(c.state) || !candidateAllowed(c, v)) return;
+    if (!(interest > 0) || !(base > 0) || (v.isCoolingDown(c.state) && !c.signatureId) || !candidateAllowed(c, v)) return;
     const cls = activityClassOf(c.state, c.variant);
     const family = familyOf(c.state, c.variant);
+    // GizeMate: the character's tuning scales the interest of its family (absent for the cat: nothing changes).
+    if (tuning) interest *= characterInterest(c, family, tuning);
     // F: feasibility (unreachable targets are never generated; distance in body widths).
     let F = 1;
     if (c.target && cat) {
@@ -274,7 +324,15 @@ export function scoreAll(v: DecisionView): Scored<Candidate>[] {
       if (video) C *= 0.4;
       if (night) C *= 0.75;
     }
-    if (family === 'observe' && typingReact) C *= 1.2;
+    if (family === 'observe' && typingReact && !c.signatureId) C *= 1.2;
+    // A signature action is a show (a dance, a beam, a scan): it stays rarer, never more likely, while the user types,
+    // switches windows fast or watches a video. (It sits in the calm 'observe' family, which would otherwise be BOOSTED
+    // while typing and escape the 'active' damping.)
+    if (c.signatureId) {
+      if (typingRaw) C *= SIGNATURE_TYPING_MUL;
+      if (v.busySwitching) C *= SIGNATURE_BUSY_MUL;
+      if (video) C *= SIGNATURE_VIDEO_MUL;
+    }
     // Typing: trips up are rarer on top of that (B6: 0.2-0.6 x the rate of a user who is not typing).
     if (family === 'tripUp' && typingRaw) C *= typingReact ? TYPING_TRIP_MUL : TYPING_TRIP_RAW_MUL;
     // ... and for a while after: a pause between sentences is no invitation to climb the window being written in.
@@ -330,6 +388,7 @@ export function scoreAll(v: DecisionView): Scored<Candidate>[] {
     if (st.patrolReady && st.walkRangeBl >= 2 && st.patrolTarget) add(cand('walking', { variant: 'patrol', target: st.patrolTarget }), 0.2, 0.3 + 0.4 * nE);
     if (v.edgeLook) add(cand('inspectingWindow', { variant: 'edge', windowId: v.edgeLook.windowId, target: v.edgeLook.point }), 0.25, 0.3 + 0.4 * clamp01(t.curiosity));
     if (st.kind === 'tabStrip' && st.watchTab) add(cand('idle', { variant: 'watchTab', target: st.watchTab }), 0.25, 0.4);
+    addSignatures();
     return out;
   }
 
@@ -342,6 +401,7 @@ export function scoreAll(v: DecisionView): Scored<Candidate>[] {
   if (lookAt) add(cand('curious', { target: lookAt, variant: 'look' }), 0.12, 0.2 + 0.5 * nE);
   if (m > 0.15 && !typingRaw && v.ambushSpot) add(cand('resting', { variant: 'ambush', target: v.ambushSpot }), 0.1, 0.8 * m + 0.4 * h);
   add(cand('idle', { variant: 'stretch' }), 0.08, 0.2 + ((v.restedMs ?? 0) >= 60_000 ? 0.5 : 0));
+  addSignatures();
 
   // ---- exploring ----
   if (v.wanderTarget) add(cand('walking', { variant: 'wander', target: v.wanderTarget }), 0.3, 0.2 + 0.6 * nE + 0.1 * m);

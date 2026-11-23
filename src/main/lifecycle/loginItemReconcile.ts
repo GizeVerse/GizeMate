@@ -3,7 +3,7 @@
 // switch does (applyUserChoice) and what the settings window shows (loginItemStatus).
 // Nothing here touches Electron, the registry or the file system.
 import { BRAND } from '../../shared/brand';
-import type { LoginItemStatus } from '../../shared/ipc';
+import type { LoginCode, LoginItemStatus } from '../../shared/ipc';
 import type { Settings } from '../../shared/settings';
 import type { LoginRegistrySnapshot, RegistryRead } from '../win32/registry';
 import {
@@ -447,12 +447,20 @@ const PRODUCT = BRAND.product;
 const INSTALLED = BRAND.installedName;
 
 /** Why this build may not write its entry, for the status line (null: a dev, test or portable build). */
-function gateReason(blockedBy: readonly WriteGateBlock[]): string | null {
-  if (blockedBy.includes('unsupported-platform')) return UNSUPPORTED_PLATFORM_LOGIN_REASON;
+interface Reason {
+  code: LoginCode;
+  /** The English wording kept on the wire beside the code (diagnostics, older readers); the window words the code itself. */
+  english: string;
+}
+
+function gateReason(blockedBy: readonly WriteGateBlock[]): Reason | null {
+  if (blockedBy.includes('unsupported-platform')) return { code: 'unsupportedPlatform', english: UNSUPPORTED_PLATFORM_LOGIN_REASON };
   // Only an installed copy (packaged, uninstaller present, not under test) gets a specific reason.
   if (blockedBy.some((b) => b === 'unpackaged' || b === 'test' || b === 'no-uninstaller')) return null;
-  if (blockedBy.includes('env-off')) return 'Turned off on this computer by the DESKTOP_CAT_LOGIN_ITEM=off environment setting.';
-  if (blockedBy.includes('command-too-long')) return `Not available: the install folder path is too long for a Windows startup entry (at most ${MAX_RUN_COMMAND_CHARS} characters). Reinstall ${PRODUCT} in a shorter folder.`;
+  if (blockedBy.includes('env-off')) return { code: 'envOff', english: 'Turned off on this computer by the DESKTOP_CAT_LOGIN_ITEM=off environment setting.' };
+  if (blockedBy.includes('command-too-long')) {
+    return { code: 'pathTooLong', english: `Not available: the install folder path is too long for a Windows startup entry (at most ${MAX_RUN_COMMAND_CHARS} characters). Reinstall ${PRODUCT} in a shorter folder.` };
+  }
   return null;
 }
 
@@ -479,7 +487,7 @@ export function liveLoginItem(li: LoginItemSettings, state: WindowsLoginState, w
  * user never has to quit first.
  */
 const AT_NEXT_USER_START = `the next time you open ${INSTALLED} from the Start menu or a shortcut, even while it is running`;
-const REGISTERS_NEXT_START = `${PRODUCT} registers itself the next time it starts.`;
+const REGISTERS_NEXT_START: Reason = { code: 'registersNextStart', english: `${PRODUCT} registers itself the next time it starts.` };
 
 export function loginItemStatus(stored: LoginItemSettings, state: WindowsLoginState, f: LoginTarget & { writable: boolean; blockedBy?: readonly WriteGateBlock[] }): LoginItemStatus {
   const li = liveLoginItem(stored, state, f.writable);
@@ -487,26 +495,29 @@ export function loginItemStatus(stored: LoginItemSettings, state: WindowsLoginSt
   const run = state.run;
   const ours = state.readable && run !== null && isOurEntry(run, f);
   const active = ours && state.approved !== 'disabled';
-  let reason: string | null = null;
+  let r: Reason | null = null;
   if (!f.writable) {
-    reason =
+    r =
       gateReason(f.blockedBy ?? []) ??
       (state.readable && run !== null && !ours
-        ? `Not available in this build (development or portable). Windows starts another copy of ${PRODUCT} (the installed app) at sign-in.`
-        : 'Not available in this build (development or portable). The installed app manages Start with Windows.');
-  } else if (!state.readable) reason = `${PRODUCT} could not read its Windows startup entry.`;
+        ? { code: 'devOtherCopy', english: `Not available in this build (development or portable). Windows starts another copy of ${PRODUCT} (the installed app) at sign-in.` }
+        : { code: 'devPortable', english: 'Not available in this build (development or portable). The installed app manages Start with Windows.' });
+  } else if (!state.readable) r = { code: 'unreadable', english: `${PRODUCT} could not read its Windows startup entry.` };
   else if (enabled && run !== null && state.approved === 'disabled')
-    reason = pendingUserOn(li, state) ? REGISTERS_NEXT_START : `Disabled in Windows Startup apps. To turn it back on, open Task Manager › Startup apps and enable the ${INSTALLED} entry.`;
-  else if (enabled && !active && run !== null) reason = `The Windows startup entry points to another location. ${PRODUCT} repairs it ${AT_NEXT_USER_START}.`;
-  else if (enabled && !active) reason = li.disabledBy === null && li.registeredPath === null ? REGISTERS_NEXT_START : `Windows has no startup entry for ${PRODUCT}.`;
-  else if (!enabled && run !== null && state.approved !== 'disabled') reason = `Windows still starts ${PRODUCT} when you sign in. ${PRODUCT} turns that off ${AT_NEXT_USER_START}.`;
+    r = pendingUserOn(li, state)
+      ? REGISTERS_NEXT_START
+      : { code: 'windowsDisabled', english: `Disabled in Windows Startup apps. To turn it back on, open Task Manager › Startup apps and enable the ${INSTALLED} entry.` };
+  else if (enabled && !active && run !== null) r = { code: 'wrongLocation', english: `The Windows startup entry points to another location. ${PRODUCT} repairs it ${AT_NEXT_USER_START}.` };
+  else if (enabled && !active) r = li.disabledBy === null && li.registeredPath === null ? REGISTERS_NEXT_START : { code: 'noEntry', english: `Windows has no startup entry for ${PRODUCT}.` };
+  else if (!enabled && run !== null && state.approved !== 'disabled') r = { code: 'stillStarts', english: `Windows still starts ${PRODUCT} when you sign in. ${PRODUCT} turns that off ${AT_NEXT_USER_START}.` };
   return {
     enabled,
     preference: li.preference,
     disabledBy: li.disabledBy,
     active,
     writable: f.writable,
-    reason,
+    reason: r?.english ?? null,
+    ...(r ? { reasonCode: r.code } : {}),
     showNotice: !li.noticeShown && li.preference === 'unset' && li.decidedBy === 'default' && active,
   };
 }

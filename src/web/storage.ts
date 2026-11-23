@@ -5,14 +5,35 @@
 // the page keeps working; it simply is not remembered.
 //
 // The web settings are the defaults with screen analysis and AI forced off; only the cat's name,
-// its appearance and the sound switch and volume are stored.
+// its appearance, the behaviour and interaction values a profile carries (PROFILE_SETTINGS_FIELDS
+// in src/shared/profileTransfer.ts: the personality the sheet offers as named presets, whose
+// values migrateSettings re-derives the preset from, plus the other carried preferences) and the
+// sound switch and volume are stored.
+//
+// 1.4.0: "Start over" removes both keys (clearAll) after freezing the cat store, so the pagehide
+// save cannot write the old cat back before the reload; requestPersistence asks the browser to keep
+// the data (navigator.storage.persist, for the installed app). The keys and the format stay v1:
+// the additions are read through migrateSettings like everything else. A profile loaded from a file
+// ("Take your cat to another device", profileUi.ts) is saved here too, so its preferences survive a
+// reload and the next export carries them intact; a custom personality mix from another device is
+// kept (the sheet then shows no preset selected).
 import { migrateCatState } from '../core/behavior/migrate';
 import type { PersistedCat } from '../shared/catState';
-import { defaultSettings, migrateSettings, SETTINGS_SCHEMA_VERSION, type Settings } from '../shared/settings';
+import { DEFAULT_CHARACTER, isCharacterId, type CharacterId } from '../shared/characters/registry';
+import { PROFILE_SETTINGS_FIELDS } from '../shared/profileTransfer';
+import { applySettingsPatch, defaultSettings, migrateSettings, SETTINGS_SCHEMA_VERSION, type Settings } from '../shared/settings';
+import { PRESET_BEHAVIOR_KEYS, PRESET_INTERACTION_KEYS } from '../shared/settingsPresets';
 import type { Logger } from '../main/contracts';
 
 export const CAT_STORAGE_KEY = 'gizecat.web.cat.v1';
 export const SETTINGS_STORAGE_KEY = 'gizecat.web.settings.v1';
+/**
+ * GizeMate: the other companions, one registry object `{ schemaVersion, characters: { <id>: cat state } }`.
+ * The cat never lives here (it keeps CAT_STORAGE_KEY untouched, so v1.5.0 data loads as before). Each
+ * entry is read and validated on its own: a corrupt one is replaced for that character only.
+ */
+export const CHARACTERS_STORAGE_KEY = 'gizecat.web.characters.v1';
+export const CHARACTERS_SCHEMA_VERSION = 1;
 /** Stored values longer than this are not parsed (treated as corrupt). */
 export const MAX_STORED_CHARS = 1024 * 1024;
 /** The cat is saved this often while it changed (ms), besides pagehide and a hidden page. */
@@ -23,6 +44,8 @@ const MAX_FAILURE_LOGS = 3;
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  /** Optional in the slice (window.localStorage has it); without it clearAll() reports failure. */
+  removeItem?(key: string): void;
 }
 
 /** Where the cat came from: the stored one, a new one (nothing stored, or no storage), or a new one replacing unusable data. */
@@ -38,10 +61,13 @@ export interface WebStorage {
   readonly available: boolean;
   /** Why storage is unavailable (an error name such as SecurityError), null while it is available. */
   readonly unavailableReason: string | null;
-  loadCat(random: () => number, nowEpochMs: number): { cat: PersistedCat; source: CatSource };
-  saveCat(cat: PersistedCat): boolean;
+  /** The companion of `character` (default: the cat, from the v1 key; others from the registry key). */
+  loadCat(random: () => number, nowEpochMs: number, character?: CharacterId): { cat: PersistedCat; source: CatSource };
+  saveCat(cat: PersistedCat, character?: CharacterId): boolean;
   loadSettings(): Settings;
   saveSettings(settings: Settings): boolean;
+  /** Removes the stored cat and settings ("Start over"); true when both are gone. */
+  clearAll(): boolean;
   readonly stats: Readonly<WebStorageStats>;
 }
 
@@ -62,18 +88,50 @@ export function forceWebPrivacy(s: Settings): Settings {
   return s;
 }
 
-/** The web settings: defaults, plus the stored cat name, appearance and sound from `raw` when it is usable. */
+/** The listed keys of `section`, arrays copied (the carried behaviour and interaction values). */
+function pickKeys(section: Readonly<Record<string, unknown>>, keys: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of keys) {
+    if (!Object.hasOwn(section, k)) continue;
+    const v = section[k];
+    out[k] = Array.isArray(v) ? [...(v as unknown[])] : v;
+  }
+  return out;
+}
+
+/** Behaviour keys stored on the web: the preset-governed ones and every carried one. */
+const STORED_BEHAVIOR_KEYS: readonly string[] = [...new Set<string>([...PRESET_BEHAVIOR_KEYS, ...PROFILE_SETTINGS_FIELDS.behavior])];
+const STORED_INTERACTION_KEYS: readonly string[] = [...new Set<string>([...PRESET_INTERACTION_KEYS, ...PROFILE_SETTINGS_FIELDS.interaction])];
+
+/**
+ * The web settings: defaults, plus the stored cat name, appearance, carried behaviour and
+ * interaction values and sound from `raw` when it is usable. migrateSettings defaults anything
+ * missing or invalid, so data without a personality reads as Playful (the defaults are its values);
+ * stored values that match a preset select it, and a custom mix (only a loaded profile makes one on
+ * the web) is kept, with activityPreset re-derived by applySettingsPatch.
+ */
 export function webSettings(raw: unknown): Settings {
-  const s = defaultSettings();
+  let s = defaultSettings();
   if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
     try {
       const stored = migrateSettings(raw);
       s.general.catName = stored.general.catName;
+      s.general.activeCharacter = stored.general.activeCharacter;
+      s.general.language = stored.general.language;
+      s.general.characterNames = { ...stored.general.characterNames };
       s.appearance = { ...stored.appearance };
       s.sound.enabled = stored.sound.enabled;
       s.sound.volume = stored.sound.volume;
+      s.sound.cat = stored.sound.cat;
+      s.sound.world = stored.sound.world;
+      // Living Companion choices (personality, events, calmer motion, journal switch) are carried settings.
+      s.companion = { ...stored.companion, events: { ...stored.companion.events, disabled: [...stored.companion.events.disabled] }, journal: { ...stored.companion.journal } };
+      const r = applySettingsPatch(s, { behavior: pickKeys(stored.behavior, STORED_BEHAVIOR_KEYS), interaction: pickKeys(stored.interaction, STORED_INTERACTION_KEYS) });
+      // Refused (never expected: migrated values are valid): the defaults, Playful, stand.
+      if (r.ok) s = r.settings;
     } catch {
       // Unusable: the defaults stand.
+      s = defaultSettings();
     }
   }
   return forceWebPrivacy(s);
@@ -81,12 +139,65 @@ export function webSettings(raw: unknown): Settings {
 
 /** What is stored of the settings (a partial settings object migrateSettings reads back). */
 export function storedSettings(s: Settings): Record<string, unknown> {
+  const behavior: Record<string, unknown> = { activityPreset: s.behavior.activityPreset, ...pickKeys(s.behavior, STORED_BEHAVIOR_KEYS) };
+  const interaction = pickKeys(s.interaction, STORED_INTERACTION_KEYS);
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
-    general: { catName: s.general.catName },
-    appearance: { ...s.appearance },
-    sound: { enabled: s.sound.enabled, volume: s.sound.volume },
+    general: { catName: s.general.catName, activeCharacter: s.general.activeCharacter, language: s.general.language, characterNames: { ...s.general.characterNames } },
+    appearance: { ...s.appearance, characterSkins: { ...s.appearance.characterSkins } },
+    behavior,
+    interaction,
+    sound: { enabled: s.sound.enabled, volume: s.sound.volume, cat: s.sound.cat, world: s.sound.world },
+    companion: { ...s.companion, events: { ...s.companion.events, disabled: [...s.companion.events.disabled] }, journal: { ...s.companion.journal } },
   };
+}
+
+/** Whether the browser keeps this origin's storage: granted, best effort (may be cleared under pressure), or no Storage API. */
+export type PersistenceState = 'persisted' | 'best-effort' | 'unavailable';
+
+/** The slice of navigator.storage used here. */
+export interface StorageManagerLike {
+  persist?: () => Promise<boolean>;
+  persisted?: () => Promise<boolean>;
+}
+
+/**
+ * Asks the browser to keep this origin's data (`ask`: navigator.storage.persist(), granted by the
+ * browser's own heuristics; otherwise only reads navigator.storage.persisted()). Never throws.
+ */
+export async function requestPersistence(manager: StorageManagerLike | null | undefined, ask: boolean): Promise<PersistenceState> {
+  if (!manager) return 'unavailable';
+  try {
+    const fn = ask ? manager.persist : manager.persisted;
+    if (typeof fn !== 'function') return 'unavailable';
+    return (await fn.call(manager)) === true ? 'persisted' : 'best-effort';
+  } catch {
+    return 'best-effort';
+  }
+}
+
+/** The registry's entries by character id (known ids only), or null when the object is not a usable registry. */
+function registryEntries(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (v.schemaVersion !== CHARACTERS_SCHEMA_VERSION && typeof v.schemaVersion !== 'undefined') {
+    // A newer registry is not rewritten by this build's reader: treated as unusable (fresh companions, the cat untouched).
+    if (typeof v.schemaVersion !== 'number' || v.schemaVersion > CHARACTERS_SCHEMA_VERSION || v.schemaVersion < 1) return null;
+  }
+  const chars = v.characters;
+  if (chars === null || typeof chars !== 'object' || Array.isArray(chars)) return null;
+  const out: Record<string, unknown> = {};
+  for (const [id, entry] of Object.entries(chars as Record<string, unknown>)) if (isCharacterId(id) && id !== DEFAULT_CHARACTER) out[id] = entry;
+  return out;
+}
+
+/** Every raw entry of a registry this build may rewrite (current or legacy-unversioned schema), unknown ids included; null when it must not be rewritten. */
+function rawRegistryCharacters(value: unknown): Record<string, unknown> | null {
+  if (registryEntries(value) === null) return null;
+  const chars = (value as { characters: Record<string, unknown> }).characters;
+  const out: Record<string, unknown> = {};
+  for (const [id, entry] of Object.entries(chars)) if (id !== '__proto__') out[id] = entry;
+  return out;
 }
 
 type Read = { status: 'ok'; value: unknown } | { status: 'missing' } | { status: 'corrupt' } | { status: 'error'; reason: string };
@@ -125,6 +236,13 @@ export function openWebStorage(access: () => StorageLike | null | undefined, log
     }
   }
 
+  let registryWarned = false;
+  function warnRegistryKept(why: string): void {
+    if (registryWarned) return;
+    registryWarned = true;
+    log.warn('the stored companions registry cannot be rewritten safely: not saving this companion (the stored data is left as it is)', { why });
+  }
+
   function write(key: string, value: unknown, what: string): boolean {
     if (!store) return false;
     try {
@@ -150,29 +268,60 @@ export function openWebStorage(access: () => StorageLike | null | undefined, log
     get unavailableReason() {
       return unavailableReason;
     },
-    loadCat(random, nowEpochMs) {
-      const fresh = (): PersistedCat => migrateCatState(null, random, nowEpochMs).cat;
+    loadCat(random, nowEpochMs, character = DEFAULT_CHARACTER) {
+      const fresh = (): PersistedCat => migrateCatState(null, random, nowEpochMs, character).cat;
+      const what = character === DEFAULT_CHARACTER ? 'cat' : `${character} companion`;
       try {
-        const r = read(CAT_STORAGE_KEY);
+        let r: Read;
+        if (character === DEFAULT_CHARACTER) {
+          r = read(CAT_STORAGE_KEY);
+        } else {
+          // The registry: whole-object problems and per-entry problems both end in a fresh companion of this character only.
+          const reg = read(CHARACTERS_STORAGE_KEY);
+          if (reg.status === 'ok') {
+            const entries = registryEntries(reg.value);
+            r = entries !== null && Object.hasOwn(entries, character) ? { status: 'ok', value: entries[character] } : entries === null ? { status: 'corrupt' } : { status: 'missing' };
+          } else r = reg;
+        }
         if (r.status === 'missing') return { cat: fresh(), source: 'new' };
         if (r.status === 'error') {
-          if (store) log.warn('stored cat could not be read: starting a new cat', { reason: r.reason });
+          if (store) log.warn(`stored ${what} could not be read: starting a new one`, { reason: r.reason });
           return { cat: fresh(), source: store ? 'recovered' : 'new' };
         }
         if (r.status === 'corrupt') {
-          log.warn('stored cat unreadable: starting a new cat');
+          log.warn(`stored ${what} unreadable: starting a new one`);
           return { cat: fresh(), source: 'recovered' };
         }
-        const m = migrateCatState(r.value, random, nowEpochMs);
-        if (m.recovered) log.warn('stored cat failed validation: starting a new cat');
+        const m = migrateCatState(r.value, random, nowEpochMs, character);
+        if (m.recovered) log.warn(`stored ${what} failed validation: starting a new one`);
         return { cat: m.cat, source: m.recovered ? 'recovered' : 'stored' };
       } catch (err) {
-        log.warn('loading the cat failed: starting a new cat', { error: err });
+        log.warn(`loading the ${what} failed: starting a new one`, { error: err });
         return { cat: fresh(), source: 'recovered' };
       }
     },
-    saveCat(cat) {
-      return write(CAT_STORAGE_KEY, cat, 'cat');
+    saveCat(cat, character = DEFAULT_CHARACTER) {
+      if (character === DEFAULT_CHARACTER) return write(CAT_STORAGE_KEY, cat, 'cat');
+      // Read-modify-write on the RAW registry: every other companion's entry (known id or not, readable or not)
+      // is kept exactly as it is. A registry this build cannot safely rewrite (unreadable, oversized, corrupt,
+      // newer schema, not an object) is never replaced: the save is refused and the stored value stays as found.
+      const reg = read(CHARACTERS_STORAGE_KEY);
+      let kept: Record<string, unknown> = {};
+      if (reg.status === 'ok') {
+        const raw = rawRegistryCharacters(reg.value);
+        if (raw === null) {
+          warnRegistryKept('unsupported');
+          return false;
+        }
+        kept = raw;
+      } else if (reg.status !== 'missing') {
+        warnRegistryKept(reg.status);
+        return false;
+      }
+      const characters = Object.create(null) as Record<string, unknown>;
+      for (const [id, entry] of Object.entries(kept)) if (id !== character && id !== '__proto__') characters[id] = entry;
+      characters[character] = cat;
+      return write(CHARACTERS_STORAGE_KEY, { schemaVersion: CHARACTERS_SCHEMA_VERSION, characters }, `${character} companion`);
     },
     loadSettings() {
       const r = read(SETTINGS_STORAGE_KEY);
@@ -182,8 +331,87 @@ export function openWebStorage(access: () => StorageLike | null | undefined, log
     saveSettings(settings) {
       return write(SETTINGS_STORAGE_KEY, storedSettings(settings), 'settings');
     },
+    clearAll() {
+      const s = store;
+      if (!s || typeof s.removeItem !== 'function') return false;
+      let ok = true;
+      for (const key of [CAT_STORAGE_KEY, CHARACTERS_STORAGE_KEY, SETTINGS_STORAGE_KEY]) {
+        try {
+          s.removeItem(key);
+        } catch (err) {
+          ok = false;
+          log.warn('removing stored data failed', { key, reason: errorName(err) });
+        }
+      }
+      return ok;
+    },
     get stats() {
       return { ...stats };
+    },
+  };
+}
+
+/** sessionStorage key of the restart fallback (this tab only; only used when localStorage is unavailable). */
+export const SESSION_BACKUP_KEY = 'gizecat.web.session.v1';
+
+/** What survives a restart of the page (a character or language change) when localStorage is unavailable. */
+export interface SessionBackup {
+  settings: Settings;
+  /** The companions seen in this tab's session, by character id. */
+  cats: Partial<Record<CharacterId, PersistedCat>>;
+}
+
+export interface SessionBackupStore {
+  /** The backup, validated like stored data (settings by webSettings, every cat by migrateCatState); null when absent or unusable. */
+  load(): SessionBackup | null;
+  /** False when sessionStorage refused (unavailable or full): nothing could survive the restart. */
+  save(backup: SessionBackup): boolean;
+}
+
+/**
+ * Without localStorage (a private window, blocked site data) a swap used to reload into a fresh cat with the choice
+ * undone. sessionStorage (same tab, gone with it) carries the choice and the live companions across the restart instead.
+ * `access` may throw.
+ */
+export function openSessionBackup(access: () => StorageLike | null | undefined): SessionBackupStore {
+  const get = (): StorageLike | null => {
+    try {
+      return access() ?? null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    load() {
+      const store = get();
+      if (!store) return null;
+      try {
+        const text = store.getItem(SESSION_BACKUP_KEY);
+        if (typeof text !== 'string' || text.length > MAX_STORED_CHARS) return null;
+        const v = JSON.parse(text) as { settings?: unknown; cats?: unknown } | null;
+        if (v === null || typeof v !== 'object') return null;
+        const cats: SessionBackup['cats'] = {};
+        if (v.cats !== null && typeof v.cats === 'object' && !Array.isArray(v.cats)) {
+          for (const [id, raw] of Object.entries(v.cats as Record<string, unknown>)) {
+            if (!isCharacterId(id)) continue;
+            const m = migrateCatState(raw, () => 0.5, Date.now(), id);
+            if (!m.recovered) cats[id] = m.cat;
+          }
+        }
+        return { settings: webSettings(v.settings ?? null), cats };
+      } catch {
+        return null;
+      }
+    },
+    save(backup) {
+      const store = get();
+      if (!store) return false;
+      try {
+        store.setItem(SESSION_BACKUP_KEY, JSON.stringify({ settings: storedSettings(backup.settings), cats: backup.cats }));
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 }
@@ -192,6 +420,8 @@ export interface WebCatStoreOptions {
   storage: WebStorage;
   /** The live cat (sim.serialize). */
   snapshot: () => PersistedCat;
+  /** The companion being saved (default: the cat); fixed for the life of the store (a swap makes a new store after a reload). */
+  character?: CharacterId;
   logger: Logger;
   autosaveMs?: number;
   setInterval: (fn: () => void, ms: number) => unknown;
@@ -206,15 +436,23 @@ export interface WebCatStore {
   saveSync(): boolean;
   /** Starts the autosave interval (saves only while dirty). */
   start(): void;
+  /**
+   * Never saves again (1.4.0, "Start over"): the old cat must not be written back by the pagehide
+   * or visibility save between clearing storage and the reload.
+   */
+  freeze(): void;
+  readonly frozen: boolean;
   dispose(): void;
 }
 
 export function createWebCatStore(opts: WebCatStoreOptions): WebCatStore {
   const autosaveMs = opts.autosaveMs ?? AUTOSAVE_MS;
   let dirty = false;
+  let frozen = false;
   let interval: unknown = null;
 
   function saveSync(): boolean {
+    if (frozen) return false;
     let cat: PersistedCat;
     try {
       cat = opts.snapshot();
@@ -222,7 +460,7 @@ export function createWebCatStore(opts: WebCatStoreOptions): WebCatStore {
       opts.logger.error('cat snapshot failed', { error: err });
       return false;
     }
-    const ok = opts.storage.saveCat(cat);
+    const ok = opts.storage.saveCat(cat, opts.character ?? DEFAULT_CHARACTER);
     if (ok) dirty = false;
     return ok;
   }
@@ -237,10 +475,21 @@ export function createWebCatStore(opts: WebCatStoreOptions): WebCatStore {
     save: () => Promise.resolve(saveSync()),
     saveSync,
     start() {
-      if (interval !== null) return;
+      if (interval !== null || frozen) return;
       interval = opts.setInterval(() => {
         if (dirty) saveSync();
       }, autosaveMs);
+    },
+    freeze() {
+      frozen = true;
+      dirty = false;
+      if (interval !== null) {
+        opts.clearInterval(interval);
+        interval = null;
+      }
+    },
+    get frozen() {
+      return frozen;
     },
     dispose() {
       if (interval === null) return;

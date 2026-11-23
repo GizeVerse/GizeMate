@@ -345,7 +345,7 @@ describe('the user switch', () => {
       expect(reconcile(record, li, NORMAL)).toMatchObject({ rule: 'register', write: { openAtLogin: true, enabled: true }, next: { preference: 'enabled', registeredPath: EXE }, nextIfWriteFails: li });
       expect(reconcile(record, li, { ...NORMAL, launchedAtLogin: true })).toMatchObject({ rule: 'register-skipped-launched-at-login', write: null });
       expect(reconcile(record, li, { ...NORMAL, settingsTrusted: false })).toMatchObject({ rule: 'untrusted-settings', write: null, next: li });
-      expect(loginItemStatus(li, record, target)).toMatchObject({ enabled: true, active: false, disabledBy: null, reason: 'GizeCat registers itself the next time it starts.' });
+      expect(loginItemStatus(li, record, target)).toMatchObject({ enabled: true, active: false, disabledBy: null, reason: 'GizeMate registers itself the next time it starts.' });
       // Switching on again applies it; switching off keeps the record as the user's off.
       expect(applyUserChoice(true, record, li, target)).toMatchObject({ outcome: 'registered', write: { openAtLogin: true, enabled: true } });
       expect(applyUserChoice(false, record, li, target)).toMatchObject({ outcome: 'unchanged', write: null, next: { preference: 'disabled', disabledBy: 'user' } });
@@ -386,14 +386,14 @@ describe('status', () => {
     expect(loginItemStatus(base, windowsState('ours', '03+FILETIME'), target)).toMatchObject({ active: false, reason: expect.stringMatching(/Task Manager/) });
   });
 
-  it('names the app GizeCat, and what Windows lists by the installed name Desktop Cat (ADR 0004 §9)', () => {
-    // Task Manager › Startup apps and the Start menu shortcut keep "Desktop Cat" until the installer names change.
+  it('names the app GizeMate, and what Windows lists by the installed name (also GizeMate since 1.6.0, ADR 0004 §9)', () => {
+    // Task Manager › Startup apps and the Start menu shortcut carry the installed name (GizeMate since 1.6.0).
     const disabled = loginItemStatus(base, windowsState('ours', '03+FILETIME'), target).reason;
-    expect(disabled).toBe('Disabled in Windows Startup apps. To turn it back on, open Task Manager › Startup apps and enable the Desktop Cat entry.');
+    expect(disabled).toBe('Disabled in Windows Startup apps. To turn it back on, open Task Manager › Startup apps and enable the GizeMate entry.');
     const stale = loginItemStatus(base, windowsState('stale', 'absent'), target).reason;
-    expect(stale).toBe('The Windows startup entry points to another location. GizeCat repairs it the next time you open Desktop Cat from the Start menu or a shortcut, even while it is running.');
+    expect(stale).toBe('The Windows startup entry points to another location. GizeMate repairs it the next time you open GizeMate from the Start menu or a shortcut, even while it is running.');
     const unreadable = loginItemStatus(base, { ...windowsState('ours', 'absent'), readable: false }, target).reason;
-    expect(unreadable).toBe('GizeCat could not read its Windows startup entry.');
+    expect(unreadable).toBe('GizeMate could not read its Windows startup entry.');
   });
 
   it('follows the registry while the app runs: an off undone outside the app shows as on, matching the next start', () => {
@@ -417,7 +417,7 @@ describe('status', () => {
     const optedOut: LoginItemSettings = { ...base, preference: 'disabled', decidedBy: 'user', disabledBy: 'user', registeredPath: EXE };
     const s = loginItemStatus(optedOut, windowsState('ours', 'absent'), target);
     // The second instance reconciles, so the user need not quit first (startup#4).
-    expect(s).toMatchObject({ enabled: false, disabledBy: 'user', active: true, reason: expect.stringMatching(/next time you open Desktop Cat .*even while it is running/) });
+    expect(s).toMatchObject({ enabled: false, disabledBy: 'user', active: true, reason: expect.stringMatching(/next time you open GizeMate .*even while it is running/) });
     expect(s.reason).not.toMatch(/removed/);
     // The opt-out record itself is simply off.
     expect(loginItemStatus(optedOut, windowsState('ours', '03'), target)).toMatchObject({ enabled: false, disabledBy: 'user', active: false, reason: null });

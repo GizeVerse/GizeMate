@@ -1,7 +1,7 @@
 # Open-source readiness
 
 Status: 2026-11-07, branch `feat/gizeverse-foundation`, written before publication.
-- **Publication.** On 2026-11-07 the owner authorized creating the GizeVerse organization, the public repository `GizeVerse/GizeCat`, and the first public release (1.3.0). This file does not record whether they exist; GitHub does.
+- **Publication.** On 2026-11-07 the owner authorized creating the GizeVerse organization, the public repository `GizeVerse/GizeMate`, and the first public release (1.3.0). This file does not record whether they exist; GitHub does.
 - **This report covers what a first public release needs, and what exists.**
 - Labels: REAL means checked here, UNVERIFIED means not checked.
 
@@ -27,7 +27,7 @@ Status: 2026-11-07, branch `feat/gizeverse-foundation`, written before publicati
 The project must not invent any of these:
 
 1. **Contacts.** SECURITY.md and CODE_OF_CONDUCT.md now point to GitHub private vulnerability reporting (the repository Security tab), turned on when the repository is created. The owner may add a dedicated e-mail address later; none is invented here.
-2. **Where the code lives.** Decided by the owner on 2026-11-07: the organization `GizeVerse` and the public repository `GizeVerse/GizeCat`. The appId `io.github.enesiltas.desktopcat` stays: it is frozen, and changing it orphans every install (ADR 0004 §9).
+2. **Where the code lives.** Decided by the owner on 2026-11-07: the organization `GizeVerse` and the public repository `GizeVerse/GizeMate`. The appId `io.github.enesiltas.desktopcat` stays: it is frozen, and changing it orphans every install (ADR 0004 §9).
 3. **Linux deb/rpm metadata.** electron-builder needs a `homepage` and a maintainer e-mail for deb and rpm, and none is set. Only the AppImage and tar.gz are configured.
 4. **SECURITY.md response goals** (7, 14 and 90 days). They were drafted as goals and need the owner's confirmation.
 5. **Signing.** Windows Authenticode, and a macOS Developer ID with notarization. Without them, SmartScreen and Gatekeeper warn, and macOS distribution is effectively blocked.

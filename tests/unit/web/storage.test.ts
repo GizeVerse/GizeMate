@@ -1,7 +1,9 @@
 // The web host's localStorage persistence (src/web/storage.ts): valid, corrupt, unavailable and
-// full storage; the settings subset with perception and AI forced off.
+// full storage; the settings subset with perception and AI forced off. 1.4.0 profile transfer: the
+// carried behaviour and interaction values are stored too (edited in the 1.4.0 mission, NOT executed there).
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../../../src/core/behavior/random';
+import { PROFILE_SETTINGS_FIELDS } from '../../../src/shared/profileTransfer';
 import { defaultSettings } from '../../../src/shared/settings';
 import { AUTOSAVE_MS, CAT_STORAGE_KEY, createWebCatStore, openWebStorage, SETTINGS_STORAGE_KEY, storedSettings, webSettings, type StorageLike } from '../../../src/web/storage';
 import { memoryLogger } from './helpers';
@@ -114,7 +116,7 @@ describe('web storage: the cat', () => {
 });
 
 describe('web storage: settings', () => {
-  it('stores only the cat name, appearance and sound, and reads them back over the defaults', () => {
+  it('stores only the cat name, appearance, the carried behaviour and interaction values and sound, and reads them back over the defaults', () => {
     const s = defaultSettings();
     s.general.catName = 'Pamuk';
     s.appearance.size = 1.5;
@@ -122,18 +124,41 @@ describe('web storage: settings', () => {
     s.sound.enabled = true;
     s.sound.volume = 0.7;
     s.behavior.autonomy = 0.1;
+    s.behavior.movementSpeed = 1.7;
+    s.behavior.allowMultiMonitor = !defaultSettings().behavior.allowMultiMonitor;
+    s.interaction.enabled = false;
+    s.sound.world = false;
+    s.companion.personality = 'shy';
+    s.companion.reducedMotion = true;
+    s.companion.events.pace = 1.5;
+    s.companion.events.disabled = ['tinyUfo'];
+    s.companion.journal.enabled = false;
     const stored = storedSettings(s);
-    expect(Object.keys(stored).sort()).toEqual(['appearance', 'general', 'schemaVersion', 'sound']);
-    expect(stored.general).toEqual({ catName: 'Pamuk' });
+    expect(Object.keys(stored).sort()).toEqual(['appearance', 'behavior', 'companion', 'general', 'interaction', 'schemaVersion', 'sound']);
+    // GizeMate: the active companion, language and the other companions' names are stored with the cat's name.
+    expect(stored.general).toEqual({ catName: 'Pamuk', activeCharacter: 'cat', language: 'auto', characterNames: {} });
+    // 1.4.0 (profile transfer): every behaviour and interaction value a profile carries is stored, so a
+    // loaded profile survives a reload and exports intact; device-only values are not.
+    expect(Object.keys(stored.behavior as object).sort()).toEqual(['activityPreset', ...PROFILE_SETTINGS_FIELDS.behavior].sort());
+    expect(Object.keys(stored.interaction as object).sort()).toEqual([...PROFILE_SETTINGS_FIELDS.interaction].sort());
+    expect(stored.behavior).not.toHaveProperty('allowMultiMonitor');
+    expect(stored.interaction).not.toHaveProperty('enabled');
     const mem = memoryStorage();
     const store = openWebStorage(() => mem, memoryLogger());
     expect(store.saveSettings(s)).toBe(true);
     const back = openWebStorage(() => mem, memoryLogger()).loadSettings();
     expect(back.general.catName).toBe('Pamuk');
     expect(back.appearance.size).toBe(1.5);
-    expect(back.sound).toEqual({ enabled: true, volume: 0.7 });
-    // Not stored: the default stands.
-    expect(back.behavior.autonomy).toBe(defaultSettings().behavior.autonomy);
+    expect(back.sound).toEqual({ enabled: true, volume: 0.7, cat: true, world: false });
+    // The Living Companion choices survive a reload too.
+    expect(back.companion).toEqual(s.companion);
+    // A custom mix (only a loaded profile makes one on the web) is kept; the preset is re-derived.
+    expect(back.behavior.activityPreset).toBe('custom');
+    expect(back.behavior.autonomy).toBe(0.1);
+    expect(back.behavior.movementSpeed).toBe(1.7);
+    // Device-only values are not stored: the defaults stand.
+    expect(back.behavior.allowMultiMonitor).toBe(defaultSettings().behavior.allowMultiMonitor);
+    expect(back.interaction.enabled).toBe(defaultSettings().interaction.enabled);
   });
 
   it('forces screen analysis and AI off whatever is stored', () => {

@@ -2,12 +2,16 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
-import { electronBinary, expect, hook, launchApp, MAIN_ENTRY, quitApp, readLogLines, ROOT, settingsPage, testEnv, test, waitForCat } from './fixtures';
+import { BRAND } from '../../src/shared/brand';
+import { electronBinary, expect, hook, launchApp, MAIN_ENTRY, quitApp, readLogLines, ROOT, settingsPage, testEnv, test, useEnglish, waitForCat } from './fixtures';
 
 const savedGeneral = (userData: string): Record<string, unknown> =>
   (JSON.parse(fs.readFileSync(path.join(userData, 'settings.json'), 'utf8')) as { general: Record<string, unknown> }).general;
 
-/** Switches the settings window to a page (navigation is hash-based). */
+/**
+ * Switches the settings window to a page (navigation is hash-based). The earlier page ids ('general',
+ * 'behavior', ...) still work: the router maps them to the new area and tab (Settings > Desktop, Customize > Behaviour).
+ */
 async function showPage(page: Page, id: string): Promise<void> {
   await page.evaluate((hash) => {
     (globalThis as unknown as { location: { hash: string } }).location.hash = hash;
@@ -97,18 +101,19 @@ test.describe('lifecycle', () => {
     }
   });
 
-  test('"Hidden" chosen under When GizeCat starts keeps the cat hidden after a restart', async ({ userData }) => {
+  test(`"Hidden" chosen under When ${BRAND.product} starts keeps the cat hidden after a restart`, async ({ userData }) => {
     const app = await launchApp(userData);
     try {
       await waitForCat(app);
+      await useEnglish(app);
       const page = await settingsPage(app);
-      await showPage(page, 'general');
-      const choice = page.getByRole('radiogroup', { name: 'When GizeCat starts' });
+      await showPage(page, 'settings/desktop');
+      const choice = page.getByRole('radiogroup', { name: `When ${BRAND.product} starts` });
       await choice.getByRole('radio', { name: 'Hidden' }).click();
       await expect.poll(async () => (await hook(app, 'getSettings')).general.startupState).toBe('hidden');
       await expect(choice.getByRole('radio', { name: 'Hidden' })).toHaveAttribute('aria-checked', 'true');
 
-      await showPage(page, 'behavior');
+      await showPage(page, 'customize/behavior');
       const chase = page.getByRole('slider', { name: 'Chase length' });
       await expect(chase).toHaveAttribute('min', '1');
       await expect(chase).toHaveAttribute('max', '20');
@@ -149,16 +154,17 @@ test.describe('lifecycle', () => {
       const status = (await hook(app, 'getStatus')).loginItem;
       expect(status).toMatchObject({ writable: false, preference: 'unset', enabled: true, disabledBy: null, showNotice: false });
 
+      await useEnglish(app);
       const page = await settingsPage(app);
       await page.waitForFunction(() => 'desktopCatSettings' in globalThis);
-      await showPage(page, 'general');
+      await showPage(page, 'settings/desktop');
       const startup = page.getByRole('switch', { name: 'Start with Windows' });
       // The visible switch is the input's label (the input itself is transparent, under the track).
       const startupToggle = startup.locator('xpath=..');
       await expect(startup).toBeChecked();
-      // The (hidden) Diagnostics page lists the same reason in its Platform section: match the visible one.
+      // The (hidden) Advanced tab lists the same reason in its Platform section: match the visible one.
       await expect(page.getByText('Not available in this build (development or portable).').filter({ visible: true })).toBeVisible();
-      await expect(page.getByText('GizeCat now starts with Windows')).toBeHidden();
+      await expect(page.getByText(`${BRAND.product} now starts with Windows`)).toBeHidden();
 
       // The section is main-owned: a renderer patch is refused, malformed actions are rejected.
       const refused = await page.evaluate(async () => {

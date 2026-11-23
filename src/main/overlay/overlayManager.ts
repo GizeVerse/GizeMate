@@ -6,6 +6,7 @@ import { screen, type BrowserWindow } from 'electron';
 import type { CatRenderState, HitRegion } from '../../shared/cat';
 import { distance, type Point, type Rect } from '../../shared/geometry';
 import { IPC, type OverlayConfig, type OverlayPointerEvent } from '../../shared/ipc';
+import type { CharacterId } from '../../shared/characters/registry';
 import type { Settings } from '../../shared/settings';
 import type { SimEvent, SimOutput } from '../../shared/sim';
 import type { SurfaceLinesPayload } from '../../shared/surfaceDiagnosticsSchema';
@@ -18,7 +19,9 @@ import { SCREEN_EDGE_KIND } from '../../shared/surfaces';
 import type { GesturePointerEvent, GestureRecognizer } from '../../core/interaction/gestures';
 import { WIN32_OVERLAY_PROFILE, type OverlayProfile } from './overlayProfile';
 import { createOverlayShell, createOverlayWindow, overlayUrl, type OverlayShell } from './overlayWindow';
-import { displaysShowingCat, hiddenRenderState, mapRenderState } from './renderMapping';
+import { appearanceFor, bodyMargins } from '../characterIdentity';
+import { getCharacter } from '../../shared/characters/registry';
+import { displaysShowingCat, displaysShowingProps, hiddenRenderState, mapRenderState } from './renderMapping';
 import { surfaceLinesForDisplay, type SurfaceLinesSink } from './surfaceLines';
 
 const DISPLAY_DEBOUNCE_MS = 300;
@@ -135,6 +138,10 @@ export interface OverlayManagerOptions {
   devTools: boolean;
   debugOverlay: boolean;
   getSettings: () => Settings;
+  /** Worn accessory for every overlay's render state; absent or undefined = none. */
+  getAccessory?: () => 'heartPendant' | undefined;
+  /** GizeMate: the character the sim runs now (sent as `character` in every render state; absent = the cat). */
+  getCharacter?: () => CharacterId;
   gestures: GestureRecognizer;
   /** Gesture results for the simulation. */
   onSimEvents: (events: SimEvent[]) => void;
@@ -195,9 +202,25 @@ export interface OverlayInteractionStats {
   staleRegionDenials: number;
 }
 
+/**
+ * Living Companion inputs of one frame, from the host. Nothing here is stored: the cursor point is
+ * mapped into each overlay's local DIP for the dot and dropped with the frame.
+ */
+export interface OverlayRenderExtras {
+  /**
+   * Laser Mode: the cursor in world px, or null while it cannot be read. Undefined means Laser Mode
+   * is off (the dot is cleared once, then never sent again).
+   */
+  laser?: Point | null;
+  /** Displays the dot must stay off (a fullscreen app in front and the cat does not ignore that). */
+  laserQuietDisplayIds?: readonly string[];
+  /** The OS reduced-motion preference (the setting is added here); absent = no preference. */
+  reducedMotion?: boolean;
+}
+
 export interface OverlayManager extends SurfaceLinesSink {
   start(): void;
-  render(out: SimOutput, simNow: number, hidden: boolean): void;
+  render(out: SimOutput, simNow: number, hidden: boolean, extras?: OverlayRenderExtras): void;
   /** Click-through routing for one cursor sample. */
   updateInteractivity(cursorPx: Point | null, blocked: boolean): void;
   isCursorOverCat(cursorPx: Point | null): boolean;
@@ -210,6 +233,13 @@ export interface OverlayManager extends SurfaceLinesSink {
   handleHitRegion(webContentsId: number, region: HitRegion): void;
   handleRendererError(webContentsId: number, message: string): void;
   applySettings(next: Settings, prev: Settings | null): void;
+  /** Re-sends the last frame to the overlays (an accessory changed while the cat is idle). */
+  refresh(): void;
+  /**
+   * The active character changed: the last frame belongs to the previous one and is dropped, every
+   * overlay snaps on its next frame, its hit region and any press are reset. The next host tick redraws.
+   */
+  characterChanged(): void;
   /** Test hook: true/false forces every overlay interactive/click-through; null restores routing. */
   forceInteractive(value: boolean | null): void;
   /**
@@ -298,6 +328,9 @@ export function createOverlayManager(opts: OverlayManagerOptions): OverlayManage
   let lastOutput: SimOutput | null = null;
   let lastSimNow = 0;
   let lastHidden = false;
+  let lastExtras: OverlayRenderExtras | undefined;
+  /** The last frame carried a laser dot: the next one without Laser Mode sends one clearing null. */
+  let laserSent = false;
   let forced: boolean | null = null;
   let dragging = false;
   let displayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -776,18 +809,35 @@ export function createOverlayManager(opts: OverlayManagerOptions): OverlayManage
       // A crashed overlay waiting out its backoff is recreated by its timer.
       if (!pendingRecreate.has(d.id)) create(d);
     }
-    if (lastOutput) render(lastOutput, lastSimNow, lastHidden);
+    if (lastOutput) render(lastOutput, lastSimNow, lastHidden, lastExtras);
   }
 
-  function render(out: SimOutput, simNow: number, hidden: boolean): void {
+  function render(out: SimOutput, simNow: number, hidden: boolean, extras?: OverlayRenderExtras): void {
     lastOutput = out;
     lastSimNow = simNow;
     lastHidden = hidden;
+    lastExtras = extras;
     const settingsNow = opts.getSettings();
-    const appearance = settingsNow.appearance;
+    const character = opts.getCharacter?.();
+    // The active character's palette in `skin` (the cat: appearance.skin untouched).
+    const appearance = character === undefined ? settingsNow.appearance : appearanceFor(settingsNow, character);
     const movementSpeed = settingsNow.behavior.movementSpeed;
     const world = opts.display.world;
-    const showing = displaysShowingCat(out, world.displays, appearance, hidden);
+    const catShowing = displaysShowingCat(out, world.displays, appearance, hidden, character === undefined ? undefined : bodyMargins(getCharacter(character)));
+    // Props and the laser dot also show where the cat is not (an event or the cursor on another
+    // display); the cat itself being hidden or out of sight clears the dot.
+    const showing = new Set(catShowing);
+    displaysShowingProps(out, world.displays, hidden).forEach((id) => showing.add(id));
+    const laserOn = extras?.laser !== undefined;
+    const laserPoint = laserOn && extras?.laser && !hidden && out.visible ? extras.laser : null;
+    const accessory = opts.getAccessory?.();
+    const laserQuiet = extras?.laserQuietDisplayIds ?? [];
+    const laserDisplayId = laserPoint ? opts.display.displayAt(laserPoint) : null;
+    if (laserDisplayId !== null && !laserQuiet.includes(laserDisplayId)) showing.add(laserDisplayId);
+    // The same setting also reaches the sim; the OS preference is OR'd in by the host.
+    const reducedMotion = settingsNow.companion.reducedMotion || extras?.reducedMotion === true;
+    const clearLaser = !laserOn && laserSent;
+    let laserSentNow = false;
     const now = opts.clock();
     // A cue is new on its first emission only (by `at`): it then belongs to the overlay holding the
     // anchor and is never sent again, also when the same output is rendered again.
@@ -818,7 +868,18 @@ export function createOverlayManager(opts: OverlayManagerOptions): OverlayManage
           // emitted (global dedupe), only while sound is on and that overlay can receive it now.
           soundOwner: settingsNow.sound.enabled && newCue && e.displayId === soundDisplayId && e.ready && !e.crashed,
           soundVolume: settingsNow.sound.volume,
+          displayBoundsPx: geo.workAreaPx,
+          // Quiet displays and a cat out of sight get no dot; after Laser Mode ends one null clears it.
+          ...(laserOn || clearLaser ? { laser: laserPoint && !laserQuiet.includes(e.displayId) ? laserPoint : null } : {}),
+          ...(reducedMotion ? { reducedMotion: true } : {}),
+          ...(accessory !== undefined ? { accessory } : {}),
+          // The cat is the default when absent.
+          ...(character !== undefined ? { character } : {}),
         });
+        // An overlay that shows only props or the dot still gets a visible frame: the cat's own
+        // visibility is about the cat, which is not drawn there (it lies on another display).
+        if (!catShowing.has(e.displayId) && !holdsPress && !state.visible) state.visible = true;
+        if (state.laser) laserSentNow = true;
         if (!e.active) {
           e.active = true;
           e.activatedAt = now;
@@ -843,6 +904,7 @@ export function createOverlayManager(opts: OverlayManagerOptions): OverlayManage
         setIgnore(e, true);
       }
     }
+    laserSent = laserSentNow;
   }
 
   /**
@@ -1264,6 +1326,21 @@ export function createOverlayManager(opts: OverlayManagerOptions): OverlayManage
     handleRendererError(wcId, message) {
       const e = byWc.get(wcId);
       log.warn('overlay renderer reported an error', { displayId: e?.displayId ?? null, message });
+    },
+    refresh() {
+      if (!disposed && lastOutput) render(lastOutput, lastSimNow, lastHidden, lastExtras);
+    },
+    characterChanged() {
+      if (disposed) return;
+      lastOutput = null;
+      lastExtras = undefined;
+      for (const e of entries.values()) {
+        if (ownsPress(e)) endPress(e, 'cancel');
+        e.needSnap = true;
+        e.hitRectsPx = null;
+        e.hitAnchor = null;
+        e.lastState = null;
+      }
     },
     applySettings(next, prev) {
       if (prev && prev.appearance.hideFromScreenCapture === next.appearance.hideFromScreenCapture) return;

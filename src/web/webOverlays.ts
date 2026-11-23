@@ -17,10 +17,24 @@ import type { CatRenderState } from '../shared/cat';
 import { distance, type Point, type Rect } from '../shared/geometry';
 import { HitRegionSchema, type OverlayApi, type OverlayConfig } from '../shared/ipc';
 import type { Settings } from '../shared/settings';
+import { activeCharacterOf, renderAppearance } from './characterHost';
+import { getCharacter } from '../shared/characters/registry';
 import type { SimOutput } from '../shared/sim';
 import type { HostOverlays } from '../main/catHost';
 import type { DisplayService, Logger } from '../main/contracts';
-import { displaysShowingCat, hiddenRenderState, mapRenderState } from '../main/overlay/renderMapping';
+import { bodyMargins, displaysShowingCat, displaysShowingProps, hiddenRenderState, mapRenderState } from '../main/overlay/renderMapping';
+import type { PresenceInfo } from './overlaySurface';
+
+/**
+ * What the host adds to one frame (CatHost passes it only while it has something to say; structurally the
+ * desktop's OverlayRenderExtras): the laser dot in world px (null: Laser Mode is on but there is no pointer)
+ * and the OS reduced-motion preference. `laserQuietDisplayIds` is the desktop's fullscreen rule: unused here.
+ */
+export interface WebRenderExtras {
+  laser?: Point | null;
+  laserQuietDisplayIds?: readonly string[];
+  reducedMotion?: boolean;
+}
 
 /** Reported hit regions are trusted while fresh or while the cat has not moved since (overlayManager). */
 export const HIT_REGION_FRESH_MS = 300;
@@ -45,6 +59,13 @@ export interface WebOverlaysOptions {
   onCatGone?: () => void;
   /** Draw hit regions and debug info (OverlayConfig.debug). */
   debug?: boolean;
+  /**
+   * The floating cat (overlaySurface.ts): called on every render, before the snapshot is mapped to
+   * overlay-local coordinates, with the cat's output while the cat or its world-event props are drawn
+   * and with null while nothing is (hidden or out of the work area). It may change the display's
+   * origin; returning true says it jumped, so this frame snaps (nothing interpolates across a re-origin).
+   */
+  onPresence?: (out: SimOutput | null, info: PresenceInfo) => boolean | void;
 }
 
 export interface WebOverlaysDebug {
@@ -61,7 +82,12 @@ export interface WebOverlays extends HostOverlays {
   /** The in-page bridge for OverlayRuntime (the desktop's preload API, without IPC). */
   readonly api: OverlayApi;
   /** A pointer at `p` (CSS px) goes to the cat: the rules of a desktop overlay deciding to take the mouse. */
-  hitTest(p: Point, hovering?: boolean): boolean;
+  /**
+   * `pad` (CSS px, default 0) widens the hit zone: the reported hit regions and the cat's footprint,
+   * each grown by it. The floating cat's touch window uses it, so a finger anywhere on that window
+   * (the footprint plus a pad) is on the cat.
+   */
+  hitTest(p: Point, hovering?: boolean, pad?: number): boolean;
   /** The hit region in use right now (CSS px) and its age. */
   effectiveRegion(): { rects: readonly Rect[]; ageMs: number };
   /** The router's press state (HostOverlays.pressed / dragging). */
@@ -128,20 +154,34 @@ export function createWebOverlays(opts: WebOverlaysOptions): WebOverlays {
     }
   }
 
-  function render(out: SimOutput, simNow: number, hidden: boolean): void {
+  function render(out: SimOutput, simNow: number, hidden: boolean, extras?: WebRenderExtras): void {
     lastOutput = out;
     lastHidden = hidden;
     const settings = opts.getSettings();
     const appearance = settings.appearance;
     const d = opts.display.world.displays[0];
-    const showing = d ? displaysShowingCat(out, [d], appearance, hidden) : new Set<string>();
+    const catShowing = d ? displaysShowingCat(out, [d], appearance, hidden, bodyMargins(getCharacter(activeCharacterOf(settings)))) : new Set<string>();
+    // World-event props are drawn whether or not the cat is on this display (its presence rect is not theirs).
+    const propsShowing = d ? displaysShowingProps(out, [d], hidden) : new Set<string>();
+    const showing = new Set<string>([...catShowing, ...propsShowing]);
+    const catHere = d !== undefined && catShowing.has(d.id);
     const now = opts.clock();
     // A cue is new on its first emission only (by `at`); it is never sent again.
     const cue = out.sound ?? null;
     const newCue = cue !== null && Number.isFinite(cue.at) && cue.at !== lastSoundAt;
     if (newCue) lastSoundAt = cue.at;
+    const shown = d !== undefined && showing.has(d.id);
+    // Only while Laser Mode is on does the host pass a dot at all; the position is never kept here.
+    const laser = extras && extras.laser !== undefined ? extras.laser : undefined;
+    try {
+      if (opts.onPresence?.(shown ? out : null, { cat: catHere, laser: laser ?? null }) === true) needSnap = true;
+    } catch (err) {
+      log.warn('overlay presence listener failed', { error: err });
+    }
     if (d && showing.has(d.id)) {
-      const state = mapRenderState(out, appearance, {
+      const character = activeCharacterOf(settings);
+      // Every web frame names its companion (the field the renderer reads), the cat included.
+      const mapped: CatRenderState = { ...mapRenderState(out, renderAppearance(settings), {
         seq: ++seq,
         toLocalDip: (p) => opts.display.toLocalDip(d.id, p),
         scaleFactor: d.scaleFactor,
@@ -151,7 +191,15 @@ export function createWebOverlays(opts: WebOverlaysOptions): WebOverlays {
         movementSpeed: settings.behavior.movementSpeed,
         soundOwner: settings.sound.enabled && newCue && ready,
         soundVolume: settings.sound.volume,
-      });
+        displayBoundsPx: d.workAreaPx,
+        ...(laser !== undefined ? { laser } : {}),
+        // The OS preference (Android: "remove animations") or the user's own switch.
+        reducedMotion: extras?.reducedMotion === true || settings.companion.reducedMotion,
+        // GizeMate: which renderer draws this frame (RenderMapContext.character; the palette travels in `skin`).
+        character,
+      }), character };
+      // Props without the cat on this display: still a visible frame, so the renderer draws the props.
+      const state = !catHere && !hidden ? { ...mapped, visible: true } : mapped;
       if (!active) {
         active = true;
         activatedAt = now;
@@ -198,12 +246,18 @@ export function createWebOverlays(opts: WebOverlaysOptions): WebOverlays {
     return { rects: [out.boundsPx], ageMs };
   }
 
-  function hitTest(p: Point, hovering = false): boolean {
+  function hitTest(p: Point, hovering = false, pad = 0): boolean {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
     const region = effectiveRegion(opts.clock());
+    let rects: readonly Rect[] = region.rects;
+    if (pad > 0 && Number.isFinite(pad) && region.rects.length > 0 && lastOutput) {
+      // Only while the cat is there to touch (an empty region means hidden, out of view or not yet drawn).
+      const grow = (r: Rect): Rect => ({ x: r.x - pad, y: r.y - pad, width: r.width + 2 * pad, height: r.height + 2 * pad });
+      rects = [...region.rects, lastOutput.boundsPx].map(grow);
+    }
     return decideInteractive({
       cursor: p,
-      hitRects: region.rects,
+      hitRects: rects,
       interactive: hovering,
       interactionsEnabled: !blockedNow(),
       visible: active,

@@ -1,5 +1,6 @@
 // One dispatcher for user actions from the settings window, the tray and the
 // cat's context menu, so every entry point behaves identically. Electron-free.
+import { ACTION_MESSAGES } from '../../shared/i18n/actionMessages';
 import type { Logger } from '../contracts';
 import type { ActionResult, SettingsAction } from '../../shared/ipc';
 import type { Point } from '../../shared/geometry';
@@ -27,6 +28,17 @@ export interface ActionTargets {
   dismissLaunchNotice(): ActionResult;
   /** v1.1.1 on-desktop surface outlines (session-only, never persisted). */
   setSurfaceOutlines?(on: boolean): void;
+  /** Living Companion Laser Mode (session-only, never persisted; the host owns the state). */
+  setLaserMode?(on: boolean): void;
+  /** Living Companion: pauses or resumes the world-event schedule for this session (never persisted). */
+  setEventsPaused?(paused: boolean): void;
+  /** Living Companion: clears the journal and the event history behind it, then saves. */
+  clearJournal?(): void;
+  /**
+   * 1.4.0, macOS only: opens System Settings › General › Login Items at a constant URL (never one
+   * from a renderer). Absent elsewhere, where the action reports failure.
+   */
+  openLoginItemsSettings?(): Promise<ActionResult>;
   quit(): void;
 }
 
@@ -83,10 +95,10 @@ export function createActionRunner(deps: {
         return applyPatch(consentPatch(action, now()));
       case 'resetPersonality':
         targets.resetPersonality();
-        return { ok: true, message: 'Personality reset.' };
+        return { ok: true, message: ACTION_MESSAGES.personalityReset };
       case 'clearHistory':
         targets.clearHistory();
-        return { ok: true, message: 'Interaction history cleared.' };
+        return { ok: true, message: ACTION_MESSAGES.historyCleared };
       case 'exportDiagnostics':
         return targets.exportDiagnostics();
       case 'openLogsFolder':
@@ -105,16 +117,34 @@ export function createActionRunner(deps: {
       case 'showSurfaceOutlines':
       case 'hideSurfaceOutlines':
         // Session state in main only: never a settings patch, so a restart always starts with it off.
-        if (!targets.setSurfaceOutlines) return { ok: false, message: 'Surface outlines are not available.' };
+        if (!targets.setSurfaceOutlines) return { ok: false, message: ACTION_MESSAGES.outlinesUnavailable };
         targets.setSurfaceOutlines(action === 'showSurfaceOutlines');
         return { ok: true };
+      case 'startLaserMode':
+      case 'stopLaserMode':
+        // Session state in the host only (like the outlines): a restart always starts with it off.
+        if (!targets.setLaserMode) return { ok: false, message: ACTION_MESSAGES.laserUnavailable };
+        targets.setLaserMode(action === 'startLaserMode');
+        return { ok: true };
+      case 'pauseEvents':
+      case 'resumeEvents':
+        if (!targets.setEventsPaused) return { ok: false, message: ACTION_MESSAGES.eventsUnavailable };
+        targets.setEventsPaused(action === 'pauseEvents');
+        return { ok: true };
+      case 'clearJournal':
+        if (!targets.clearJournal) return { ok: false, message: ACTION_MESSAGES.journalUnavailable };
+        targets.clearJournal();
+        return { ok: true, message: ACTION_MESSAGES.journalCleared };
+      case 'openLoginItemsSettings':
+        if (!targets.openLoginItemsSettings) return { ok: false, message: ACTION_MESSAGES.loginItemsMacOnly };
+        return targets.openLoginItemsSettings();
       case 'quit':
         // Let the IPC reply reach the renderer before windows start closing.
         defer(() => targets.quit());
         return { ok: true };
       case 'pet': {
         const at = targets.catAnchor();
-        if (!at) return { ok: false, message: 'The cat is not on screen.' };
+        if (!at) return { ok: false, message: ACTION_MESSAGES.notOnScreen };
         targets.enqueue({ type: 'pointer.pet', at, strength: 1 });
         return { ok: true };
       }
@@ -141,7 +171,7 @@ export function createActionRunner(deps: {
         return await run(action);
       } catch (err) {
         logger.error('action failed', { action, error: err });
-        return { ok: false, message: 'Something went wrong; details are in the log.' };
+        return { ok: false, message: ACTION_MESSAGES.actionFailed };
       }
     },
   };

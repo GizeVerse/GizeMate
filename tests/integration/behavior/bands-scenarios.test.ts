@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { BAND_TEXT, recoveryChecks, throwMonteCarloChecks, type BandResult } from '../../profile/bands';
 import { cellKey, runProfile, runRecovery, runThrowMonteCarlo, summarizeCell, type CellSpec, type CellSummary, type ProfileId, type RecoveryTrace, type RunResult } from '../../profile/behaviorProfile';
 import { widenRate, widenShare } from '../../profile/metrics';
+import { slow } from '../../helpers/slowTimeout';
 
 const memo = new Map<string, unknown>();
 function once<T>(key: string, f: () => T): T {
@@ -25,7 +26,7 @@ function cell(spec: CellSpec, seeds: readonly number[] = [1, 2], hours = 1): { c
 }
 
 const fails = (rs: readonly BandResult[]): BandResult[] => rs.filter((r) => r.status === 'fail');
-const LONG = 120_000;
+const LONG = slow(120_000);
 
 describe('ADR 0003 §14 nuisance bands per user (P2/L1, 2 seeds x 1 sim-h, widened)', () => {
   it(`B5: ${BAND_TEXT.B5} (U-play)`, () => {

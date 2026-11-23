@@ -5,7 +5,8 @@ import { mountApp } from './app';
 import { button } from './controls';
 import { h, icon } from './dom';
 import { errorText } from './store';
-import { S } from './strings';
+import { S, setLocale } from './strings';
+import { resolveLocale } from '../../shared/i18n/locale';
 
 declare global {
   interface Window {
@@ -14,7 +15,9 @@ declare global {
 }
 
 function message(root: HTMLElement, text: string, retry?: () => void): void {
-  const children: HTMLElement[] = [icon(retry ? 'error' : 'info', 'boot-icon'), h('p', { class: 'boot-text', text })];
+  // 1.4.0: the Segoe icon fonts exist on Windows only, and main's platform report has not arrived yet.
+  const glyphs = navigator.userAgent.includes('Windows') ? [icon(retry ? 'error' : 'info', 'boot-icon')] : [];
+  const children: HTMLElement[] = [...glyphs, h('p', { class: 'boot-text', text })];
   if (retry) {
     const btn = button(S.app.retry, { variant: 'accent' });
     btn.addEventListener('click', retry);
@@ -24,10 +27,14 @@ function message(root: HTMLElement, text: string, retry?: () => void): void {
 }
 
 async function boot(root: HTMLElement): Promise<void> {
+  // Until main's view arrives (it carries the effective language), the boot messages follow the system language.
+  const bootLocale = resolveLocale('auto', navigator.languages?.length ? navigator.languages : navigator.language);
+  setLocale(bootLocale);
+  document.documentElement.lang = bootLocale;
   document.title = S.app.title;
   const api = window.desktopCatSettings;
   if (!api) {
-    message(root, S.app.bridgeMissing);
+    message(root, navigator.userAgent.includes('Macintosh') ? S.app.bridgeMissingMac : S.app.bridgeMissing);
     return;
   }
   root.setAttribute('aria-busy', 'true');

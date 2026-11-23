@@ -1,6 +1,7 @@
 // Deterministic test fixtures for the cat simulation.
 import type { BehaviorState } from '../../../../src/shared/cat';
 import type { PersistedCat } from '../../../../src/shared/catState';
+import type { CharacterId } from '../../../../src/shared/characters/types';
 import type { Rect } from '../../../../src/shared/geometry';
 import type { Settings } from '../../../../src/shared/settings';
 import { defaultSettings } from '../../../../src/shared/settings';
@@ -74,7 +75,7 @@ export class Harness {
    * in the real display space, as the provider builds them. false: the raw world.
    */
   constructor(
-    opts: { seed?: number; settings?: Settings; world?: WorldGeometry; persisted?: PersistedCat | null; now?: number; wall?: number; floorInset?: boolean; hooks?: Omit<SimHooks, 'onTransition'> } = {},
+    opts: { seed?: number; character?: CharacterId; settings?: Settings; world?: WorldGeometry; persisted?: PersistedCat | null; now?: number; wall?: number; floorInset?: boolean; hooks?: Omit<SimHooks, 'onTransition'> } = {},
   ) {
     this.now = opts.now ?? 1000;
     this.worldGeometry = opts.world ?? SINGLE;
@@ -83,11 +84,12 @@ export class Harness {
     this.sim = createInstrumentedCatSim(
       {
         persisted: opts.persisted ?? null,
-        settings: opts.settings ?? defaultSettings(),
+        settings: opts.settings ?? baseSettings(),
         world: this.simGeometry(this.worldGeometry),
         now: this.now,
         random: mulberry32(opts.seed ?? 1),
         wallClock: () => (wall += 1),
+        ...(opts.character !== undefined ? { character: opts.character } : {}),
       },
       { ...opts.hooks, onTransition: (r) => this.transitions.push(r) },
     );
@@ -142,6 +144,10 @@ export class Harness {
       ...(e.pointerButtonPresses !== undefined ? { pointerButtonPresses: e.pointerButtonPresses } : {}),
       ...(e.cursorIdleMs !== undefined ? { cursorIdleMs: e.cursorIdleMs } : {}),
       ...(e.edgeBands !== undefined ? { edgeBands: e.edgeBands } : {}),
+      // Living Companion optional fields: passed through only when a test sets them.
+      ...(e.eventStage !== undefined ? { eventStage: e.eventStage } : {}),
+      ...(e.reducedMotion !== undefined ? { reducedMotion: e.reducedMotion } : {}),
+      ...(e.laserMode !== undefined ? { laserMode: e.laserMode } : {}),
     };
   }
 
@@ -322,8 +328,19 @@ export function onWindowTop(s: SimSupport, windowId?: string): boolean {
   return s.kind === 'surface' && s.surfaceKind === 'windowTop' && (windowId === undefined || s.surfaceId === topId(windowId));
 }
 
-export function settingsWith(patch: { [K in keyof Settings]?: Partial<Settings[K]> }): Settings {
+/**
+ * The settings the sim tests start from: the defaults with world events OFF. The behaviour suites pin
+ * seeded sequences and statistical bands of the cat's own life; a world event (every 5 to 30 minutes of
+ * sim time) is a separate feature with its own suites (companion*.test.ts), which switch it on.
+ */
+export function baseSettings(): Settings {
   const s = defaultSettings();
+  s.companion.events.enabled = false;
+  return s;
+}
+
+export function settingsWith(patch: { [K in keyof Settings]?: Partial<Settings[K]> }): Settings {
+  const s = baseSettings();
   for (const [k, v] of Object.entries(patch)) Object.assign((s as unknown as Record<string, object>)[k] as object, v);
   return s;
 }

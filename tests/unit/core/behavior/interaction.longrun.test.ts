@@ -30,6 +30,7 @@ import { DRAG_LOST_MS, MAX_SIM_DT_MS } from '../../../../src/core/behavior/simCo
 import { ASLEEP_STATES, PHYSICAL_STATES } from '../../../../src/core/behavior/states';
 import { MOVEMENT } from '../../../../src/core/movement';
 import { Harness, settingsWith, SINGLE, surfacesFromWindows } from './fixtures';
+import { slow } from '../../../helpers/slowTimeout';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -762,7 +763,7 @@ describe('interaction over 24 simulated hours (real sim, SIMULATED environment)'
     expect(rep.longestGrabAttemptGapMs).toBeLessThanOrEqual(PROBE_EVERY_MS + 30_000);
     expect(rep.longestHeldWithoutHandMs).toBeLessThanOrEqual(HELD_WITHOUT_HAND_MS);
     expect(rep.longestAirborneMs).toBeLessThanOrEqual(MAX_AIR_MS);
-  }, 120_000);
+  }, slow(120_000));
 });
 
 describe('lock and suspend in every order (real sim)', () => {

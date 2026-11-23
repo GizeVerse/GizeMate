@@ -38,6 +38,8 @@ export type Variant =
   | 'tabStrip'
   /** Hopping onto (or off) the taskbar. */
   | 'taskbar'
+  /** idle: a character's signature action (GizeMate; Candidate.signatureId names it). */
+  | 'signature'
   /** A short start after the surface under the cat suddenly vanished. */
   | 'lostFooting'
   /** v1.1.1: walking along the window top or tab strip it just got onto, before anything else. */
@@ -73,7 +75,12 @@ export type Variant =
   | 'playfulReaction'
   | 'avoid'
   /** walking: the slow, low retreat (slink rule, startled jump). */
-  | 'slink';
+  | 'slink'
+  // ---- Living Companion: a world event's invitation carried out by the cat's body (simCompanion.ts) ----
+  /** idle, walking, playing, resting, hiding: the body is held by a running world event and released when it ends. */
+  | 'event'
+  /** walking: Laser Mode, the cat follows the cursor-as-light and holds off short of it (simLaser.ts); never a hunt. */
+  | 'laser';
 
 export interface Candidate {
   state: BehaviorState;
@@ -87,6 +94,28 @@ export interface Candidate {
   surfaceKind?: SupportSurfaceKind | null;
   /** v1.2: the place a trip goes to (a surface id, in memory only) for place novelty. */
   place?: string | null;
+  /** GizeMate: the signature action this candidate performs (variant 'signature'); part of its repetition key. */
+  signatureId?: string;
+}
+
+/**
+ * GizeMate: the active character's tuning of the decision engine, present only for a character that
+ * is not neutral (the cat has none, so its scores are untouched). Multipliers scale the interest of the
+ * candidates of their family; `signatures` are the actions eligible right now with their final weight.
+ */
+export interface CharacterTuning {
+  restBias: number;
+  exploreBias: number;
+  playBias: number;
+  cursorInterest: number;
+  shyness: number;
+  signatures: readonly SignatureOffer[];
+}
+
+/** One signature action that may be picked now: its eligibility was checked, `weight` is final (traits applied). */
+export interface SignatureOffer {
+  id: string;
+  weight: number;
 }
 
 /** v1.2: the stay the cat is on (ADR 0003 §2.2): the decision pool holds only the on-surface plan. */
@@ -199,6 +228,8 @@ export interface DecisionView {
   avoidCursor?: boolean;
   /** The foreground window's id (mischief: its top gets a place-novelty bonus). */
   foregroundId?: string | null;
+  /** GizeMate: the active character's tuning (absent for the cat). */
+  character?: CharacterTuning;
 }
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);

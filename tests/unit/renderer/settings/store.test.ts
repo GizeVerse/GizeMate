@@ -217,4 +217,18 @@ describe('SettingsStore', () => {
     store.receive(view());
     expect(count).toBe(4);
   });
+
+  it('unbindAll drops every binding and listener (a rebuilt shell leaves no stale ones)', () => {
+    const api = fakeApi();
+    const store = new SettingsStore(api, view(), fakeTimers());
+    let heard = 0;
+    store.subscribe(() => heard++);
+    const synced: string[] = [];
+    store.bind({ field: 'general.catName' as FieldId, sync: () => synced.push('x'), isBusy: () => false } as unknown as FieldBinding);
+    const afterBind = synced.length;
+    store.unbindAll();
+    store.receive(view());
+    expect(heard).toBe(1); // only the initial call of subscribe
+    expect(synced).toHaveLength(afterBind);
+  });
 });

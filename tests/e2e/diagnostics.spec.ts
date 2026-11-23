@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect, hook, launchApp, quitApp, readLogLines, settingsPage, test, waitForCat } from './fixtures';
+import { expect, hook, launchApp, quitApp, readLogLines, settingsPage, test, useEnglish, waitForCat } from './fixtures';
 
 // A syntactically key-like value that is not a real credential.
 const FAKE_KEY = 'sk-ant-e2e-NOT-A-REAL-KEY-0123456789abcdef';
@@ -43,17 +43,18 @@ test.describe('secrets and diagnostics', () => {
   });
 
   // v1.1.1: the floor-only bug was invisible; the Surfaces section says why the cat stays down.
-  test('the Diagnostics page shows the Surfaces section with its verdict, and outlines start off', async ({ userData }) => {
+  test('Settings > Advanced shows the Surfaces section with its verdict, and outlines start off', async ({ userData }) => {
     const app = await launchApp(userData);
     try {
       await waitForCat(app);
+      await useEnglish(app);
       const page = await settingsPage(app);
       await page.evaluate(() => {
-        (globalThis as unknown as { location: { hash: string } }).location.hash = '#diagnostics';
+        (globalThis as unknown as { location: { hash: string } }).location.hash = '#settings/advanced';
       });
       await expect(page.getByRole('heading', { name: 'Surfaces', level: 2 })).toBeVisible();
       const verdict = page.locator('.surface-verdict-text');
-      await expect(verdict).not.toHaveText(/^(Checking what the cat can reach…|Surface details are not available right now\.)?$/, { timeout: 10_000 });
+      await expect(verdict).not.toHaveText(/^(Checking what your companion can reach…|Surface details are not available right now\.)?$/, { timeout: 10_000 });
       const shown = (await verdict.textContent()) ?? '';
       expect(shown.length).toBeGreaterThan(20);
       await expect(page.getByRole('table', { name: 'Surfaces by kind' })).toBeVisible();

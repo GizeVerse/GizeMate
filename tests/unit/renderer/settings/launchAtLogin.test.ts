@@ -1,6 +1,7 @@
 // "Start with Windows" in the settings UI: the status line under the switch (General page)
 // and the one-word state in Diagnostics, for every LoginItemStatus main can report.
 import { describe, expect, it } from 'vitest';
+import { BRAND } from '../../../../src/shared/brand';
 import type { LoginItemStatus } from '../../../../src/shared/ipc';
 import { loginItemLabel, statusEntries } from '../../../../src/renderer/settings/pages/diagnostics';
 import { launchStatusView } from '../../../../src/renderer/settings/pages/general';
@@ -41,7 +42,7 @@ describe('General page: Start with Windows status line', () => {
     expect(v.text).toMatch(/Task Manager › Startup apps/);
     expect(v.text).toMatch(/never overrides/);
     // Task Manager lists the installed name until the installer names change (ADR 0004 §9).
-    expect(v.text).toBe('Disabled in Windows Startup apps. GizeCat never overrides that. To turn it back on, open Task Manager › Startup apps and enable the Desktop Cat entry.');
+    expect(v.text).toBe(`Disabled in Windows Startup apps. ${BRAND.product} never overrides that. To turn it back on, open Task Manager › Startup apps and enable the ${BRAND.installedName} entry.`);
   });
 
   it('an entry approved again in Startup apps while the app runs reads as on, as Diagnostics says (startup#0)', () => {

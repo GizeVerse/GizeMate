@@ -44,16 +44,33 @@ describe('render state validation', () => {
       42,
       { ...valid, x: Number.NaN },
       { ...valid, facing: 0 },
-      { ...valid, clip: 'dance' },
       { ...valid, state: 'flying' },
-      { ...valid, skin: 'zebra' },
       { ...valid, style: 'oil' },
       { ...valid, emote: 'wave' },
       { ...valid, look: { x: 1 } },
       { ...valid, scale: 0 },
       { ...valid, visible: 'yes' },
+      { ...valid, clip: 42 },
+      { ...valid, skin: 7 },
     ];
     for (const b of bad) expect(isRenderState(b), JSON.stringify(b)).toBe(false);
+  });
+
+  it('tolerates an unknown clip, skin or character from a newer bundle instead of dropping the frame', () => {
+    const clip = { ...valid, clip: 'notAClip' } as Record<string, unknown>;
+    expect(isRenderState(clip)).toBe(true);
+    expect(clip.clip).toBe('stand');
+    const skin = { ...valid, skin: 'zebra' } as Record<string, unknown>;
+    expect(isRenderState(skin)).toBe(true);
+    expect(skin.skin).toBe('ginger');
+    const who = { ...valid, character: 'dragon', skin: 'zebra' } as Record<string, unknown>;
+    expect(isRenderState(who)).toBe(true);
+    expect(who.character).toBe('cat');
+    expect(who.skin).toBe('ginger');
+    // A known non-cat character keeps its own free-string palette id.
+    const fox = { ...valid, character: 'fox', skin: 'arctic' } as Record<string, unknown>;
+    expect(isRenderState(fox)).toBe(true);
+    expect(fox).toMatchObject({ character: 'fox', skin: 'arctic' });
   });
 
   it('validates overlay config', () => {

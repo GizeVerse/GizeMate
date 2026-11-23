@@ -1,6 +1,6 @@
 # Third-party notices
 
-Desktop Cat is MIT-licensed (see `LICENSE`). It ships or bundles the following third-party software.
+GizeCat (formerly Desktop Cat) is MIT-licensed (see `LICENSE`). It ships or bundles the following third-party software.
 
 ## Shipped in the installer
 
@@ -10,11 +10,14 @@ Desktop Cat is MIT-licensed (see `LICENSE`). It ships or bundles the following t
 | Chromium and its dependencies | 152 (via Electron) | BSD-3-Clause and others | `LICENSES.chromium.html` in the install folder |
 | Node.js (via Electron) | 24.22 | MIT and others | included in Electron's notices |
 | koffi | 3.3.4 | MIT, © Niels Martignène | native FFI module, `resources/app.asar.unpacked/node_modules/koffi` |
-| @koromix/koffi-win32-x64 | 3.3.4 | MIT, © Niels Martignène | prebuilt koffi binary |
+| @koromix/koffi-win32-x64 | 3.3.4 | MIT, © Niels Martignène | prebuilt koffi binary (x64 installer only) |
+| @koromix/koffi-win32-arm64 | 3.3.4 | MIT, © Niels Martignène | prebuilt koffi binary (ARM64 installer only, 1.4.0) |
 | node-addon-api (vendored in koffi) | as bundled by koffi 3.3.4 | MIT, © Node.js API collaborators | `node_modules/koffi/vendor/node-addon-api` |
 | node-api-headers (vendored in koffi) | as bundled by koffi 3.3.4 | MIT, © Node.js | `node_modules/koffi/vendor/node-api-headers` |
 
 The UI Automation helper `resources\native\DesktopCatUia.exe` (v1.1) is original code from `native/uia-helper/`, compiled with the .NET Framework C# compiler. It uses the .NET Framework and its UI Automation assemblies (`UIAutomationClient`, `UIAutomationTypes`, `WindowsBase`) that are part of Windows; none of them are redistributed.
+
+The macOS packages (1.4.0) contain Electron, Chromium and Node.js as above, and no koffi.
 
 ## Bundled into the application JavaScript
 
@@ -24,13 +27,13 @@ The UI Automation helper `resources\native\DesktopCatUia.exe` (v1.1) is original
 
 ## Build and test tools (not shipped)
 
-electron-builder 26.18.1 (MIT), esbuild 0.28.2 (MIT), TypeScript 6.0.3 (Apache-2.0), Vitest 5.0.5 (MIT), Playwright 1.64.1 (Apache-2.0), ESLint 10.13.0 (MIT), typescript-eslint 8.72.1 (MIT), @electron/fuses 2.1.3 (MIT). NSIS (zlib/libpng license) is downloaded by electron-builder to build the installer and its stub is part of the installer executable.
+electron-builder 26.18.1 (MIT), esbuild 0.28.2 (MIT), TypeScript 6.0.3 (Apache-2.0), Vitest 5.0.5 (MIT), Playwright 1.64.1 (Apache-2.0), ESLint 10.13.0 (MIT), typescript-eslint 8.72.1 (MIT), @electron/fuses 2.1.3 (MIT). NSIS (zlib/libpng license) is downloaded by electron-builder to build the installer and its stub is part of the installer executable. rcodesign 0.29.0 (apple-codesign, MPL-2.0) re-signs the ad-hoc macOS zips and is not part of them.
 
 ## Artwork, icons and sounds
 
 All cat artwork, animations, emotes and icons are original and drawn procedurally in code (`src/renderer/overlay/cat/`, `scripts/gen-icons.cjs`). No third-party art, sprites, fonts or sounds are included. The research references studied (Pixel-Pet, pixelpets, mochi-llm-pet, deskcat, desktop-pet-cat) were used for ideas only; no code or assets were copied (see `docs/research/reference-pets.md`).
 
-The settings window uses the Windows system fonts (Segoe UI Variable, Segoe Fluent Icons / MDL2 Assets) installed with Windows; no font files are bundled.
+The settings window uses the Windows system fonts (Segoe UI Variable, Segoe Fluent Icons / MDL2 Assets) installed with Windows. Off Windows it uses the system's own fonts and plain Unicode symbols. No font files are bundled.
 
 ## License texts
 
@@ -64,9 +67,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### koffi 3.3.4 and @koromix/koffi-win32-x64 3.3.4
+### koffi 3.3.4, @koromix/koffi-win32-x64 3.3.4 and @koromix/koffi-win32-arm64 3.3.4
 
-Shipped as a module. Copied from `node_modules/koffi/LICENSE.txt`. The installed `@koromix/koffi-win32-x64` package contains no license file of its own; its `package.json` declares the MIT license and the same author as koffi.
+Shipped as a module; each Windows installer carries koffi and the one platform package for its architecture. Copied from `node_modules/koffi/LICENSE.txt`. Neither `@koromix/koffi-win32-x64` nor `@koromix/koffi-win32-arm64` contains a license file of its own; each `package.json` declares the MIT license and the same author as koffi.
 
 ```text
 MIT License
@@ -136,3 +139,35 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Android app
+
+The Android app (`android/`, 1.4.0) wraps the same web bundle in a native WebView, so it includes zod (see above). Its APK and AAB also contain the libraries below, from Google Maven and Maven Central. The list is the resolved runtime classpath of the Gradle build: `androidx.webkit` and `androidx.core` are the only direct dependencies, and the rest are transitive. R8 removes the code the app does not use. All of them are licensed under the Apache License 2.0 (<https://www.apache.org/licenses/LICENSE-2.0>).
+
+| Component | Version | License |
+|---|---|---|
+| androidx.webkit:webkit | 1.14.0 | Apache-2.0, © The Android Open Source Project |
+| androidx.core:core | 1.17.0 | Apache-2.0, © The Android Open Source Project |
+| androidx.core:core-viewtree | 1.0.0 | Apache-2.0, © The Android Open Source Project |
+| androidx.annotation:annotation-jvm | 1.8.1 | Apache-2.0, © The Android Open Source Project |
+| androidx.annotation:annotation-experimental | 1.4.1 | Apache-2.0, © The Android Open Source Project |
+| androidx.arch.core:core-common, core-runtime | 2.2.0 | Apache-2.0, © The Android Open Source Project |
+| androidx.collection:collection-jvm | 1.4.2 | Apache-2.0, © The Android Open Source Project |
+| androidx.concurrent:concurrent-futures | 1.1.0 | Apache-2.0, © The Android Open Source Project |
+| androidx.interpolator:interpolator | 1.0.0 | Apache-2.0, © The Android Open Source Project |
+| androidx.lifecycle:lifecycle-common, lifecycle-runtime | 2.6.2 | Apache-2.0, © The Android Open Source Project |
+| androidx.profileinstaller:profileinstaller | 1.3.0 | Apache-2.0, © The Android Open Source Project |
+| androidx.startup:startup-runtime | 1.1.1 | Apache-2.0, © The Android Open Source Project |
+| androidx.tracing:tracing | 1.2.0 | Apache-2.0, © The Android Open Source Project |
+| androidx.versionedparcelable:versionedparcelable | 1.1.1 | Apache-2.0, © The Android Open Source Project |
+| org.jetbrains.kotlin:kotlin-stdlib | 2.2.10 | Apache-2.0, © JetBrains s.r.o. and Kotlin Programming Language contributors |
+| org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm, kotlinx-coroutines-android | 1.8.1 | Apache-2.0, © JetBrains s.r.o. and contributors |
+| org.jetbrains:annotations | 23.0.0 | Apache-2.0, © JetBrains s.r.o. |
+| com.google.guava:listenablefuture | 1.0 | Apache-2.0, © The Guava Authors |
+| org.jspecify:jspecify | 1.0.0 | Apache-2.0, © The JSpecify Authors |
+
+The launcher icon is the app's own artwork: `build/icon.png`, copied unchanged to `android/app/src/main/res/drawable-nodpi/gizecat_icon.png`. Android System WebView draws the page; it is part of the device and is not redistributed.
+
+Build tools, not shipped in the APK or AAB: the Android Gradle Plugin 9.0.1 with its D8/R8 and lint (Apache-2.0), the Kotlin compiler 2.2.10 built into it (Apache-2.0), and Gradle 9.1.0 (Apache-2.0). The Gradle wrapper (`android/gradlew`, `android/gradlew.bat`, `android/gradle/wrapper/gradle-wrapper.jar`; Apache-2.0, © the original authors of Gradle) is committed in the repository, so the build can download its pinned Gradle distribution.
+
+The web app and the Android app show these notices on a page linked from Settings → About. The page is generated from this file at build time and adds the full Apache-2.0 terms.

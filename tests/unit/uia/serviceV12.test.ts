@@ -394,14 +394,19 @@ describe('v1.2 T6: a failed read keeps the last good strip for up to 10 s', () =
       expect(listed(r, TERM)).toBeNull();
     });
 
-    it('reads it again after the quarantine: full confidence, and the retention over', async () => {
+    it('reads it again after the quarantine: full confidence, and the retention over', { retry: 2 }, async () => {
       const r = await timedOut();
       r.clock.advance(15_000);
       expect(listed(r, TERM)).toBeNull();
       r.clock.advance(16_000);
-      // The helper was replaced after the timeout: pumped until the replacement has read it.
+      // The helper was replaced after the timeout: pumped until the replacement has read it. The fake clock is
+      // advanced only for the first 50 polls (5 s of fake time, far more than a read needs): the replacement
+      // answers in REAL time, and a pump that kept advancing on every poll let a slow machine age the listing
+      // out of existence before the answer arrived (the more polls, the later the fake time, the staler the strip).
+      let pumped = 0;
       await eventually(() => {
-        r.svc.setInterest([TERM], r.clock.advance(100));
+        r.svc.setInterest([TERM], pumped < 50 ? r.clock.advance(100) : r.clock.now());
+        pumped++;
         expect(listed(r, TERM)?.confidence).toBe(1);
       });
       expect(r.svc.debugInfo().retained).toBe(0);

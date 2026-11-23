@@ -1,7 +1,9 @@
 // Pure mapping from the simulation's world-space output (physical px) to the
 // per-overlay render snapshot (overlay-local DIP), and the presence test that
 // decides which overlays draw the cat.
-import type { CatRenderState } from '../../shared/cat';
+import { CAT_BASE_HEIGHT_DIP, CAT_BASE_WIDTH_DIP, type CatRenderState } from '../../shared/cat';
+import type { CharacterId, CharacterModule } from '../../shared/characters/types';
+import { MAX_PROPS, type RenderProp } from '../../shared/companion';
 import { rectIntersection, type Point, type Rect } from '../../shared/geometry';
 import type { Settings } from '../../shared/settings';
 import type { SimOutput } from '../../shared/sim';
@@ -25,6 +27,8 @@ export const BODY_MARGIN_BOTTOM_DIP = 48;
 export const EMOTE_MARGIN_TOP_DIP = 84;
 
 export type Appearance = Settings['appearance'];
+/** An appearance whose palette is a plain string: the cat's enum for the cat, the character's own palette id otherwise. */
+export type ResolvedAppearance = Omit<Appearance, 'skin'> & { readonly skin: string };
 
 export interface RenderMapContext {
   seq: number;
@@ -46,24 +50,115 @@ export interface RenderMapContext {
   soundOwner?: boolean;
   /** v1.2: settings.sound.volume, carried on the cue. */
   soundVolume?: number;
+  /**
+   * Living Companion: the target overlay's display bounds (physical px, the same space as SimOutput).
+   * With it, only the props that reach this display are sent and the laser dot goes only to the
+   * display that holds it; without it every prop is sent and the laser is passed through as given.
+   */
+  displayBoundsPx?: Rect;
+  /** Living Companion: the cursor position in world px while Laser Mode is on; null/absent = no dot. */
+  laser?: Point | null;
+  /** Living Companion: the user's reduced-motion choice, carried to the renderer (absent = not sent). */
+  reducedMotion?: boolean;
+  /** Worn accessory, the same on every display; absent = none. */
+  accessory?: 'heartPendant';
+  /** GizeMate: the active character; absent = the cat (and the snapshot then carries no `character`, as before). */
+  character?: CharacterId;
+  /** GizeMate: palette id of the active character (free string for non-cat characters); absent = appearance.skin. */
+  skin?: string;
 }
 
-/** Cat bounds plus emote/body margins, physical px. */
-export function presenceRectPx(out: SimOutput, appearance: Appearance, scaleFactor: number): Rect {
+/**
+ * How far past a prop's anchor (in px, from its nominal width) its drawing can reach: just over one
+ * size in any direction plus slack for the outline. The renderer's propsBounds pads the same.
+ */
+const propReachPx = (size: number): number => (Number.isFinite(size) ? Math.max(0, size) * 1.1 + 16 : 16);
+
+/** True when the prop's drawn extent (world px) touches `bounds`. Non-finite positions never do. */
+export function propTouchesBounds(p: RenderProp, bounds: Rect): boolean {
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+  const r = propReachPx(p.size);
+  return p.x + r >= bounds.x && p.x - r <= bounds.x + bounds.width && p.y + r >= bounds.y && p.y - r <= bounds.y + bounds.height;
+}
+
+/** Ids of displays that show at least one of the sim's props, whether or not the cat is there. */
+export function displaysShowingProps(out: SimOutput, displays: readonly DisplayGeometry[], hidden: boolean): Set<string> {
+  const ids = new Set<string>();
+  if (hidden || !out.props || out.props.length === 0) return ids;
+  for (const d of displays) {
+    for (let i = 0; i < out.props.length && i < MAX_PROPS; i++) {
+      if (propTouchesBounds(out.props[i]!, d.workAreaPx)) {
+        ids.add(d.id);
+        break;
+      }
+    }
+  }
+  return ids;
+}
+
+/** The props for one overlay: world px to overlay-local DIP (sizes divide by the scale factor), at most MAX_PROPS. */
+export function mapProps(props: readonly RenderProp[], ctx: Pick<RenderMapContext, 'toLocalDip' | 'scaleFactor' | 'displayBoundsPx'>): RenderProp[] {
+  const sf = ctx.scaleFactor > 0 ? ctx.scaleFactor : 1;
+  const out: RenderProp[] = [];
+  for (let i = 0; i < props.length && out.length < MAX_PROPS; i++) {
+    const p = props[i]!;
+    if (ctx.displayBoundsPx && !propTouchesBounds(p, ctx.displayBoundsPx)) continue;
+    const at = ctx.toLocalDip({ x: p.x, y: p.y });
+    if (!Number.isFinite(at.x) || !Number.isFinite(at.y)) continue;
+    out.push({ id: p.id, kind: p.kind, x: at.x, y: at.y, size: finiteOr(p.size / sf, 0), dir: p.dir, alpha: clamp01(p.alpha), p: clamp01(p.p), rot: finiteOr(p.rot, 0), variant: p.variant });
+  }
+  return out;
+}
+
+/** The laser dot in this overlay's local DIP, or null when it is off, broken, or on another display. */
+export function mapLaser(laser: Point | null | undefined, ctx: Pick<RenderMapContext, 'toLocalDip' | 'displayBoundsPx'>): Point | null {
+  if (!laser || !Number.isFinite(laser.x) || !Number.isFinite(laser.y)) return null;
+  const b = ctx.displayBoundsPx;
+  if (b && !(laser.x >= b.x && laser.x < b.x + b.width && laser.y >= b.y && laser.y < b.y + b.height)) return null;
+  const at = ctx.toLocalDip(laser);
+  return Number.isFinite(at.x) && Number.isFinite(at.y) ? { x: at.x, y: at.y } : null;
+}
+
+/** Presence margins around a body, DIP at size 1.0. */
+export interface BodyMargins {
+  readonly sideDip: number;
+  readonly topDip: number;
+  readonly bottomDip: number;
+}
+
+/** The cat's margins: the shipped BODY_MARGIN_* (the default of presenceRectPx). */
+export const CAT_BODY_MARGINS: BodyMargins = { sideDip: BODY_MARGIN_SIDE_DIP, topDip: BODY_MARGIN_TOP_DIP, bottomDip: BODY_MARGIN_BOTTOM_DIP };
+
+/**
+ * Presence margins around a body (DIP at size 1.0): the cat's are exactly the shipped BODY_MARGIN_*;
+ * a larger body widens them in proportion, a smaller one never goes below the cat's (the margin also
+ * holds shadows, tails, emotes and flight poses).
+ */
+export function bodyMargins(module: Pick<CharacterModule, 'body'>): BodyMargins {
+  const w = Math.max(1, module.body.widthDip / CAT_BASE_WIDTH_DIP);
+  const h = Math.max(1, module.body.heightDip / CAT_BASE_HEIGHT_DIP);
+  return { sideDip: Math.round(BODY_MARGIN_SIDE_DIP * w), topDip: Math.round(BODY_MARGIN_TOP_DIP * h), bottomDip: Math.round(BODY_MARGIN_BOTTOM_DIP * h) };
+}
+
+/**
+ * Body bounds plus emote/body margins, physical px. `margins` come from the active character's body
+ * (characterIdentity.bodyMargins); absent = the cat's. With emotes on, the top margin is at least the emote margin.
+ */
+export function presenceRectPx(out: SimOutput, appearance: Pick<Appearance, 'size' | 'emotes'>, scaleFactor: number, margins: BodyMargins = CAT_BODY_MARGINS): Rect {
   const k = appearance.size * scaleFactor;
-  const top = (appearance.emotes ? EMOTE_MARGIN_TOP_DIP : BODY_MARGIN_TOP_DIP) * k;
-  const side = BODY_MARGIN_SIDE_DIP * k;
-  const bottom = BODY_MARGIN_BOTTOM_DIP * k;
+  const top = (appearance.emotes ? Math.max(EMOTE_MARGIN_TOP_DIP, margins.topDip + (EMOTE_MARGIN_TOP_DIP - BODY_MARGIN_TOP_DIP)) : margins.topDip) * k;
+  const side = margins.sideDip * k;
+  const bottom = margins.bottomDip * k;
   const b = out.boundsPx;
   return { x: b.x - side, y: b.y - top, width: b.width + side * 2, height: b.height + top + bottom };
 }
 
 /** Ids of displays whose overlay must draw the cat this tick. */
-export function displaysShowingCat(out: SimOutput, displays: readonly DisplayGeometry[], appearance: Appearance, hidden: boolean): Set<string> {
+export function displaysShowingCat(out: SimOutput, displays: readonly DisplayGeometry[], appearance: Pick<Appearance, 'size' | 'emotes'>, hidden: boolean, margins?: BodyMargins): Set<string> {
   const ids = new Set<string>();
   if (hidden || !out.visible) return ids;
   for (const d of displays) {
-    if (rectIntersection(presenceRectPx(out, appearance, d.scaleFactor), d.workAreaPx)) ids.add(d.id);
+    if (rectIntersection(presenceRectPx(out, appearance, d.scaleFactor, margins), d.workAreaPx)) ids.add(d.id);
   }
   return ids;
 }
@@ -71,7 +166,7 @@ export function displaysShowingCat(out: SimOutput, displays: readonly DisplayGeo
 const clamp01 = (v: number): number => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
 const finiteOr = (v: number, d: number): number => (Number.isFinite(v) ? v : d);
 
-export function mapRenderState(out: SimOutput, appearance: Appearance, ctx: RenderMapContext): CatRenderState {
+export function mapRenderState(out: SimOutput, appearance: ResolvedAppearance, ctx: RenderMapContext): CatRenderState {
   const anchor = ctx.toLocalDip({ x: out.x, y: out.y });
   const look = out.look ? ctx.toLocalDip(out.look) : null;
   const sf = ctx.scaleFactor > 0 ? ctx.scaleFactor : 1;
@@ -96,7 +191,7 @@ export function mapRenderState(out: SimOutput, appearance: Appearance, ctx: Rend
     // The simulation's opacity already includes appearance.opacity (times its fade).
     opacity: clamp01(out.opacity),
     visible: out.visible && !ctx.hidden,
-    skin: appearance.skin,
+    skin: ctx.skin !== undefined && ctx.skin.length > 0 ? ctx.skin : appearance.skin,
     style: appearance.style,
     shadow: appearance.shadow,
     animSpeed: appearance.animationSpeed,
@@ -109,10 +204,28 @@ export function mapRenderState(out: SimOutput, appearance: Appearance, ctx: Rend
     ...(ctx.soundOwner === true && out.sound
       ? { sound: { kind: out.sound.kind, at: out.sound.at, ...(ctx.soundVolume !== undefined && Number.isFinite(ctx.soundVolume) ? { volume: clamp01(ctx.soundVolume) } : {}) } }
       : {}),
+    // Living Companion: only the fields the sim/host gave, so a snapshot without them is unchanged.
+    ...(out.props !== undefined ? { props: mapProps(out.props, ctx) } : {}),
+    ...(out.mood !== undefined ? { mood: out.mood } : {}),
+    ...(out.sleepDepth !== undefined && Number.isFinite(out.sleepDepth) ? { sleepDepth: clamp01(out.sleepDepth) } : {}),
+    ...(ctx.laser !== undefined ? { laser: mapLaser(ctx.laser, ctx) } : {}),
+    ...(ctx.reducedMotion !== undefined ? { reducedMotion: ctx.reducedMotion === true } : {}),
+    ...(ctx.accessory !== undefined ? { accessory: ctx.accessory } : {}),
+    ...(ctx.character !== undefined && ctx.character !== 'cat' ? { character: ctx.character } : {}),
   };
 }
 
 /** Final "nothing to draw" frame for an overlay the cat just left. */
 export function hiddenRenderState(previous: CatRenderState, seq: number, simNow: number): CatRenderState {
-  return { ...previous, seq, t: simNow, visible: false, emote: null, snap: true };
+  // Props and the laser dot go with the cat: the overlay draws nothing and keeps no residue.
+  return {
+    ...previous,
+    seq,
+    t: simNow,
+    visible: false,
+    emote: null,
+    snap: true,
+    ...(previous.props !== undefined ? { props: [] } : {}),
+    ...(previous.laser !== undefined ? { laser: null } : {}),
+  };
 }

@@ -13,7 +13,7 @@ import path from 'node:path';
 const winPath = path.win32;
 import { BRAND } from '../../shared/brand';
 import { IDENTITY } from '../../shared/identity';
-import type { ActionResult, LoginItemStatus } from '../../shared/ipc';
+import type { ActionResult, LoginCode, LoginItemStatus } from '../../shared/ipc';
 import type { Logger } from '../contracts';
 import type { JsonReadStatus } from '../store/jsonStore';
 import type { SettingsStore } from '../store/settingsStore';
@@ -131,6 +131,17 @@ const MESSAGES: Record<UserChoiceOutcome, (on: boolean) => string> = {
     `Saved. Windows Startup apps has ${ENTRY} disabled, and ${PRODUCT} does not override that. The entry is listed in Task Manager › Startup apps again: enable it there to start ${PRODUCT} when you sign in.`,
 };
 const WRITE_FAILED = 'Windows did not accept the startup change; details are in the log.';
+const SAVE_FAILED = 'Could not save the setting; details are in the log.';
+/** The wording code of each user-choice outcome (the window words it in its language). */
+const OUTCOME_CODE: Record<UserChoiceOutcome, (on: boolean) => LoginCode> = {
+  unchanged: (on) => (on ? 'startsOn' : 'startsOff'),
+  registered: () => 'startsOn',
+  'opted-out': () => 'startsOff',
+  'not-writable': () => 'notWritable',
+  'registry-unreadable': () => 'registryUnreadable',
+  'windows-disabled': () => 'windowsDisabledSaved',
+  'windows-disabled-restored': () => 'windowsDisabledRestored',
+};
 
 const TRUSTED_LOADS: ReadonlySet<JsonReadStatus> = new Set(['ok', 'missing', 'recovered-backup']);
 
@@ -280,16 +291,16 @@ export function createLoginItemService(opts: LoginItemServiceOptions): LoginItem
       const state = readState(true);
       const r = applyUserChoice(on, state, li, writeTarget);
       const ok = performPlanned(r.write, r.fallback);
-      if (!persist(ok ? r.next : r.nextIfWriteFails)) return { ok: false, message: 'Could not save the setting; details are in the log.' };
+      if (!persist(ok ? r.next : r.nextIfWriteFails)) return { ok: false, message: SAVE_FAILED, code: 'saveFailed' };
       // An explicit choice supersedes a pending reinstall marker: a later missing entry is the user's or another tool's doing.
       if (gate.writable && exists(markerPath)) consumeMarker();
       log.info('launch at sign-in changed by the user', { on, outcome: r.outcome, write: r.write, ok });
-      return ok ? { ok: true, message: MESSAGES[r.outcome](on) } : { ok: false, message: WRITE_FAILED };
+      return ok ? { ok: true, message: MESSAGES[r.outcome](on), code: OUTCOME_CODE[r.outcome](on) } : { ok: false, message: WRITE_FAILED, code: 'writeFailed' };
     },
     dismissNotice() {
       const li = opts.settings.get().loginItem;
       if (li.noticeShown) return { ok: true };
-      return persist({ ...li, noticeShown: true }) ? { ok: true } : { ok: false, message: 'Could not save the setting; details are in the log.' };
+      return persist({ ...li, noticeShown: true }) ? { ok: true } : { ok: false, message: SAVE_FAILED, code: 'saveFailed' };
     },
     debugInfo() {
       const registered = opts.settings.get().loginItem.registeredPath;

@@ -20,6 +20,10 @@ export interface WebTestSources {
   catSource: CatSource;
   catId: () => string;
   suspended: () => boolean;
+  /** 1.4.0: the settings sheet is open (the cat takes no pointer then). */
+  sheetOpen?: () => boolean;
+  /** The router's own hit test (toolbar excluded, as main.ts wires it). Falls back to the overlay's alone. */
+  routerHitTest?: (p: { x: number; y: number }, hovering: boolean) => boolean;
 }
 
 export interface WebTestState {
@@ -35,6 +39,7 @@ export interface WebTestState {
   hidden: boolean;
   paused: boolean;
   suspended: boolean;
+  sheetOpen: boolean;
   ticks: number;
   timeScale: number;
   reaction: { kind: string; at: number } | null;
@@ -82,6 +87,7 @@ export function installTestHook(target: object, src: WebTestSources): WebTestRec
         hidden: src.host.hidden,
         paused: src.host.paused,
         suspended: src.suspended(),
+        sheetOpen: src.sheetOpen?.() ?? false,
         ticks: src.host.debug().ticks,
         timeScale: src.host.timeScale,
         reaction: out?.reaction ? { kind: out.reaction.kind, at: out.reaction.at } : null,
@@ -96,7 +102,8 @@ export function installTestHook(target: object, src: WebTestSources): WebTestRec
       if (typeof scale === 'number' && Number.isFinite(scale)) src.host.setTimeScale(scale);
     },
     catAt(x: number, y: number): boolean {
-      return src.overlays.hitTest({ x: Number(x), y: Number(y) }, false);
+      const p = { x: Number(x), y: Number(y) };
+      return src.routerHitTest ? src.routerHitTest(p, false) : src.overlays.hitTest(p, false);
     },
   });
   Object.defineProperty(target, '__gizecatWebTest', { value: hook, writable: false, enumerable: false, configurable: false });

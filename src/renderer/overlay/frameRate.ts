@@ -2,12 +2,19 @@
 // while something moves fast; a calm cat is drawn at ~30 fps and a sleeping, still one
 // at ~20 fps. Every animation is time-based (clip phases from the sim clock, layers and
 // the tail from the frame's dt), so fewer frames never change a motion's speed.
-import type { AnimClip, BehaviorState } from '../../shared/cat';
+import { ANIM_CLIPS, type AnimClip, type BehaviorState } from '../../shared/cat';
+import { CLIP_META } from '../../shared/animationCatalog';
 
 /** Minimum time between drawn frames: 0 draws on every display frame. */
 export const FULL_RATE_MS = 0;
 export const CALM_FRAME_MS = 1000 / 30;
 export const QUIET_FRAME_MS = 50;
+/**
+ * A deeply sleeping cat only breathes, very slowly (the animator's period is ~5.7 s): its quiet rate
+ * falls from QUIET_FRAME_MS (sleepDepth 0) to this (sleepDepth 1). Kept under the animator's
+ * 100 ms layer-dt cap so the slower frames never slow the breathing down.
+ */
+export const DEEP_QUIET_FRAME_MS = 90;
 /** rAF timestamps jitter: a frame this close to its due time is drawn. */
 export const FRAME_SLACK_MS = 4;
 /** Full rate is kept this long after the last fast motion, so short pauses do not flip the rate. */
@@ -20,7 +27,7 @@ export const FAST_HOLD_MS = 300;
 export const FAST_POSE_DIP_S = 140;
 
 /** Locomotion, airborne, held and other quick clips are always drawn at full rate. */
-const FULL_RATE_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>([
+const CAT_FULL_RATE_CLIPS: readonly AnimClip[] = [
   'walk',
   'run',
   'crouch',
@@ -43,7 +50,41 @@ const FULL_RATE_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>([
   'swat',
   'hiss',
   'tailChase',
+  // Living Companion: the shake-off and the ~7.5 Hz scratch are too quick for the calm rate.
+  'scratch',
+  'shake',
+];
+
+/**
+ * GizeMate performance clips that are not calm. A loop with a pendulum swing or a dance moves its body
+ * faster than the calm rate shows, in place, so the pose-speed heuristic (tuned to the cat) can sit
+ * either side of its threshold and flip the rate. 'float', 'scan' and 'peek' are slow loops and stay
+ * calm (a ghost or alien that merely floats must not cost full rate forever).
+ */
+const LIVELY_LOOP_CLIPS: readonly AnimClip[] = ['swing', 'dance'];
+
+/**
+ * Derived from the catalogue so a character's clips need no hard-coded list: a looping clip that is
+ * both locomotion and play (hop, bounce, stalk) and a non-interruptible one-shot of priority >= 2
+ * (vanish, appear, squish, beam, plus the cat's startle/hiss/swat/shake/impact) change the pose faster
+ * than 30 fps shows well. For the cat's own clips this adds nothing to CAT_FULL_RATE_CLIPS.
+ */
+function derivedFullRate(clip: AnimClip): boolean {
+  const m = CLIP_META[clip];
+  if (m.loop) return m.tags.includes('locomotion') && m.tags.includes('play');
+  return !m.interruptible && m.priority >= 2;
+}
+
+const FULL_RATE_CLIPS: ReadonlySet<AnimClip> = new Set<AnimClip>([
+  ...CAT_FULL_RATE_CLIPS,
+  ...LIVELY_LOOP_CLIPS,
+  ...ANIM_CLIPS.filter(derivedFullRate),
 ]);
+
+/** Does this clip always draw at the full display rate? (exported for the pacing tests) */
+export function isFullRateClip(clip: AnimClip): boolean {
+  return FULL_RATE_CLIPS.has(clip);
+}
 const FULL_RATE_STATES: ReadonlySet<BehaviorState> = new Set<BehaviorState>(['held', 'jumping', 'falling', 'landing']);
 
 export interface FrameMotion {
@@ -61,6 +102,14 @@ export interface FrameMotion {
   poseSpeed: number;
   /** Asleep and still except for breathing. */
   quiet: boolean;
+  /** Living Companion: 0..1 sleep depth of the snapshot; absent = 0 (today's quiet rate). */
+  sleepDepth?: number;
+}
+
+/** The quiet frame interval for a sleep depth (0..1; anything else counts as 0). */
+export function quietIntervalMs(sleepDepth: number | undefined): number {
+  const d = sleepDepth !== undefined && Number.isFinite(sleepDepth) ? Math.min(1, Math.max(0, sleepDepth)) : 0;
+  return QUIET_FRAME_MS + (DEEP_QUIET_FRAME_MS - QUIET_FRAME_MS) * d;
 }
 
 export function isFastMotion(m: FrameMotion): boolean {
@@ -72,7 +121,7 @@ export function isFastMotion(m: FrameMotion): boolean {
 /** Minimum frame interval (ms) for the motion, given the time since motion was last fast. */
 export function frameIntervalMs(m: FrameMotion, sinceFastMs: number): number {
   if (isFastMotion(m) || sinceFastMs < FAST_HOLD_MS) return FULL_RATE_MS;
-  return m.quiet ? QUIET_FRAME_MS : CALM_FRAME_MS;
+  return m.quiet ? quietIntervalMs(m.sleepDepth) : CALM_FRAME_MS;
 }
 
 /**

@@ -5,6 +5,7 @@ import type { BehaviorState } from '../../../../src/shared/cat';
 import type { SimEvent } from '../../../../src/shared/sim';
 import type { WindowInfo } from '../../../../src/shared/world';
 import { display, Harness, stripId, tabStrip, taskbar, taskbarId, world } from './fixtures';
+import { slow } from '../../../helpers/slowTimeout';
 
 const fg: WindowInfo = { id: 'w1', rect: { x: 300, y: 300, width: 900, height: 500 }, processName: 'code.exe', category: 'code', minimized: false, maximized: false, fullscreen: false, excluded: false };
 const CALM: ReadonlySet<BehaviorState> = new Set(['resting', 'watchingUser', 'idle', 'grooming', 'sleeping', 'fallingAsleep', 'wakingUp', 'watchingCursor', 'curious', 'inspectingWindow', 'beingPetted']);
@@ -49,7 +50,7 @@ describe('behaviour mix over a working session', () => {
     expect(perHour).toBeLessThan(400);
     // Several 2 sim-hour runs: a hang guard that survives a loaded shared machine, not an assertion
     // (124 s and 60+ s against the default 60 s in two loaded verify runs on 2026-11-07).
-  }, 180_000);
+  }, slow(180_000));
 });
 
 describe('behaviour mix with v1.1 surfaces (default settings)', () => {
@@ -144,7 +145,7 @@ describe('behaviour mix with v1.1 surfaces (default settings)', () => {
     expect(perHour(taskbarReactions)).toBeLessThanOrEqual(perHour(taskbarShows) * 0.5);
     expect(perHour(tabReactions)).toBeLessThanOrEqual(10);
     expect(perHour(jumps)).toBeLessThan(120);
-  }, 300_000);
+  }, slow(300_000));
 });
 
 /** Stimulus transitions on ticks at which an event matching `pred` was delivered (recorded by the harness hook). */
